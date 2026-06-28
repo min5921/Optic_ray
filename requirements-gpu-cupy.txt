@@ -1,0 +1,5 @@
+# Choose the package matching your CUDA version.
+# For CUDA 12.x:
+cupy-cuda12x
+# For CUDA 13.x, use instead:
+# cupy-cuda13x
