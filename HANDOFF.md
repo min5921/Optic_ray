@@ -6,9 +6,9 @@ Last updated: 2026-06-28 (Asia/Seoul)
 
 - The coherent FMCW LiDAR design documents have been imported into the project root.
 - Multi-computer Git, Codex, line-ending, secret, and generated-output conventions are configured.
+- GitHub remote `origin` is connected to `https://github.com/min5921/Optic_ray.git`, and `main` is synchronized.
 - No simulator source code has been implemented yet.
 - The active implementation target is Phase 1: FMCW single-target CPU reference.
-- A private Git remote is not connected yet.
 - The Python virtual environment and dependencies have not been installed or verified yet.
 
 ## Decisions to Preserve
@@ -20,12 +20,13 @@ Last updated: 2026-06-28 (Asia/Seoul)
 
 ## Best Next Action
 
-Connect this local repository to a private GitHub or GitLab remote and push the initial commit. Then implement only Phase 1 from `TASKS.md`.
+Create the local Python virtual environment, install the base dependencies, and then implement only Phase 1 from `TASKS.md`.
 
 ## Verification
 
 - Documentation structure reviewed.
 - Git safety files and multi-computer workflow added.
+- Local `main` is configured to track `origin/main` on GitHub.
 - Simulator tests: not available yet because Phase 1 has not been implemented.
 
 ## Session Update Template
