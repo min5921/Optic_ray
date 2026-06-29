@@ -37,3 +37,7 @@ Thumbs.db
 Desktop.ini
 /.codex/
 /.agents/
+
+# FreeCAD backup and recovery files (keep the primary .FCStd files)
+*.FCStd[0-9]*
+*.FCBak

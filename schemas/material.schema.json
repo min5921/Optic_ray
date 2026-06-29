@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://optic-ray.local/schemas/material.schema.json",
+  "title": "Optic Ray Material Record",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "id", "material_type", "model_level", "optical", "provenance"],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "id": { "$ref": "common.schema.json#/$defs/identifier" },
+    "material_type": { "enum": ["surface_reflection", "transparent", "retroreflective", "measured_bsdf"] },
+    "model_level": { "enum": ["ideal", "parametric", "measured"] },
+    "optical": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["model", "wavelength_m"],
+      "properties": {
+        "model": { "type": "string" },
+        "wavelength_m": { "$ref": "common.schema.json#/$defs/quantity" },
+        "hemispherical_reflectivity": { "type": "number", "minimum": 0.0, "maximum": 1.0 },
+        "transmission": { "type": "number", "minimum": 0.0, "maximum": 1.0 },
+        "data_file": { "type": "string" }
+      }
+    },
+    "provenance": { "$ref": "common.schema.json#/$defs/provenance" },
+    "notes": { "type": ["string", "null"] }
+  }
+}

@@ -1,0 +1,34 @@
+schema_version: 1
+project_id: optic_ray_default
+description: Default project containing the initial relative-design baseline and comparison experiment.
+
+catalog_paths:
+  - ../catalog/components
+  - ../catalog/materials
+
+asset_paths:
+  - ../assets/meshes
+  - ../assets/source/freecad
+
+measurement_paths:
+  - ../assets/measurements
+
+scenarios:
+  - baseline_1550nm.yaml
+
+experiments:
+  - experiments/component_swap.example.yaml
+
+active_baseline: baseline_1550nm
+result_root: ../results
+
+display_units:
+  wavelength: nm
+  length: mm
+  angle: deg
+  power: mW
+  frequency: Hz
+
+ui:
+  language: ko
+  autosave_drafts: true

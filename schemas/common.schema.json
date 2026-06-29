@@ -1,0 +1,91 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://optic-ray.local/schemas/common.schema.json",
+  "title": "Optic Ray Common Types",
+  "$defs": {
+    "identifier": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+    },
+    "quantity": {
+      "description": "A number in canonical SI units or a unit-bearing string such as '1550 nm'.",
+      "oneOf": [
+        { "type": "number" },
+        {
+          "type": "string",
+          "pattern": "^[-+0-9.eE]+\\s*[A-Za-zµ°/²0-9._-]+$"
+        }
+      ]
+    },
+    "vec2": {
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 2,
+      "items": {
+        "oneOf": [
+          { "type": "number" },
+          { "type": "string", "minLength": 2 }
+        ]
+      }
+    },
+    "vec3": {
+      "type": "array",
+      "minItems": 3,
+      "maxItems": 3,
+      "items": {
+        "oneOf": [
+          { "type": "number" },
+          { "type": "string", "minLength": 2 }
+        ]
+      }
+    },
+    "quaternion": {
+      "type": "array",
+      "minItems": 4,
+      "maxItems": 4,
+      "items": { "type": "number" }
+    },
+    "absolutePlacement": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mode", "translation_m"],
+      "properties": {
+        "mode": { "const": "absolute" },
+        "parent_frame": { "type": "string", "default": "world" },
+        "translation_m": { "$ref": "#/$defs/vec3" },
+        "quaternion_wxyz": { "$ref": "#/$defs/quaternion" }
+      }
+    },
+    "portPlacement": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mode", "connect_from", "connect_to"],
+      "properties": {
+        "mode": { "const": "port" },
+        "connect_from": { "type": "string", "minLength": 3 },
+        "connect_to": { "type": "string", "minLength": 3 },
+        "axial_gap_m": { "$ref": "#/$defs/quantity" },
+        "transverse_offset_m": { "$ref": "#/$defs/vec2" },
+        "clocking_rad": { "$ref": "#/$defs/quantity" },
+        "angular_misalignment_rad": { "$ref": "#/$defs/vec2" }
+      }
+    },
+    "placement": {
+      "oneOf": [
+        { "$ref": "#/$defs/absolutePlacement" },
+        { "$ref": "#/$defs/portPlacement" }
+      ]
+    },
+    "provenance": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "type": { "type": "string" },
+        "source": { "type": ["string", "null"] },
+        "source_url": { "type": ["string", "null"] },
+        "downloaded_at": { "type": ["string", "null"] },
+        "file_sha256": { "type": ["string", "null"] }
+      }
+    }
+  }
+}

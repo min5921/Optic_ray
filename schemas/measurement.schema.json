@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://optic-ray.local/schemas/measurement.schema.json",
+  "title": "Optic Ray Measurement Metadata",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "measurement_id", "measurement_type", "dataset_role", "data_file", "conditions", "instrument", "uncertainty", "coordinate_frame", "units"],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "measurement_id": { "$ref": "common.schema.json#/$defs/identifier" },
+    "measurement_type": { "enum": ["source_beam_profile", "component_transmission", "scanner_calibration", "material_brdf", "receiver_response", "detector_calibration"] },
+    "dataset_role": { "enum": ["calibration", "validation", "monitoring", "reference"] },
+    "data_file": { "type": "string", "minLength": 1 },
+    "conditions": { "type": "object", "additionalProperties": true },
+    "instrument": { "type": "object", "additionalProperties": true },
+    "uncertainty": { "type": "object", "additionalProperties": true },
+    "coordinate_frame": { "type": "string", "minLength": 1 },
+    "units": { "type": "object", "additionalProperties": { "type": "string" } },
+    "acquired_at": { "type": ["string", "null"] },
+    "operator": { "type": ["string", "null"] },
+    "processing": { "type": "array", "items": { "type": "string" } },
+    "source_hash": { "type": ["string", "null"] },
+    "notes": { "type": ["string", "null"] }
+  }
+}

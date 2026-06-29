@@ -1,0 +1,30 @@
+# Copy next to a measurement data file and replace all example/null values.
+schema_version: 1
+measurement_id: lab:example_measurement
+measurement_type: source_beam_profile
+dataset_role: reference  # calibration | validation | monitoring | reference
+data_file: example.csv
+
+conditions:
+  wavelength: 1550 nm
+  temperature: 23 degC
+  distance: 1 m
+
+instrument:
+  manufacturer: null
+  model: null
+  serial_number: null
+  calibration_date: null
+
+uncertainty:
+  type: standard
+  value: null
+  confidence: null
+
+coordinate_frame: measurement_frame
+units: {}
+acquired_at: null
+operator: null
+processing: []
+source_hash: null
+notes: Example metadata only.

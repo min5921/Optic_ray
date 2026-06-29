@@ -1,0 +1,62 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://optic-ray.local/schemas/project.schema.json",
+  "title": "Optic Ray Project",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "project_id", "catalog_paths", "asset_paths", "scenarios", "active_baseline"],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "project_id": { "$ref": "common.schema.json#/$defs/identifier" },
+    "description": { "type": "string" },
+    "catalog_paths": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "asset_paths": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "measurement_paths": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "scenarios": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "experiments": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "active_baseline": { "type": "string", "minLength": 1 },
+    "result_root": { "type": "string", "default": "results" },
+    "display_units": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "wavelength": { "enum": ["nm", "um", "m"] },
+        "length": { "enum": ["um", "mm", "cm", "m"] },
+        "angle": { "enum": ["deg", "rad"] },
+        "power": { "enum": ["nW", "uW", "mW", "W", "dBm"] },
+        "frequency": { "enum": ["Hz", "kHz", "MHz", "GHz"] }
+      }
+    },
+    "ui": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "language": { "enum": ["ko", "en"] },
+        "autosave_drafts": { "type": "boolean" }
+      }
+    }
+  }
+}

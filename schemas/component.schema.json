@@ -1,0 +1,94 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://optic-ray.local/schemas/component.schema.json",
+  "title": "Optic Ray Component Record",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["schema_version", "id", "component_type", "model_level", "optical", "provenance"],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "id": { "$ref": "common.schema.json#/$defs/identifier" },
+    "manufacturer": { "type": ["string", "null"] },
+    "part_number": { "type": ["string", "null"] },
+    "revision": { "type": ["string", "null"] },
+    "component_type": { "enum": ["fiber_source", "collimator", "lens", "aperture", "mirror", "scanner_mirror", "beamsplitter", "receiver_optic", "detector"] },
+    "model_level": { "enum": ["ideal", "paraxial_specification", "sequential_prescription", "vendor_blackbox", "measured_calibrated"] },
+    "optical": { "type": "object" },
+    "mechanical": { "type": "object" },
+    "ports": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "role", "origin_local_m", "propagation_axis_local", "transverse_x_local"],
+        "properties": {
+          "id": { "$ref": "common.schema.json#/$defs/identifier" },
+          "role": { "enum": ["input", "output", "bidirectional"] },
+          "origin_local_m": { "$ref": "common.schema.json#/$defs/vec3" },
+          "propagation_axis_local": { "$ref": "common.schema.json#/$defs/vec3" },
+          "transverse_x_local": { "$ref": "common.schema.json#/$defs/vec3" }
+        }
+      }
+    },
+    "tolerances": { "type": "object" },
+    "provenance": { "$ref": "common.schema.json#/$defs/provenance" },
+    "notes": { "type": ["string", "null"] }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "component_type": { "const": "fiber_source" } } },
+      "then": {
+        "properties": {
+          "optical": {
+            "type": "object",
+            "required": ["source_model", "wavelength_m", "optical_power_w"],
+            "properties": {
+              "source_model": { "type": "string" },
+              "wavelength_m": { "$ref": "common.schema.json#/$defs/quantity" },
+              "optical_power_w": { "$ref": "common.schema.json#/$defs/quantity" },
+              "mode_field_diameter_m": { "$ref": "common.schema.json#/$defs/quantity" },
+              "m2_x": { "type": "number", "minimum": 1.0 },
+              "m2_y": { "type": "number", "minimum": 1.0 }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "component_type": { "const": "collimator" } } },
+      "then": {
+        "properties": {
+          "optical": {
+            "type": "object",
+            "required": ["model", "design_wavelength_m", "effective_focal_length_m", "clear_aperture_diameter_m", "power_transmission"],
+            "properties": {
+              "model": { "type": "string" },
+              "design_wavelength_m": { "$ref": "common.schema.json#/$defs/quantity" },
+              "effective_focal_length_m": { "$ref": "common.schema.json#/$defs/quantity" },
+              "clear_aperture_diameter_m": { "$ref": "common.schema.json#/$defs/quantity" },
+              "power_transmission": { "type": "number", "minimum": 0.0, "maximum": 1.0 }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "component_type": { "const": "scanner_mirror" } } },
+      "then": {
+        "required": ["mechanical"],
+        "properties": {
+          "optical": {
+            "type": "object",
+            "required": ["surface_model", "clear_width_m", "clear_height_m", "power_reflectivity"],
+            "properties": {
+              "surface_model": { "type": "string" },
+              "clear_width_m": { "$ref": "common.schema.json#/$defs/quantity" },
+              "clear_height_m": { "$ref": "common.schema.json#/$defs/quantity" },
+              "power_reflectivity": { "type": "number", "minimum": 0.0, "maximum": 1.0 }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

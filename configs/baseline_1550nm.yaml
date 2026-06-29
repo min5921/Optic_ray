@@ -1,0 +1,95 @@
+schema_version: 1
+scenario_id: baseline_1550nm
+description: Initial analytical reference; values are not commercial-product specifications.
+
+coordinates:
+  convention: right_handed_x_forward_y_left_z_up
+  length_unit: m
+  angle_unit: rad
+
+source:
+  type: fiber_gaussian
+  wavelength_m: 1550 nm
+  optical_power_w: 10 mW
+  mode_field_diameter_m: 10 um
+  m2_x: 1.0
+  m2_y: 1.0
+  polarization: scalar_unspecified
+
+optical_assembly:
+  elements:
+    - id: source
+      component_ref: custom:baseline_fiber_source
+      placement:
+        mode: absolute
+        translation_m: [0.0, 0.0, -0.100]
+        quaternion_wxyz: [1.0, 0.0, 0.0, 0.0]
+
+    - id: collimator
+      component_ref: custom:ideal_collimator_f20
+      placement:
+        mode: port
+        connect_from: source.output
+        connect_to: collimator.input
+        axial_gap_m: 20 mm
+
+    - id: scan_mirror
+      component_ref: custom:ideal_scan_mirror_20mm
+      placement:
+        mode: absolute
+        translation_m: [0.0, 0.0, 0.0]
+        quaternion_wxyz: [1.0, 0.0, 0.0, 0.0]
+
+  optical_paths:
+    - id: transmit_main
+      elements: [source, collimator, scan_mirror]
+
+scanner:
+  element_id: scan_mirror
+  type: one_axis_flat_mirror
+  rotation_axis_world: [0.0, 1.0, 0.0]
+  mechanical_amplitude_rad: 5 deg
+  frequency_hz: 10 Hz
+  waveform: triangle
+  samples_per_line: 101
+
+scene:
+  targets:
+    - id: target_plane
+      geometry:
+        type: rectangle_plane
+        center_m: [10.0, 0.0, 0.0]
+        normal: [-1.0, 0.0, 0.0]
+        width_m: 4 m
+        height_m: 4 m
+      material_ref: custom:diffuse_gray_020
+
+receiver:
+  architecture: virtual_monostatic
+  position_m: [0.0, 0.0, 0.0]
+  direction: [1.0, 0.0, 0.0]
+  aperture_diameter_m: 25 mm
+  full_fov_rad: 25 deg
+  optical_efficiency: 0.80
+  detector_model: none
+
+simulation:
+  mode: radiometric
+  accuracy_mode: relative_design
+  backend: numpy
+  real_dtype: float64
+  random_seed: 0
+
+outputs:
+  - resolved_config
+  - run_manifest
+  - accuracy_report
+  - placement_report
+  - beam_envelope
+  - scan_path
+  - target_footprint
+  - received_aperture_power
+  - link_budget
+  - energy_ledger
+  - convergence_report
+  - layout_3d

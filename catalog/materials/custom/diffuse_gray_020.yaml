@@ -1,0 +1,16 @@
+schema_version: 1
+id: custom:diffuse_gray_020
+material_type: surface_reflection
+model_level: ideal
+
+optical:
+  model: lambertian
+  wavelength_m: 1550 nm
+  hemispherical_reflectivity: 0.20
+  transmission: 0.0
+
+provenance:
+  type: analytical_reference
+  source: docs/specs/INITIAL_BASELINE.md
+
+notes: Replace with wavelength-dependent measured or catalog material data later.

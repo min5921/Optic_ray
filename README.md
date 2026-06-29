@@ -1,12 +1,26 @@
-# Coherent FMCW LiDAR Forward Simulator
+# Custom Beam, Scanner, and Optical Return Simulator
 
-This project is a Python-based coherent FMCW LiDAR forward simulator.
+This project places catalog-backed or custom optical components in a 3D assembly and simulates user-defined point, line, and area beams passing through collimator optics and custom scanners, illuminating material-assigned targets, and returning optical power or coherent FMCW signals to a receiver.
+
+## Project Direction
+
+The active v0.2 project definition, component placement model, physical layers, outputs, development phases, validation scenarios, and open hardware decisions are maintained in [`docs/PROJECT_VISION.md`](docs/PROJECT_VISION.md).
+
+Physical conditions and component choices are configuration-driven. Open [`configs/project.yaml`](configs/project.yaml), start from [`configs/baseline_1550nm.yaml`](configs/baseline_1550nm.yaml), then change unit-bearing values such as `1550 nm` or component references directly or through an experiment such as [`configs/experiments/component_swap.example.yaml`](configs/experiments/component_swap.example.yaml).
+
+The accepted provisional defaults are documented in [`docs/specs/INITIAL_BASELINE.md`](docs/specs/INITIAL_BASELINE.md). FreeCAD/STL asset preparation is described in [`docs/specs/COORDINATES_AND_PLACEMENT.md`](docs/specs/COORDINATES_AND_PLACEMENT.md) and [`assets/README.md`](assets/README.md).
+
+For step-by-step instructions on changing wavelength, source, optical components, placement, scanner, STL geometry, materials, receiver settings, outputs, and comparison experiments, read [`docs/USER_MANUAL.md`](docs/USER_MANUAL.md).
+
+The project distinguishes `relative_design`, `absolute_radiometric`, and `coherent_fmcw` accuracy modes. JSON validation contracts are under [`schemas/`](schemas/), while measured calibration/validation data belongs under [`assets/measurements/`](assets/measurements/).
 
 ## Working Across Computers
 
 Project files are synchronized through a private Git remote. Before starting work on any computer, read `AGENTS.md` and `HANDOFF.md`; the complete setup and handoff routine is in [`docs/MULTI_PC_WORKFLOW.md`](docs/MULTI_PC_WORKFLOW.md).
 
 Machine-local environments, credentials, generated simulation results, and Codex state are intentionally excluded from version control.
+
+The imported coherent FMCW LiDAR source documents are preserved under [`docs/original/coherent-fmcw-lidar-sim-docs/`](docs/original/coherent-fmcw-lidar-sim-docs/).
 
 It combines:
 

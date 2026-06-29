@@ -1,0 +1,86 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://optic-ray.local/schemas/stl_metadata.schema.json",
+  "title": "Optic Ray STL Metadata",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "asset_id", "mesh", "role", "placement", "validation"],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "asset_id": { "$ref": "common.schema.json#/$defs/identifier" },
+    "mesh": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["file", "format", "unit_scale_m"],
+      "properties": {
+        "file": { "type": "string", "pattern": "\\.stl$" },
+        "format": { "const": "stl" },
+        "binary_preferred": { "type": "boolean" },
+        "unit_scale_m": { "type": "number", "exclusiveMinimum": 0.0 }
+      }
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "application": { "type": ["string", "null"] },
+        "file": { "type": ["string", "null"] },
+        "revision": { "type": ["string", "null"] },
+        "content_sha256": { "type": ["string", "null"] }
+      }
+    },
+    "role": { "enum": ["target", "scanner_surface", "optical_mechanical", "mount", "occluder"] },
+    "placement": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["parent_frame", "translation_m", "quaternion_wxyz"],
+      "properties": {
+        "parent_frame": { "type": "string" },
+        "translation_m": { "$ref": "common.schema.json#/$defs/vec3" },
+        "quaternion_wxyz": { "$ref": "common.schema.json#/$defs/quaternion" }
+      }
+    },
+    "material": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["default_material_ref"],
+      "properties": {
+        "default_material_ref": { "$ref": "common.schema.json#/$defs/identifier" }
+      }
+    },
+    "scanner": {
+      "type": ["object", "null"],
+      "properties": {
+        "pivot_local_m": {
+          "oneOf": [
+            { "$ref": "common.schema.json#/$defs/vec3" },
+            { "type": "null" }
+          ]
+        },
+        "rotation_axis_local": {
+          "oneOf": [
+            { "$ref": "common.schema.json#/$defs/vec3" },
+            { "type": "null" }
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "validation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["require_closed_mesh", "normal_policy"],
+      "properties": {
+        "require_closed_mesh": { "type": "boolean" },
+        "normal_policy": { "enum": ["validate", "repair", "reject"] },
+        "expected_bounds_m": {
+          "oneOf": [
+            { "type": "array", "minItems": 2, "maxItems": 2, "items": { "$ref": "common.schema.json#/$defs/vec3" } },
+            { "type": "null" }
+          ]
+        }
+      }
+    },
+    "notes": { "type": ["string", "null"] }
+  }
+}

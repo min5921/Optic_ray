@@ -5,14 +5,14 @@ This file defines the shared working rules for humans and coding agents on every
 ## Start of Every Session
 
 1. Read `HANDOFF.md` for the current state and next action.
-2. Read `TASKS.md` and keep work within the active phase.
-3. Read `CODEX_MASTER_PROMPT.md` and the relevant files in `docs/` before changing physics behavior.
+2. Read `docs/PROJECT_VISION.md` and keep work within the active phase.
+3. Use the files under `docs/original/coherent-fmcw-lidar-sim-docs/` as preserved physics and implementation references.
 4. Run `git status --short --branch` and inspect existing changes before editing.
 5. Do not overwrite or discard changes that are not part of the current task.
 
 ## Project Goal
 
-Build a Python coherent FMCW LiDAR forward simulator. Ray tracing is used for visibility and geometry; the LiDAR return is produced by coherent electric-field summation over sampled surface scatterers.
+Build a Python simulator for user-defined point, line, and area beams passing through collimator optics and custom scanners, interacting with material-assigned targets, and returning optical power or coherent FMCW signals to a receiver.
 
 ## Non-Negotiable Physics Rules
 
@@ -27,7 +27,7 @@ Build a Python coherent FMCW LiDAR forward simulator. Ray tracing is used for vi
 
 ## Development Order and Quality
 
-- Follow the phase order in `TASKS.md`; Phase 1 is the current implementation target.
+- Follow the phase order in `docs/PROJECT_VISION.md`; requirements confirmation and Phase 0 are the current targets.
 - Establish a correct NumPy/CPU reference before adding GPU acceleration.
 - Keep optional GPU packages out of the base runtime path.
 - Add or update tests with each behavior change. Validate simple analytical cases before complex scenes.
@@ -37,7 +37,7 @@ Build a Python coherent FMCW LiDAR forward simulator. Ray tracing is used for vi
 ## End of Every Session
 
 1. Run the tests relevant to the changes and record the command/result in `HANDOFF.md`.
-2. Update checkboxes in `TASKS.md` only for work that is complete and verified.
+2. Update progress in `docs/PROJECT_VISION.md` only for work that is complete and verified.
 3. Update `HANDOFF.md` with the current state, decisions, changed files, and the single best next action.
 4. Review `git diff` and `git status --short --branch`.
 5. Commit and push only when the user asks or the session explicitly includes Git synchronization.

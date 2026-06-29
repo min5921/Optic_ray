@@ -1,0 +1,37 @@
+schema_version: 1
+experiment_id: wavelength_and_collimator_comparison
+base_config: ../baseline_1550nm.yaml
+
+design: cartesian_grid
+
+sweeps:
+  - parameter: source.wavelength_m
+    values:
+      - 1310 nm
+      - 1550 nm
+
+  - parameter: optical_assembly.elements[id=collimator].component_ref
+    values:
+      - custom:ideal_collimator_f20
+      - custom:ideal_collimator_f35
+
+metrics:
+  - output_beam_radius_m
+  - output_divergence_rad
+  - clipping_loss_db
+  - footprint_major_radius_m
+  - footprint_minor_radius_m
+  - received_aperture_power_w
+  - energy_conservation_residual_w
+  - warning_count
+
+comparison:
+  baseline_run: first
+  component_swap_placement_policy: preserve_existing_assembly
+  report_absolute_delta: true
+  report_relative_delta: true
+
+execution:
+  random_seed_policy: fixed
+  backend: numpy
+  max_runs_without_confirmation: 100

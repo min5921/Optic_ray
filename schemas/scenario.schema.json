@@ -1,0 +1,158 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://optic-ray.local/schemas/scenario.schema.json",
+  "title": "Optic Ray Scenario",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "scenario_id", "coordinates", "source", "optical_assembly", "scanner", "scene", "receiver", "simulation", "outputs"],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "scenario_id": { "$ref": "common.schema.json#/$defs/identifier" },
+    "description": { "type": "string" },
+    "coordinates": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["convention", "length_unit", "angle_unit"],
+      "properties": {
+        "convention": { "const": "right_handed_x_forward_y_left_z_up" },
+        "length_unit": { "const": "m" },
+        "angle_unit": { "const": "rad" }
+      }
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "wavelength_m", "optical_power_w"],
+      "properties": {
+        "type": { "enum": ["fiber_gaussian", "free_space_gaussian", "measured_profile"] },
+        "wavelength_m": { "$ref": "common.schema.json#/$defs/quantity" },
+        "optical_power_w": { "$ref": "common.schema.json#/$defs/quantity" },
+        "mode_field_diameter_m": { "$ref": "common.schema.json#/$defs/quantity" },
+        "waist_radius_x_m": { "$ref": "common.schema.json#/$defs/quantity" },
+        "waist_radius_y_m": { "$ref": "common.schema.json#/$defs/quantity" },
+        "m2_x": { "type": "number", "minimum": 1.0 },
+        "m2_y": { "type": "number", "minimum": 1.0 },
+        "polarization": { "type": "string" },
+        "profile_file": { "type": "string" }
+      }
+    },
+    "optical_assembly": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["elements", "optical_paths"],
+      "properties": {
+        "elements": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["id", "component_ref", "placement"],
+            "properties": {
+              "id": { "$ref": "common.schema.json#/$defs/identifier" },
+              "component_ref": { "$ref": "common.schema.json#/$defs/identifier" },
+              "placement": { "$ref": "common.schema.json#/$defs/placement" }
+            }
+          }
+        },
+        "optical_paths": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["id", "elements"],
+            "properties": {
+              "id": { "$ref": "common.schema.json#/$defs/identifier" },
+              "elements": {
+                "type": "array",
+                "minItems": 1,
+                "items": { "$ref": "common.schema.json#/$defs/identifier" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "scanner": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["element_id", "type", "rotation_axis_world", "mechanical_amplitude_rad", "frequency_hz", "waveform", "samples_per_line"],
+      "properties": {
+        "element_id": { "$ref": "common.schema.json#/$defs/identifier" },
+        "type": { "enum": ["one_axis_flat_mirror", "static_mirror"] },
+        "rotation_axis_world": { "$ref": "common.schema.json#/$defs/vec3" },
+        "mechanical_amplitude_rad": { "$ref": "common.schema.json#/$defs/quantity" },
+        "frequency_hz": { "$ref": "common.schema.json#/$defs/quantity" },
+        "waveform": { "enum": ["static", "triangle", "sinusoidal", "raster", "custom"] },
+        "samples_per_line": { "type": "integer", "minimum": 1 },
+        "calibration_file": { "type": "string" }
+      }
+    },
+    "scene": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["targets"],
+      "properties": {
+        "targets": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["id", "geometry", "material_ref"],
+            "properties": {
+              "id": { "$ref": "common.schema.json#/$defs/identifier" },
+              "geometry": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["type"],
+                "properties": {
+                  "type": { "enum": ["rectangle_plane", "stl_asset"] },
+                  "center_m": { "$ref": "common.schema.json#/$defs/vec3" },
+                  "normal": { "$ref": "common.schema.json#/$defs/vec3" },
+                  "width_m": { "$ref": "common.schema.json#/$defs/quantity" },
+                  "height_m": { "$ref": "common.schema.json#/$defs/quantity" },
+                  "metadata_file": { "type": "string" }
+                }
+              },
+              "material_ref": { "$ref": "common.schema.json#/$defs/identifier" }
+            }
+          }
+        }
+      }
+    },
+    "receiver": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["architecture", "position_m", "direction", "aperture_diameter_m", "full_fov_rad", "optical_efficiency", "detector_model"],
+      "properties": {
+        "architecture": { "enum": ["virtual_monostatic", "monostatic", "bistatic"] },
+        "position_m": { "$ref": "common.schema.json#/$defs/vec3" },
+        "direction": { "$ref": "common.schema.json#/$defs/vec3" },
+        "aperture_diameter_m": { "$ref": "common.schema.json#/$defs/quantity" },
+        "full_fov_rad": { "$ref": "common.schema.json#/$defs/quantity" },
+        "optical_efficiency": { "type": "number", "minimum": 0.0, "maximum": 1.0 },
+        "detector_model": { "type": ["string", "null"] }
+      }
+    },
+    "simulation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mode", "accuracy_mode", "backend", "real_dtype", "random_seed"],
+      "properties": {
+        "mode": { "enum": ["radiometric", "coherent", "fmcw"] },
+        "accuracy_mode": { "enum": ["relative_design", "absolute_radiometric", "coherent_fmcw"] },
+        "backend": { "enum": ["numpy", "cupy"] },
+        "real_dtype": { "enum": ["float64", "float32"] },
+        "random_seed": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "outputs": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": { "type": "string", "minLength": 1 }
+    }
+  }
+}

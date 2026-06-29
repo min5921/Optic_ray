@@ -1,0 +1,25 @@
+schema_version: 1
+id: custom:baseline_fiber_source
+component_type: fiber_source
+model_level: ideal
+
+optical:
+  source_model: fiber_gaussian
+  wavelength_m: 1550 nm
+  optical_power_w: 10 mW
+  mode_field_diameter_m: 10 um
+  m2_x: 1.0
+  m2_y: 1.0
+
+ports:
+  - id: output
+    role: output
+    origin_local_m: [0.0, 0.0, 0.0]
+    propagation_axis_local: [0.0, 0.0, 1.0]
+    transverse_x_local: [1.0, 0.0, 0.0]
+
+provenance:
+  type: analytical_reference
+  source: docs/specs/INITIAL_BASELINE.md
+
+notes: Replace through configuration when actual source data is available.

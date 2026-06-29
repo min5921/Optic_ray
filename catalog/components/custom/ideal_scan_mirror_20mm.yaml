@@ -1,0 +1,21 @@
+schema_version: 1
+id: custom:ideal_scan_mirror_20mm
+component_type: scanner_mirror
+model_level: ideal
+
+optical:
+  surface_model: flat_mirror
+  clear_width_m: 20 mm
+  clear_height_m: 20 mm
+  power_reflectivity: 1.0
+
+mechanical:
+  pivot_local_m: [0.0, 0.0, 0.0]
+  default_rotation_axis_local: [0.0, 1.0, 0.0]
+  surface_normal_local: [-0.7071067811865476, 0.0, 0.7071067811865476]
+
+provenance:
+  type: analytical_reference
+  source: docs/specs/INITIAL_BASELINE.md
+
+notes: Geometry may later be replaced by a FreeCAD-exported STL plus sidecar.

@@ -1,0 +1,29 @@
+schema_version: 1
+id: custom:ideal_collimator_f20
+component_type: collimator
+model_level: paraxial_specification
+
+optical:
+  model: ideal_thin_lens
+  design_wavelength_m: 1550 nm
+  effective_focal_length_m: 20 mm
+  clear_aperture_diameter_m: 10 mm
+  power_transmission: 1.0
+
+ports:
+  - id: input
+    role: input
+    origin_local_m: [0.0, 0.0, 0.0]
+    propagation_axis_local: [0.0, 0.0, 1.0]
+    transverse_x_local: [1.0, 0.0, 0.0]
+  - id: output
+    role: output
+    origin_local_m: [0.0, 0.0, 0.0]
+    propagation_axis_local: [0.0, 0.0, 1.0]
+    transverse_x_local: [1.0, 0.0, 0.0]
+
+provenance:
+  type: analytical_reference
+  source: docs/specs/INITIAL_BASELINE.md
+
+notes: Ideal validation component; not a commercial product.

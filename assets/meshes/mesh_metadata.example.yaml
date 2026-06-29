@@ -1,0 +1,39 @@
+# Copy this file to <mesh-name>.stl.yaml and replace every example value.
+schema_version: 1
+
+asset_id: example:target_panel
+
+mesh:
+  file: target_panel.stl
+  format: stl
+  binary_preferred: true
+  # FreeCAD millimeter export example. Never omit this field.
+  unit_scale_m: 0.001
+
+source:
+  application: FreeCAD
+  file: ../source/freecad/target_panel.FCStd
+  revision: null
+  content_sha256: null
+
+role: target  # target | scanner_surface | optical_mechanical | mount | occluder
+
+placement:
+  parent_frame: world
+  translation_m: [10.0, 0.0, 0.0]
+  quaternion_wxyz: [1.0, 0.0, 0.0, 0.0]
+
+material:
+  default_material_ref: custom:diffuse_gray_020
+
+# Required only when role is scanner_surface.
+scanner:
+  pivot_local_m: null
+  rotation_axis_local: null
+
+validation:
+  require_closed_mesh: false
+  normal_policy: validate
+  expected_bounds_m: null
+
+notes: Example metadata only; values are not real hardware specifications.
