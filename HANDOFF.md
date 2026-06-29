@@ -1,6 +1,6 @@
 # Project Handoff
 
-Last updated: 2026-06-28 (Asia/Seoul)
+Last updated: 2026-06-29 (Asia/Seoul)
 
 ## Current State
 
@@ -8,7 +8,7 @@ Last updated: 2026-06-28 (Asia/Seoul)
 - The original coherent FMCW LiDAR source package is preserved under `docs/original/coherent-fmcw-lidar-sim-docs/`.
 - Multi-computer Git, Codex, line-ending, secret, and generated-output conventions are configured.
 - GitHub remote `origin` is connected to `https://github.com/min5921/Optic_ray.git`, and `main` is synchronized.
-- No simulator source code has been implemented yet.
+- The first executable Phase 0 milestone is implemented under `src/lidarsim/`.
 - The project focus is the 3D placement of catalog-backed or custom optical components, user-defined point/line/area beams, collimator optics, custom scanners, target interaction, and receiver return analysis.
 - Draft v0.2 adds model-fidelity contracts, commercial component catalogs, optical/CAD import, coordinate frames, rigid transforms, optical ports, placement constraints, structured results, visualization, and tolerance analysis.
 - Provisional Phase 0-5 defaults are accepted in `docs/specs/INITIAL_BASELINE.md`; all values remain replaceable through configuration.
@@ -19,8 +19,10 @@ Last updated: 2026-06-28 (Asia/Seoul)
 - Draft JSON Schema contracts cover project, scenario, experiment, component, material, STL metadata, and measurement metadata.
 - Accuracy/calibration, UX, energy/convergence, and measurement-data contracts are documented; measurement asset templates are prepared.
 - `docs/USER_MANUAL.md` explains every planned user-editable condition, component replacement, FreeCAD/STL workflow, experiment comparison, and future CLI workflow.
-- The active target is Phase 0: configuration/catalog validation, coordinate/placement primitives, STL metadata loading, and a minimal viewer skeleton.
-- The Python virtual environment and dependencies have not been installed or verified yet.
+- `lidarsim validate` now loads project/scenario/experiment/catalog YAML, validates JSON Schema contracts, resolves unit-bearing values to SI/radians, and rejects broken component/material/port/scanner references.
+- Resolved project state is recursively immutable and receives a stable SHA-256 physical-configuration hash; display-unit and UI preferences do not alter this hash.
+- The local `.venv` is installed from `pyproject.toml`; 10 automated tests pass with deprecation warnings treated as errors.
+- The active target remains Phase 0: coordinate/placement primitives, STL/measurement metadata loading, and a minimal placement viewer skeleton.
 
 ## Decisions to Preserve
 
@@ -36,19 +38,22 @@ Last updated: 2026-06-28 (Asia/Seoul)
 
 ## Best Next Action
 
-Implement the Phase 0 unit-aware YAML loader and JSON Schema validator for `configs/project.yaml`, resolve catalog/assets into an immutable SI config, then add coordinate/placement primitives and STL/measurement metadata validation.
+Implement typed `RigidTransform`, coordinate-frame and optical-port placement primitives, then resolve the baseline source-to-collimator connection and verify its world-space position/axis analytically.
 
 ## Verification
 
 - `docs/PROJECT_VISION.md` reviewed and expanded to Draft v0.2, including optical component placement and commercial/custom optical-system inputs.
 - Configuration-driven condition changes, component swaps, accepted initial defaults, and FreeCAD/STL workflow are documented.
 - User-facing configuration and replacement manual added and linked from the project entry points.
-- Baseline/experiment YAML, ideal component/material catalog records, and asset folders are present but not executable yet.
-- JSON Schema files are syntactically valid but are not wired to a YAML/schema runtime yet.
+- Baseline/experiment YAML and ideal component/material catalog records load through the executable validator.
+- JSON Schema validation uses the modern `referencing.Registry` API; unit conversion uses Pint.
 - Original documents remain preserved under `docs/original/coherent-fmcw-lidar-sim-docs/`.
 - Git safety files and multi-computer workflow added.
 - Local `main` is configured to track `origin/main` on GitHub.
-- Simulator tests: not available yet because Phase 1 has not been implemented.
+- `python -m pytest -q`: 10 passed.
+- `python -W error::DeprecationWarning -m pytest -q`: 10 passed.
+- `lidarsim validate configs/project.yaml`: passed; 1 scenario, 4 components, 1 material, and 1 experiment resolved.
+- Resolved physical config SHA-256 at this revision: `f3bfefba9deeac51a3e0a2958e9491e9f3d4091d407dd7f990169d62564a761f`.
 
 ## Session Update Template
 

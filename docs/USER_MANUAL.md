@@ -24,9 +24,9 @@
 
 ## 2. 현재 구현 상태
 
-현재는 설계 문서, unit-aware baseline configuration, catalog, JSON Schema와 asset/measurement workflow가 준비된 상태이며 simulator source code와 CLI는 아직 구현되지 않았다.
+Phase 0의 첫 실행 가능한 기반이 구현되었다. `lidarsim validate`는 project/scenario/experiment/catalog YAML을 JSON Schema로 검사하고, 명시 단위를 SI/radian 값으로 변환하며, component/material/port/scanner 참조를 의미적으로 검증한다. 검증된 구성은 변경 불가능한 snapshot과 재현 가능한 SHA-256 hash로 만들어진다.
 
-따라서 이 문서의 YAML 예제는 Phase 0에서 구현할 configuration contract이다. `lidarsim validate`, `lidarsim run` 같은 명령은 이 문서에서 **계획된 명령**으로 표시하며 현재는 실행되지 않는다.
+`lidarsim run`, `compare`, `view`, STL 검사와 실제 광학 계산은 아직 구현되지 않았다. 현재 단계에서는 설정을 수정한 뒤 반드시 `lidarsim validate configs/project.yaml`을 실행한다.
 
 ## 3. 주요 파일 위치
 
@@ -630,13 +630,21 @@ sweeps:
 
 같은 물리량을 input과 derived 값으로 동시에 강제하지 않는다. Measured derived value는 validation target 또는 calibrated override로 명시한다.
 
-## 20. 계획된 CLI
+## 20. CLI
 
-Phase 0 이후 다음 명령 형태를 목표로 한다. 현재는 아직 구현되지 않았다.
+현재 구현된 명령:
 
 ```powershell
 # Configuration과 catalog reference 검사
 lidarsim validate configs/project.yaml
+
+# 검증 및 SI-resolved snapshot 저장
+lidarsim validate configs/project.yaml --write-resolved results/resolved_project.yaml
+```
+
+다음 명령은 이후 Phase에서 구현할 계획이다.
+
+```powershell
 
 # STL metadata와 geometry 검사
 lidarsim inspect-mesh assets/meshes/my_target.stl.yaml

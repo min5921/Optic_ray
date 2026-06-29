@@ -21,13 +21,13 @@ Set-Location Optic_ray_project
 py -m venv .venv
 .\.venv\Scripts\Activate.ps1
 python -m pip install --upgrade pip
-python -m pip install -r requirements.txt
+python -m pip install -e ".[dev]"
 ```
 
 Open the cloned folder in Codex. Reopen the existing conversation if it is available, or begin with:
 
 ```text
-Read AGENTS.md, HANDOFF.md, TASKS.md, and CODEX_MASTER_PROMPT.md, then continue from the best next action in HANDOFF.md.
+Read AGENTS.md, HANDOFF.md, and docs/PROJECT_VISION.md, then continue from the best next action in HANDOFF.md.
 ```
 
 ## Start a Work Session

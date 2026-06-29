@@ -14,6 +14,20 @@ For step-by-step instructions on changing wavelength, source, optical components
 
 The project distinguishes `relative_design`, `absolute_radiometric`, and `coherent_fmcw` accuracy modes. JSON validation contracts are under [`schemas/`](schemas/), while measured calibration/validation data belongs under [`assets/measurements/`](assets/measurements/).
 
+## Phase 0 Quick Start
+
+The first executable Phase 0 milestone validates project, scenario, experiment, component, material, unit, and cross-reference contracts:
+
+```powershell
+py -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install -e ".[dev]"
+lidarsim validate configs/project.yaml
+python -m pytest -q
+```
+
+`validate` resolves unit-bearing quantities to SI units/radians, rejects unknown fields and broken catalog/port references, and prints a reproducible physical-configuration SHA-256. Beam propagation and simulation commands are not implemented yet.
+
 ## Working Across Computers
 
 Project files are synchronized through a private Git remote. Before starting work on any computer, read `AGENTS.md` and `HANDOFF.md`; the complete setup and handoff routine is in [`docs/MULTI_PC_WORKFLOW.md`](docs/MULTI_PC_WORKFLOW.md).
