@@ -1,77 +1,77 @@
-# Accuracy, Confidence, and Calibration Contract
+# 정확도·신뢰도·Calibration contract
 
-- Status: Initial implementation contract
-- Date: 2026-06-28
+- 상태: 초기 구현 contract
+- 작성일: 2026-06-28
 
-## 1. Purpose
+## 1. 목적
 
-A numerically precise result is not automatically an accurate prediction of real hardware. Every result must state what it can legitimately represent.
+수치적으로 정밀한 결과가 실제 장비를 정확하게 예측한다는 뜻은 아니다. 모든 결과에는 그 결과가 정당하게 나타낼 수 있는 범위를 명시해야 한다.
 
-## 2. Accuracy Modes
+## 2. 정확도 mode
 
 ### `relative_design`
 
-Purpose:
+목적:
 
-- compare wavelength, components, placement, scanner, target, or receiver variants;
-- rank design alternatives;
-- identify sensitivity and clipping risk.
+- Wavelength, component, placement, scanner, target 또는 receiver variant를 비교한다.
+- 설계 대안의 순위를 정한다.
+- Sensitivity와 clipping 위험을 찾는다.
 
-Required data:
+필수 data:
 
-- internally consistent nominal parameters;
-- identical comparison sampling and seeds;
-- explicit assumptions.
+- 내부적으로 일관된 nominal parameter
+- 모든 비교에 동일한 sampling과 seed
+- 명시적인 가정
 
-This is the initial project mode. It does not claim calibrated absolute receiver power.
+이 mode가 프로젝트의 초기 mode다. Calibration된 절대 receiver power를 보장하지 않는다.
 
 ### `absolute_radiometric`
 
-Purpose:
+목적:
 
-- predict optical power at the receiver aperture or detector with an uncertainty estimate.
+- Receiver aperture 또는 detector에 도달하는 optical power를 uncertainty와 함께 예측한다.
 
-Additional required data:
+추가 필수 data:
 
-- calibrated source power/profile;
-- component transmission/reflectivity;
-- alignment and placement uncertainty;
-- wavelength/angle-dependent material BRDF/BSDF;
-- receiver aperture/optical-efficiency calibration;
-- atmosphere/path model when relevant;
-- measurement traceability.
+- Calibration된 source power·profile
+- Component transmission·reflectivity
+- Alignment·placement uncertainty
+- Wavelength·angle에 따른 material BRDF/BSDF
+- Receiver aperture·optical efficiency calibration
+- 필요한 경우 atmosphere·path model
+- Measurement traceability
 
 ### `coherent_fmcw`
 
-Purpose:
+목적:
 
-- predict coherent field, speckle, beat waveform, spectrum, range, and optional velocity.
+- Coherent field, speckle, beat waveform, spectrum, range와 선택적 velocity를 예측한다.
 
-Additional required data:
+추가 필수 data:
 
-- phase-consistent optical path;
-- fixed scatterer/roughness model;
-- laser coherence/linewidth/phase-noise data;
-- chirp rate, linearity, timing and sample clock;
-- LO/mixer/detector model;
-- polarization/coherent-efficiency assumptions.
+- Phase가 일관된 optical path
+- 고정된 scatterer·roughness model
+- Laser coherence·linewidth·phase-noise data
+- Chirp rate, linearity, timing과 sample clock
+- LO·mixer·detector model
+- Polarization·coherent efficiency 가정
 
-## 3. Uncertainty Classes
+## 3. Uncertainty 분류
 
-Track these separately:
+다음 항목을 서로 구분해 추적한다.
 
-- `numerical_error`: floating-point, discretization, mesh, quadrature and solver tolerance;
-- `model_form_error`: paraxial, Gaussian, BRDF, thin-lens, frozen-scanner or other approximations;
-- `input_uncertainty`: catalog tolerance and unknown parameters;
-- `placement_uncertainty`: decenter, tilt, gap, pivot and calibration error;
-- `measurement_uncertainty`: instrument calibration, noise and repeatability;
-- `environmental_uncertainty`: temperature, atmosphere and vibration.
+- `numerical_error`: floating-point, discretization, mesh, quadrature와 solver tolerance
+- `model_form_error`: paraxial, Gaussian, BRDF, thin-lens, frozen-scanner 등 model approximation
+- `input_uncertainty`: catalog tolerance와 알 수 없는 parameter
+- `placement_uncertainty`: decenter, tilt, gap, pivot과 calibration error
+- `measurement_uncertainty`: instrument calibration, noise와 repeatability
+- `environmental_uncertainty`: temperature, atmosphere와 vibration
 
-Do not combine them into one number unless the combination assumptions are explicit.
+결합 가정을 명시하지 않는 한 이 항목들을 하나의 숫자로 합치지 않는다.
 
-## 4. Confidence Badge
+## 4. 신뢰도 표시
 
-Every report and major result displays:
+모든 report와 주요 result에 다음 정보를 표시한다.
 
 ```yaml
 accuracy_mode: relative_design
@@ -85,69 +85,69 @@ validity:
 warnings: []
 ```
 
-Allowed confidence labels:
+허용되는 confidence label:
 
-- `illustrative`: idealized demonstration only;
-- `comparative`: suitable for relative variant ranking;
-- `engineering_estimate`: supported by catalog/tolerance data;
-- `calibrated`: fitted and validated against measurement in the stated range;
-- `out_of_validity`: result produced for diagnosis but not reliable.
+- `illustrative`: 이상화된 설명용 결과
+- `comparative`: 상대적인 variant 순위 비교에 적합
+- `engineering_estimate`: catalog·tolerance data로 뒷받침되는 공학적 추정
+- `calibrated`: 명시된 범위의 측정값으로 fitting하고 validation한 결과
+- `out_of_validity`: 진단 목적으로 생성했지만 신뢰할 수 없는 결과
 
-## 5. Calibration Workflow
+## 5. Calibration workflow
 
 ```text
 nominal config
-→ import measurement metadata/data
-→ verify units, coordinates and wavelength
-→ choose calibratable parameters
-→ fit on calibration dataset
-→ freeze calibrated parameter set
-→ validate on independent dataset
-→ record residuals and validity range
+→ measurement metadata·data import
+→ unit, coordinate, wavelength 확인
+→ calibration 대상 parameter 선택
+→ calibration dataset으로 fitting
+→ calibrated parameter set 고정
+→ 독립 dataset으로 validation
+→ residual과 validity range 기록
 ```
 
-Calibration rules:
+Calibration 규칙:
 
-- never fit and validate on the same dataset without labeling it;
-- preserve nominal, fitted and measured values separately;
-- constrain fitted parameters to physical bounds;
-- store objective function, optimizer settings and random seed;
-- report parameter correlation and identifiability warnings;
-- do not use calibration to hide a known model mismatch.
+- 별도 표시 없이 같은 dataset으로 fitting과 validation을 동시에 수행하지 않는다.
+- Nominal, fitted, measured value를 구분해 보존한다.
+- Fitted parameter를 물리적으로 가능한 범위로 제한한다.
+- Objective function, optimizer 설정과 random seed를 저장한다.
+- Parameter correlation과 identifiability warning을 보고한다.
+- 알려진 model mismatch를 숨기기 위해 calibration을 사용하지 않는다.
 
-## 6. Comparison Rules
+## 6. 비교 규칙
 
-For component or condition comparison:
+부품 또는 조건을 비교할 때 다음을 지킨다.
 
-- keep unchanged inputs identical;
-- preserve target sampling and random scatterer map;
-- distinguish drop-in placement from reoptimized placement;
-- report absolute and relative metric changes;
-- report compatibility and validity warnings;
-- display uncertainty bands when available.
+- 변경하지 않은 input은 동일하게 유지한다.
+- Target sampling과 random scatterer map을 유지한다.
+- Drop-in placement와 reoptimized placement를 구분한다.
+- Metric의 absolute·relative change를 함께 보고한다.
+- Compatibility와 validity warning을 표시한다.
+- 가능한 경우 uncertainty band를 표시한다.
 
-## 7. Acceptance Gates
+## 7. 승인 기준
 
 ### Relative-design release
 
-- analytical beam/placement/energy tests pass;
-- identical configs produce identical hashes/results;
-- component swaps preserve declared comparison policy;
-- numerical convergence is demonstrated;
-- result confidence is visible.
+- Analytical beam·placement·energy test가 통과한다.
+- 동일한 config에서 동일한 hash와 result가 생성된다.
+- 부품 교체가 선언된 comparison policy를 유지한다.
+- Numerical convergence를 입증한다.
+- Result confidence가 화면에 표시된다.
 
 ### Absolute-radiometric release
 
-- calibration data and metadata are present;
-- link-budget audit closes within the declared tolerance;
-- independent validation residuals are reported;
-- extrapolation outside measured wavelength/angle/range is warned;
-- receiver power uncertainty is reported.
+- Calibration data와 metadata가 존재한다.
+- Link-budget audit가 선언된 tolerance 안에서 닫힌다.
+- 독립 validation residual을 보고한다.
+- 측정한 wavelength·angle·range 밖으로 extrapolation할 때 warning을 표시한다.
+- Receiver power uncertainty를 보고한다.
 
 ### Coherent-FMCW release
 
-- range and phase conventions are validated;
-- coherent/incoherent contributions are not mixed silently;
-- fixed scatterer identity is reproducible;
-- FFT/range and phase-noise tests pass;
-- CPU reference is retained for regression.
+- Range와 phase convention을 검증한다.
+- Coherent·incoherent contribution을 암묵적으로 섞지 않는다.
+- 고정된 scatterer identity를 재현할 수 있다.
+- FFT·range와 phase-noise test가 통과한다.
+- Regression을 위한 CPU reference를 유지한다.

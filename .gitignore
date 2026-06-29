@@ -25,9 +25,9 @@ dist/
 *.egg-info/
 
 # Generated simulation output
-outputs/
-results/
-artifacts/
+/outputs/
+/results/
+/artifacts/
 
 # Local editor, OS, and Codex state
 .idea/

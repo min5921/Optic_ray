@@ -1,8 +1,8 @@
-# Measurement Assets
+# 측정 asset
 
-Use this directory for measured data that calibrates or validates real hardware configurations.
+실제 장비 configuration을 calibration하거나 validation하는 측정 data를 이 directory에 둔다.
 
-Recommended subdirectories:
+권장 하위 directory:
 
 - `source_beam_profile/`
 - `component_transmission/`
@@ -11,6 +11,12 @@ Recommended subdirectories:
 - `receiver_response/`
 - `detector_calibration/`
 
-Every dataset requires a metadata sidecar based on [`measurement_metadata.example.yaml`](measurement_metadata.example.yaml). Preserve raw data unchanged and store processed outputs separately.
+모든 dataset에는 [`measurement_metadata.example.yaml`](measurement_metadata.example.yaml)을 기준으로 작성한 metadata sidecar가 필요하다. Raw data는 변경하지 않고 보존하며, 처리된 output은 별도로 저장한다.
 
-See [`../../docs/specs/MEASUREMENT_DATA.md`](../../docs/specs/MEASUREMENT_DATA.md).
+Metadata와 referenced data file은 다음 명령으로 검증한다.
+
+```powershell
+lidarsim inspect-measurement assets/measurements/<name>.measurement.yaml
+```
+
+자세한 내용은 [`../../docs/specs/MEASUREMENT_DATA.md`](../../docs/specs/MEASUREMENT_DATA.md)를 참고한다.

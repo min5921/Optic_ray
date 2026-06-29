@@ -884,7 +884,7 @@ src/lidarsim/
 
 완료 조건: 두 개의 ideal optical component를 배치하고 port로 연결한 뒤 config를 저장/재로드하고 3D 위치와 optical axis를 검증한다.
 
-현재 구현 상태 (2026-06-29): Python package/test 구조, unit-aware YAML resolution, JSON Schema project/scenario/experiment/catalog validation, catalog/port/scanner 의미 검증, immutable resolved configuration, physical configuration hash와 `lidarsim validate` CLI가 구현되고 자동 테스트로 검증되었다. `RigidTransform`, 실제 port placement 계산, STL/measurement loader와 viewer는 다음 Phase 0 작업이다.
+Phase 0 완료 상태 (2026-06-29): Python package/test 구조, unit-aware YAML resolution, JSON Schema project/scenario/experiment/catalog/result validation, catalog/port/scanner 의미 검증, immutable resolved configuration, physical configuration hash, `RigidTransform`, optical port frame, absolute·port-to-port placement resolver, STL·measurement asset registry, accuracy·energy·convergence·manifest report와 headless 2D/3D placement viewer가 구현되었다. `lidarsim validate/placement/inspect-mesh/inspect-measurement/report/view` CLI와 자동 test로 검증했으며 canonical config 저장→재로드 후 hash와 world placement가 유지됨을 확인했다. 다음 활성 단계는 Phase 1 Beam Engine이다.
 
 ### Phase 1 — Beam Engine
 

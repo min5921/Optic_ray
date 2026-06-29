@@ -6,7 +6,9 @@ import pytest
 import yaml
 
 from lidarsim.config import load_project
+from lidarsim.config.immutable import deep_thaw
 from lidarsim.errors import ConfigValidationError
+from lidarsim.geometry import resolve_assembly
 
 
 def _read_yaml(path: Path) -> dict:
@@ -25,6 +27,8 @@ def test_load_repository_project_resolves_and_freezes_config(project_root: Path)
     assert len(project.experiments) == 1
     assert project.catalog.count("component") == 4
     assert project.catalog.count("material") == 1
+    assert len(project.assets.meshes) == 0
+    assert len(project.assets.measurements) == 0
     assert len(project.config_hash) == 64
 
     baseline = project.active_scenario
@@ -92,3 +96,37 @@ def test_invalid_port_reference_is_rejected(copied_project: Path) -> None:
         load_project(copied_project)
 
     assert any("has no port 'bad_port'" in item.message for item in captured.value.diagnostics)
+
+
+def test_cyclic_port_placement_is_rejected_during_project_validation(
+    copied_project: Path,
+) -> None:
+    scenario_path = copied_project.parent / "baseline_1550nm.yaml"
+    scenario = _read_yaml(scenario_path)
+    scenario["optical_assembly"]["elements"][0]["placement"] = {
+        "mode": "port",
+        "connect_from": "collimator.output",
+        "connect_to": "source.output",
+    }
+    _write_yaml(scenario_path, scenario)
+
+    with pytest.raises(ConfigValidationError) as captured:
+        load_project(copied_project)
+
+    assert any("dependency" in item.message for item in captured.value.diagnostics)
+
+
+def test_canonical_scenario_save_and_reload_preserves_hash_and_placement(
+    copied_project: Path,
+) -> None:
+    before = load_project(copied_project)
+    scenario_path = copied_project.parent / "baseline_1550nm.yaml"
+    _write_yaml(scenario_path, deep_thaw(before.active_scenario))
+
+    after = load_project(copied_project)
+    assembly = resolve_assembly(after.active_scenario, after.catalog)
+
+    assert after.config_hash == before.config_hash
+    assert assembly["collimator"].T_world_from_component.translation_m == pytest.approx(
+        (0.0, 0.0, -0.08)
+    )

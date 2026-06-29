@@ -1,52 +1,52 @@
 # AGENTS.md
 
-This file defines the shared working rules for humans and coding agents on every computer.
+이 파일은 모든 컴퓨터에서 사람과 코딩 에이전트가 함께 지켜야 할 작업 규칙을 정의한다.
 
-## Start of Every Session
+## 매 세션 시작 시
 
-1. Read `HANDOFF.md` for the current state and next action.
-2. Read `docs/PROJECT_VISION.md` and keep work within the active phase.
-3. Use the files under `docs/original/coherent-fmcw-lidar-sim-docs/` as preserved physics and implementation references.
-4. Run `git status --short --branch` and inspect existing changes before editing.
-5. Do not overwrite or discard changes that are not part of the current task.
+1. 현재 상태와 다음 작업을 확인하기 위해 `HANDOFF.md`를 읽는다.
+2. `docs/PROJECT_VISION.md`를 읽고 현재 활성 단계의 범위 안에서 작업한다.
+3. `docs/original/coherent-fmcw-lidar-sim-docs/` 아래의 파일은 보존된 물리·구현 참고 자료로 사용한다.
+4. 편집 전에 `git status --short --branch`를 실행하고 기존 변경을 확인한다.
+5. 현재 작업과 관계없는 변경을 덮어쓰거나 버리지 않는다.
 
-## Project Goal
+## 프로젝트 목표
 
-Build a Python simulator for user-defined point, line, and area beams passing through collimator optics and custom scanners, interacting with material-assigned targets, and returning optical power or coherent FMCW signals to a receiver.
+사용자가 정의한 포인트·라인·면적 빔이 collimator 광학계와 사용자 정의 scanner를 통과하고, 재질이 지정된 target과 상호작용한 뒤, 수신기로 돌아오는 광 파워 또는 coherent FMCW 신호를 계산하는 Python simulator를 구축한다.
 
-## Non-Negotiable Physics Rules
+## 반드시 지켜야 할 물리 규칙
 
-- Compute speckle as `E_rx = sum(A_i * exp(1j * phi_i))`, then `P_rx = abs(E_rx) ** 2`.
-- Never replace coherent field summation with a sum of scatterer powers.
-- Keep field amplitude and optical power as separate quantities.
-- Treat STL triangles as geometry and normal references, not as optical scatterers.
-- Reuse a fixed surface scatterer map across scan positions; do not regenerate phases per pixel.
-- Use SI units internally and radians for internal angles.
-- Use `complex128` for CPU reference validation. Lower precision is optional only for an explicitly tested GPU path.
-- Every stochastic model must accept a seed and be reproducible.
+- Speckle은 `E_rx = sum(A_i * exp(1j * phi_i))`로 계산한 뒤 `P_rx = abs(E_rx) ** 2`로 구한다.
+- Coherent field 합산을 scatterer power의 합으로 대체하지 않는다.
+- Field amplitude와 optical power를 서로 다른 물리량으로 유지한다.
+- STL triangle은 geometry와 normal의 기준으로만 사용하고 optical scatterer로 취급하지 않는다.
+- Scan position이 바뀌어도 고정된 surface scatterer map을 재사용하며 pixel마다 phase를 새로 생성하지 않는다.
+- 내부 길이는 SI 단위, 내부 각도는 radian을 사용한다.
+- CPU 기준 검증에는 `complex128`을 사용한다. 낮은 precision은 명시적으로 검증된 GPU 경로에서만 선택적으로 허용한다.
+- 모든 stochastic model은 seed를 입력받아 재현할 수 있어야 한다.
 
-## Development Order and Quality
+## 개발 순서와 품질
 
-- Follow the phase order in `docs/PROJECT_VISION.md`; requirements confirmation and Phase 0 are the current targets.
-- Establish a correct NumPy/CPU reference before adding GPU acceleration.
-- Keep optional GPU packages out of the base runtime path.
-- Add or update tests with each behavior change. Validate simple analytical cases before complex scenes.
-- Prefer small, typed, documented modules under `src/lidarsim/`.
-- Do not add generated results, virtual environments, credentials, or machine-local Codex state to Git.
+- `docs/PROJECT_VISION.md`의 단계 순서를 따른다. 현재 목표는 요구사항 확인과 Phase 0이다.
+- GPU 가속을 추가하기 전에 올바른 NumPy/CPU 기준 구현을 확립한다.
+- 선택 사항인 GPU package는 기본 runtime 경로에서 제외한다.
+- 동작을 변경할 때마다 test를 추가하거나 갱신한다. 복잡한 scene보다 단순한 analytical case를 먼저 검증한다.
+- `src/lidarsim/` 아래에 작고 type이 명확하며 문서화된 module을 우선한다.
+- 생성 결과, 가상환경, credential, 컴퓨터별 Codex 상태는 Git에 추가하지 않는다.
 
-## End of Every Session
+## 매 세션 종료 시
 
-1. Run the tests relevant to the changes and record the command/result in `HANDOFF.md`.
-2. Update progress in `docs/PROJECT_VISION.md` only for work that is complete and verified.
-3. Update `HANDOFF.md` with the current state, decisions, changed files, and the single best next action.
-4. Review `git diff` and `git status --short --branch`.
-5. Commit and push only when the user asks or the session explicitly includes Git synchronization.
+1. 변경과 관련된 test를 실행하고 명령과 결과를 `HANDOFF.md`에 기록한다.
+2. 완료되고 검증된 작업만 `docs/PROJECT_VISION.md`의 진행 상태에 반영한다.
+3. `HANDOFF.md`에 현재 상태, 결정 사항, 변경 파일, 가장 좋은 다음 작업 하나를 기록한다.
+4. `git diff`와 `git status --short --branch`를 확인한다.
+5. 사용자가 요청했거나 세션 범위에 Git 동기화가 명시된 경우에만 commit과 push를 수행한다.
 
-## Multi-Computer Coordination
+## 여러 컴퓨터 간 협업
 
-- Use one active computer on `main` at a time.
-- At session start, fetch and fast-forward before editing.
-- At session end, leave a clean, pushed commit before switching computers.
-- Use a feature branch if two computers must work in parallel.
-- Never force-push shared branches.
-- Follow `docs/MULTI_PC_WORKFLOW.md` for exact commands.
+- 한 번에 한 컴퓨터만 `main`에서 작업한다.
+- 세션을 시작할 때 fetch 후 fast-forward 방식으로 동기화한다.
+- 컴퓨터를 바꾸기 전에는 깨끗한 상태의 commit을 push한다.
+- 두 컴퓨터에서 병렬 작업해야 한다면 feature branch를 사용한다.
+- 공유 branch에는 force-push하지 않는다.
+- 정확한 명령은 `docs/MULTI_PC_WORKFLOW.md`를 따른다.

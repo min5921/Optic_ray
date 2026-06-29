@@ -24,9 +24,9 @@
 
 ## 2. 현재 구현 상태
 
-Phase 0의 첫 실행 가능한 기반이 구현되었다. `lidarsim validate`는 project/scenario/experiment/catalog YAML을 JSON Schema로 검사하고, 명시 단위를 SI/radian 값으로 변환하며, component/material/port/scanner 참조를 의미적으로 검증한다. 검증된 구성은 변경 불가능한 snapshot과 재현 가능한 SHA-256 hash로 만들어진다.
+Phase 0가 완료되었다. `lidarsim validate`는 project/scenario/experiment/catalog YAML을 JSON Schema로 검사하고, 명시 단위를 SI/radian 값으로 변환하며, component/material/port/scanner 참조와 placement dependency를 의미적으로 검증한다. 검증된 구성은 변경 불가능한 snapshot과 재현 가능한 SHA-256 hash로 만들어진다. `lidarsim placement`는 active scenario의 absolute·port-to-port placement를 world transform으로 계산한다. `inspect-mesh`와 `inspect-measurement`는 실제 STL·measurement sidecar 및 referenced file을 검사한다. `report`는 confidence·energy·convergence 상태를 저장하고 `view`는 2D/3D placement PNG를 만든다.
 
-`lidarsim run`, `compare`, `view`, STL 검사와 실제 광학 계산은 아직 구현되지 않았다. 현재 단계에서는 설정을 수정한 뒤 반드시 `lidarsim validate configs/project.yaml`을 실행한다.
+`lidarsim run`, `compare`와 실제 beam·radiometry 계산은 Phase 1 이후 구현한다. 현재 단계에서는 설정을 수정한 뒤 반드시 `lidarsim validate configs/project.yaml`을 실행한다.
 
 ## 3. 주요 파일 위치
 
@@ -367,6 +367,13 @@ angular_misalignment_rad: [0.0, 0.0]
 
 좌표 규칙은 [좌표·배치 규격](specs/COORDINATES_AND_PLACEMENT.md)을 따른다.
 
+배치 결과 확인:
+
+```powershell
+lidarsim placement configs/project.yaml
+lidarsim placement configs/project.yaml --write-report results/placement.yaml
+```
+
 ## 12. Scanner 조건 변경
 
 ```yaml
@@ -640,14 +647,29 @@ lidarsim validate configs/project.yaml
 
 # 검증 및 SI-resolved snapshot 저장
 lidarsim validate configs/project.yaml --write-resolved results/resolved_project.yaml
+
+# Active scenario의 component·port world placement 확인
+lidarsim placement configs/project.yaml
+
+# Placement report 저장
+lidarsim placement configs/project.yaml --write-report results/placement.yaml
+
+# STL sidecar와 실제 geometry 검사
+lidarsim inspect-mesh assets/meshes/my_target.stl.yaml
+
+# Measurement metadata와 referenced data 검사
+lidarsim inspect-measurement assets/measurements/my_data.measurement.yaml
+
+# Phase 0 manifest·accuracy·energy·convergence report 저장
+lidarsim report configs/project.yaml --output results/phase0_report.yaml
+
+# Headless 2D/3D placement PNG 생성
+lidarsim view configs/project.yaml --output results/placement.png
 ```
 
 다음 명령은 이후 Phase에서 구현할 계획이다.
 
 ```powershell
-
-# STL metadata와 geometry 검사
-lidarsim inspect-mesh assets/meshes/my_target.stl.yaml
 
 # 한 시나리오 실행
 lidarsim run configs/my_scenario.yaml
@@ -655,8 +677,6 @@ lidarsim run configs/my_scenario.yaml
 # Parameter/component experiment 실행
 lidarsim compare configs/experiments/my_experiment.yaml
 
-# 3D layout 열기
-lidarsim view configs/my_scenario.yaml
 ```
 
 CLI와 GUI는 동일한 config/schema/validator를 사용해야 한다.

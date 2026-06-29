@@ -1,15 +1,15 @@
-# Energy Accounting and Numerical Convergence Contract
+# Energy accounting·numerical convergence contract
 
-- Status: Initial implementation contract
-- Date: 2026-06-28
+- 상태: 초기 구현 contract
+- 작성일: 2026-06-28
 
-## 1. Purpose
+## 1. 목적
 
-The simulator must show where optical power goes and whether results are stable with respect to numerical resolution.
+Simulator는 optical power가 어디로 이동하거나 손실되는지, 그리고 numerical resolution을 바꿔도 결과가 안정적인지를 보여야 한다.
 
-## 2. Power Ledger
+## 2. Power ledger
 
-Each optical path maintains a ledger:
+각 optical path는 다음 ledger를 유지한다.
 
 ```text
 source power
@@ -22,124 +22,124 @@ source power
 = modeled reflected/scattered power
 × receiver geometric collection
 × receiver optical efficiency
-= receiver-aperture or detector power
+= receiver-aperture 또는 detector power
 ```
 
-Each term records:
+각 항목에 다음을 기록한다.
 
-- component/surface/path ID;
-- input/output power;
-- loss in W and dB;
-- model/data source;
-- validity/warning;
-- numerical residual.
+- Component·surface·path ID
+- Input·output power
+- W·dB 단위 loss
+- Model·data source
+- Validity·warning
+- Numerical residual
 
-## 3. Energy Conservation
+## 3. Energy conservation
 
-For energy-conserving models:
+Energy-conserving model에서는 다음 관계를 만족해야 한다.
 
 ```text
 reflected + transmitted + absorbed <= incident + numerical_tolerance
 ```
 
-BRDF/BSDF lobes must be normalized or explicitly labeled as empirical/non-conserving. Clipping and occlusion must not be counted twice.
+BRDF·BSDF lobe는 normalize하거나 empirical·non-conserving임을 명시한다. Clipping과 occlusion을 이중으로 계산하지 않는다.
 
-## 4. Radiometric Convention
+## 4. Radiometric convention
 
-Keep these quantities distinct:
+다음 물리량을 구분한다.
 
-- radiant power: W
-- irradiance: W/m²
-- radiance: W/(m² sr)
-- radiant intensity: W/sr
+- Radiant power: W
+- Irradiance: W/m²
+- Radiance: W/(m² sr)
+- Radiant intensity: W/sr
 - BRDF: 1/sr
-- field amplitude: proportional to sqrt(W) under the selected normalization
+- Field amplitude: 선택한 normalization에서 sqrt(W)에 비례
 
-The link-budget implementation must state whether incidence cosine is already included in surface irradiance to prevent double application.
+Incidence cosine을 surface irradiance에 이미 포함했는지 link-budget 구현에 명시해 중복 적용을 막는다.
 
-## 5. Convergence Dimensions
+## 5. Convergence 차원
 
-Run convergence tests over applicable dimensions:
+해당하는 다음 차원에 대해 convergence test를 수행한다.
 
-- STL tessellation/triangle size;
-- beam-profile grid resolution;
-- footprint quadrature/patch count;
-- ray count;
-- surface scatterer count;
-- time/scan sampling;
-- chirp sample rate and FFT length;
-- wavelength/angular sampling;
-- Monte Carlo sample count;
-- batch size/precision/backend.
+- STL tessellation·triangle size
+- Beam-profile grid resolution
+- Footprint quadrature·patch 수
+- Ray 수
+- Surface scatterer 수
+- Time·scan sampling
+- Chirp sample rate와 FFT length
+- Wavelength·angular sampling
+- Monte Carlo sample 수
+- Batch size·precision·backend
 
-## 6. Convergence Procedure
+## 6. Convergence 절차
 
 ```text
-run at resolution N
-run at refined resolution 2N
-compare selected metrics
-repeat until error target is met or limit is reached
+resolution N으로 실행
+refined resolution 2N으로 실행
+선택한 metric 비교
+error target을 만족하거나 limit에 도달할 때까지 반복
 ```
 
-Metrics may include:
+Metric 예시:
 
-- beam radius/divergence;
-- clipping loss;
-- footprint area/peak irradiance;
-- received power;
-- scan hit position;
-- FFT peak/range;
-- speckle statistics.
+- Beam radius·divergence
+- Clipping loss
+- Footprint area·peak irradiance
+- Received power
+- Scan hit position
+- FFT peak·range
+- Speckle statistics
 
-## 7. Initial Numerical Targets
+## 7. 초기 numerical target
 
-For ideal analytical validation:
+Ideal analytical validation에는 다음 target을 사용한다.
 
-- transform position error: `< 1e-9 m`;
-- unit-vector norm error: `< 1e-12`;
-- port angular alignment error: `< 1e-9 rad`;
-- Gaussian beam-radius relative error: `< 0.1%`;
-- normalized power-integral error: `< 0.1%`;
-- analytical radiometric-power error: `< 1%`;
-- identical-config comparison delta: numerical zero within metric tolerance.
+- Transform position error: `< 1e-9 m`
+- Unit-vector norm error: `< 1e-12`
+- Port angular alignment error: `< 1e-9 rad`
+- Gaussian beam-radius relative error: `< 0.1%`
+- Normalized power-integral error: `< 0.1%`
+- Analytical radiometric-power error: `< 1%`
+- 동일 config comparison delta: metric tolerance 안에서 numerical zero
 
-These are software targets, not hardware accuracy claims.
+이 값은 software target이며 실제 장비 accuracy를 보장하지 않는다.
 
-## 8. Mesh-specific Checks
+## 8. Mesh 전용 검사
 
-- compare raw/scaled bounds with expected bounds;
-- detect open/non-manifold edges;
-- report degenerate triangles;
-- verify face-normal orientation;
-- compare return metrics at two tessellation levels;
-- use analytic optical planes for ideal mirrors/lenses when mesh facets would dominate error;
-- use STL primarily for target/mechanical geometry unless validated otherwise.
+- Raw·scaled bound를 expected bound와 비교한다.
+- Open·non-manifold edge를 검출한다.
+- Degenerate triangle을 보고한다.
+- Face-normal orientation을 검증한다.
+- 두 tessellation level에서 return metric을 비교한다.
+- Mesh facet이 주요 error가 될 경우 ideal mirror·lens에는 analytic optical plane을 사용한다.
+- 별도 validation이 없다면 STL은 주로 target·mechanical geometry에 사용한다.
 
-## 9. Sampling and Aliasing
+## 9. Sampling과 aliasing
 
-- scanner sampling resolves motion and pixel timing;
-- footprint sampling resolves the shortest beam dimension;
-- FMCW sample rate satisfies the selected beat-frequency range;
-- FFT window/zero-padding does not masquerade as physical resolution;
-- random scatterer density is tested for stable statistics;
-- parameter sweeps retain consistent sampling where comparison requires it.
+- Scanner sampling은 motion과 pixel timing을 분해할 수 있어야 한다.
+- Footprint sampling은 beam의 가장 짧은 dimension을 분해할 수 있어야 한다.
+- FMCW sample rate는 선택한 beat-frequency range를 만족해야 한다.
+- FFT window·zero-padding을 실제 physical resolution처럼 해석하지 않는다.
+- Random scatterer density가 안정적인 statistics를 만드는지 검사한다.
+- 공정한 비교가 필요한 parameter sweep은 일관된 sampling을 유지한다.
 
-## 10. Precision and Backend Checks
+## 10. Precision과 backend 검사
 
-- `float64/complex128` CPU result is the reference;
-- lower precision reports metric deltas;
-- CPU/GPU peak indices and normalized spectra are compared;
-- batch-size changes do not change results beyond tolerance;
-- deterministic mode and nondeterministic operations are reported.
+- `float64/complex128` CPU result를 reference로 사용한다.
+- 낮은 precision은 metric delta를 보고한다.
+- CPU·GPU peak index와 normalized spectrum을 비교한다.
+- Batch size 변화가 tolerance보다 큰 result 변화를 만들지 않아야 한다.
+- Deterministic mode와 nondeterministic operation을 보고한다.
 
-## 11. Audit Output
+## 11. Audit output
 
-Every run produces:
+모든 run은 다음 정보를 생성한다.
 
-- power ledger;
-- conservation residual;
-- selected convergence status;
-- sampling summary;
-- precision/backend summary;
-- warnings for unresolved convergence;
-- confidence impact.
+- Power ledger
+- Conservation residual
+- 선택한 convergence 상태
+- Sampling 요약
+- Precision·backend 요약
+- 해결되지 않은 convergence warning
+- Confidence에 미치는 영향

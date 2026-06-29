@@ -1,110 +1,110 @@
-# Configuration, Component Swap, and Experiment Contract
+# Configuration·부품 교체·Experiment contract
 
-- Status: Initial implementation contract
-- Date: 2026-06-28
+- 상태: 초기 구현 contract
+- 작성일: 2026-06-28
 
-## 1. Goal
+## 1. 목표
 
-The simulator must make it easy to answer questions such as:
+Simulator에서 다음 질문에 쉽게 답할 수 있어야 한다.
 
-- What changes when wavelength is replaced?
-- What changes when a collimator, lens, mirror, scanner, target material, or receiver is replaced?
-- Which component or parameter dominates beam size, clipping, scan coverage, return power, or SNR?
-- How do nominal, tolerance, and measured configurations compare?
+- Wavelength를 바꾸면 무엇이 달라지는가?
+- Collimator, lens, mirror, scanner, target material 또는 receiver를 바꾸면 무엇이 달라지는가?
+- 어떤 component나 parameter가 beam size, clipping, scan coverage, return power 또는 SNR을 지배하는가?
+- Nominal, tolerance, measured configuration은 어떻게 다른가?
 
-No physical equipment value may be hidden as an unexplained constant in simulation code.
+실제 장비의 물리값을 설명 없는 상수로 simulation code 안에 숨기지 않는다.
 
-## 2. Configuration Layers
+## 2. Configuration layer
 
-The effective simulation configuration is built from explicit layers:
+실제로 실행되는 simulation configuration은 다음과 같은 명시적 layer로 구성한다.
 
 ```text
-project paths and active baseline
+project path와 active baseline
     ↓
-schema defaults
+schema default
     ↓
-component catalog records
+component catalog record
     ↓
 system layout config
     ↓
 scenario config
     ↓
-experiment overrides
+experiment override
     ↓
 validated immutable effective config
 ```
 
-Each run stores the fully resolved effective config and its content hash.
+각 run은 완전히 resolve된 effective config와 content hash를 저장한다.
 
-User-facing quantities may be written as `1550 nm`, `10 mW`, `20 mm`, `5 deg`, or `10 Hz`. Unitless numeric values use the canonical suffix unit for backward compatibility. The resolved config stores SI/radian values.
+사용자 입력 물리량은 `1550 nm`, `10 mW`, `20 mm`, `5 deg`, `10 Hz`처럼 작성할 수 있다. 단위 없는 숫자는 이전 형식과의 호환성을 위해 field suffix의 canonical unit을 사용한다. Resolved config는 SI/radian 값으로 저장한다.
 
-## 3. Parameter Categories
+## 3. Parameter 분류
 
 ### Source
 
-- wavelength/spectrum
-- optical power
-- MFD/waist/M²
-- spatial profile
-- polarization/coherence
+- Wavelength·spectrum
+- Optical power
+- MFD·waist·M²
+- Spatial profile
+- Polarization·coherence
 
-### Optical components
+### Optical component
 
 - `component_ref`
-- model level
-- focal length/prescription
-- clear aperture
-- coating/transmission
-- placement and tolerances
+- Model level
+- Focal length·prescription
+- Clear aperture
+- Coating·transmission
+- Placement와 tolerance
 
 ### Scanner
 
-- component/geometry reference
-- pivot and axes
-- waveform
-- angle/frequency/timing
-- calibration and errors
+- Component·geometry reference
+- Pivot과 axis
+- Waveform
+- Angle·frequency·timing
+- Calibration과 error
 
-### Scene/material
+### Scene·material
 
-- mesh reference
-- placement
-- material reference
-- BRDF/BSDF/roughness parameters
+- Mesh reference
+- Placement
+- Material reference
+- BRDF·BSDF·roughness parameter
 
-### Receiver/detector
+### Receiver·detector
 
-- component/assembly reference
-- aperture/FOV
-- optical efficiency
-- detector responsivity/noise/saturation
+- Component·assembly reference
+- Aperture·FOV
+- Optical efficiency
+- Detector responsivity·noise·saturation
 
 ### Numerical model
 
-- accuracy mode and confidence requirements
-- model fidelity
-- sampling density
-- tolerances
-- random seed
-- backend and dtype
+- Accuracy mode와 confidence requirement
+- Model fidelity
+- Sampling density
+- Tolerance
+- Random seed
+- Backend와 dtype
 
-## 4. Canonical and Derived Values
+## 4. Canonical value와 derived value
 
-A physical quantity has one canonical input source. Derived values are calculated and reported, not independently edited when doing so would over-constrain the model.
+하나의 물리량은 하나의 canonical input source를 갖는다. Derived value를 별도로 편집하면 model이 과도하게 구속될 수 있으므로 계산해서 보고한다.
 
-Examples:
+예시:
 
-- input `wavelength_m`; derive optical frequency
-- input source waist and M²; derive Gaussian divergence
-- input scanner mechanical angle; derive reflected beam direction
-- input aperture diameter; derive aperture area
-- input radiometric quantities; derive received power
+- `wavelength_m`을 입력하고 optical frequency를 계산한다.
+- Source waist와 M²를 입력하고 Gaussian divergence를 계산한다.
+- Scanner mechanical angle을 입력하고 reflected beam direction을 계산한다.
+- Aperture diameter를 입력하고 aperture area를 계산한다.
+- Radiometric quantity를 입력하고 received power를 계산한다.
 
-When a user provides both a canonical value and a measured derived value, the config must declare whether the latter is a validation target or a calibrated override.
+사용자가 canonical value와 measured derived value를 함께 제공할 경우, 후자가 validation target인지 calibrated override인지 config에 선언해야 한다.
 
-## 5. Component Replacement
+## 5. 부품 교체
 
-An assembly references a stable catalog ID instead of copying product data into every scenario.
+Assembly는 product data를 scenario마다 복사하지 않고 안정적인 catalog ID를 참조한다.
 
 ```yaml
 - id: collimator
@@ -112,26 +112,26 @@ An assembly references a stable catalog ID instead of copying product data into 
   placement_ref: placements.collimator
 ```
 
-Replacing the component changes only `component_ref` unless the new component has incompatible ports or placement constraints. Compatibility validation must report:
+새 component의 port나 placement constraint가 호환되지 않는 경우를 제외하면 `component_ref`만 바꿔 부품을 교체한다. Compatibility validation은 다음을 보고해야 한다.
 
-- port type mismatch
-- wavelength outside valid range
-- aperture/profile mismatch
-- mechanical envelope/collision change
-- missing model data
-- changed reference plane or working distance
+- Port type 불일치
+- 유효 범위를 벗어난 wavelength
+- Aperture·profile 불일치
+- Mechanical envelope·collision 변화
+- 누락된 model data
+- 변경된 reference plane 또는 working distance
 
-Each component-swap experiment declares one placement policy:
+각 component-swap experiment는 다음 placement policy 중 하나를 선언한다.
 
-- `preserve_existing_assembly`: keep the same mount/port gap and observe the direct drop-in result;
-- `reconnect_ports`: rebuild port-to-port placement using the new component datums;
-- `reoptimize_selected_parameters`: adjust only explicitly listed placement variables.
+- `preserve_existing_assembly`: 같은 mount·port gap을 유지하고 직접 교체 결과를 관찰한다.
+- `reconnect_ports`: 새 component datum을 사용해 port-to-port placement를 다시 계산한다.
+- `reoptimize_selected_parameters`: 명시적으로 선택한 placement variable만 조정한다.
 
-The initial comparison uses `preserve_existing_assembly`. Automatic reoptimization is never performed silently.
+초기 comparison은 `preserve_existing_assembly`를 사용한다. Automatic reoptimization을 사용자에게 알리지 않고 수행하지 않는다.
 
-## 6. Override and Sweep Format
+## 6. Override와 sweep 형식
 
-Experiments use explicit paths into the baseline config.
+Experiment는 baseline config 내부의 명시적인 path를 사용한다.
 
 ```yaml
 sweeps:
@@ -144,52 +144,52 @@ sweeps:
       - custom:ideal_collimator_f35
 ```
 
-Supported experiment forms:
+지원할 experiment 형식:
 
-- one-factor-at-a-time
+- One-factor-at-a-time
 - Cartesian parameter grid
-- paired named variants
-- tolerance Monte Carlo
-- calibration fit
+- Pair로 지정한 named variant
+- Tolerance Monte Carlo
+- Calibration fit
 
-The experiment runner must calculate the number of runs before execution and require batching or confirmation for a large Cartesian grid.
+Experiment runner는 실행 전에 run 수를 계산해야 하며 큰 Cartesian grid는 batch 실행이나 사용자 확인을 요구해야 한다.
 
-## 7. Fair Comparison Rules
+## 7. 공정한 비교 규칙
 
-Variant comparisons use the same, where applicable:
+적용 가능한 경우 variant 비교에 다음 조건을 동일하게 사용한다.
 
-- geometry and coordinate frames
-- scan times/pixels
-- target sampling
-- receiver model
-- numerical precision
-- random seed/scatterer map
-- output metrics
+- Geometry와 coordinate frame
+- Scan time·pixel
+- Target sampling
+- Receiver model
+- Numerical precision
+- Random seed·scatterer map
+- Output metric
 
-If a component swap changes a reference plane, port location, aperture, or valid wavelength, the comparison report must distinguish physical change from placement incompatibility.
+부품 교체로 reference plane, port location, aperture 또는 valid wavelength가 바뀐다면 comparison report에서 실제 물리 변화와 placement incompatibility를 구분해야 한다.
 
-## 8. Comparison Metrics
+## 8. Comparison metric
 
-Initial metrics:
+초기 metric:
 
-- output beam radius/divergence
-- waist position
-- clipping and transmission loss
-- scan FOV and footprint size
-- target peak/mean irradiance
-- received aperture power in W and dBm
-- relative/absolute change from baseline
-- material/path contribution
-- runtime and warning count
+- Output beam radius·divergence
+- Waist position
+- Clipping·transmission loss
+- Scan FOV와 footprint size
+- Target peak·mean irradiance
+- W·dBm 단위의 received aperture power
+- Baseline 대비 relative·absolute change
+- Material·path contribution
+- Runtime과 warning 수
 
-Later metrics:
+향후 metric:
 
-- detector photocurrent/SNR
-- FMCW range bias/resolution
-- speckle statistics
-- tolerance distribution
+- Detector photocurrent·SNR
+- FMCW range bias·resolution
+- Speckle statistics
+- Tolerance distribution
 
-## 9. Result Organization
+## 9. Result 구성
 
 ```text
 results/<experiment_id>/
@@ -205,33 +205,33 @@ results/<experiment_id>/
       └─ result data
 ```
 
-Generated results remain outside Git by default.
+생성된 result는 기본적으로 Git에서 제외한다.
 
-## 10. User Interface Requirements
+## 10. User interface 요구사항
 
-The analysis UI should support:
+분석 UI는 다음 기능을 지원해야 한다.
 
-- clone scenario
-- edit values with visible units
-- choose a catalog component from a drop-down
-- display nominal/tolerance/measured provenance
-- mark one scenario as baseline
-- compare two or more variants
-- sweep selected parameters
-- show invalid combinations before simulation
-- export the exact effective configuration
-- show confidence/accuracy mode and calibration status
+- Scenario 복제
+- 표시되는 unit과 함께 value 편집
+- Drop-down에서 catalog component 선택
+- Nominal·tolerance·measured provenance 표시
+- Scenario 하나를 baseline으로 지정
+- 두 개 이상의 variant 비교
+- 선택한 parameter sweep
+- Simulation 전에 잘못된 조합 표시
+- 정확한 effective configuration export
+- Confidence·accuracy mode와 calibration status 표시
 
-UI edits must produce the same versioned configuration that can be run from the command line. The GUI must not maintain a separate hidden project state.
+UI edit는 command line에서 실행할 수 있는 것과 동일한 versioned configuration을 생성해야 한다. GUI가 별도의 숨겨진 project state를 유지해서는 안 된다.
 
 ## 11. Validation
 
-- unknown config fields fail validation by default
-- missing units or ambiguous STL scale fail validation
-- invalid catalog references fail validation
-- derived values are reproducible from canonical inputs
-- applying the same override twice produces the same config hash
-- baseline and identical variant produce zero metric delta
-- random-seed-controlled comparisons are reproducible
-- unit-bearing and canonical-SI forms resolve to the same physical config hash
-- project paths and active baseline resolve without hidden UI state
+- 알 수 없는 config field는 기본적으로 validation에 실패한다.
+- 누락된 unit이나 모호한 STL scale은 validation에 실패한다.
+- 잘못된 catalog reference는 validation에 실패한다.
+- Derived value를 canonical input에서 재현할 수 있다.
+- 같은 override를 두 번 적용하면 같은 config hash가 생성된다.
+- Baseline과 동일한 variant의 metric delta는 0이다.
+- Random seed로 제어한 comparison을 재현할 수 있다.
+- 단위 포함 형식과 canonical SI 형식은 같은 물리 config hash로 resolve된다.
+- Project path와 active baseline은 숨겨진 UI state 없이 resolve된다.

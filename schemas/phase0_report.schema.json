@@ -1,0 +1,100 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://optic-ray.local/schemas/phase0_report.schema.json",
+  "title": "Optic Ray Phase 0 Report",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "report_type", "manifest", "accuracy", "energy_ledger", "convergence", "placement"],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "report_type": { "const": "phase0_validation" },
+    "manifest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["project_id", "scenario_id", "config_hash", "created_at_utc", "software_version", "backend", "real_dtype", "random_seed", "deterministic", "asset_hashes"],
+      "properties": {
+        "project_id": { "$ref": "common.schema.json#/$defs/identifier" },
+        "scenario_id": { "$ref": "common.schema.json#/$defs/identifier" },
+        "config_hash": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        "created_at_utc": { "type": "string", "format": "date-time" },
+        "software_version": { "type": "string" },
+        "backend": { "type": "string" },
+        "real_dtype": { "type": "string" },
+        "random_seed": { "type": "integer", "minimum": 0 },
+        "deterministic": { "type": "boolean" },
+        "asset_hashes": {
+          "type": "object",
+          "additionalProperties": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+        }
+      }
+    },
+    "accuracy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["accuracy_mode", "confidence_level", "calibration_status", "component_model_levels", "assumptions", "validity", "warnings"],
+      "properties": {
+        "accuracy_mode": { "enum": ["relative_design", "absolute_radiometric", "coherent_fmcw"] },
+        "confidence_level": { "enum": ["illustrative", "comparative", "engineering_estimate", "calibrated", "out_of_validity"] },
+        "calibration_status": { "enum": ["uncalibrated", "partially_calibrated", "calibrated"] },
+        "component_model_levels": { "type": "object", "additionalProperties": { "type": "string" } },
+        "assumptions": { "type": "array", "items": { "type": "string" } },
+        "validity": { "type": "object", "additionalProperties": true },
+        "warnings": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "energy_ledger": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "source_power_w", "entries", "conservation_residual_w", "reason"],
+      "properties": {
+        "status": { "enum": ["not_evaluated", "evaluated"] },
+        "source_power_w": { "type": "number", "minimum": 0.0 },
+        "entries": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["element_id", "input_power_w", "output_power_w", "loss_w", "loss_db", "model_source", "warning"],
+            "properties": {
+              "element_id": { "type": "string" },
+              "input_power_w": { "type": "number", "minimum": 0.0 },
+              "output_power_w": { "type": "number", "minimum": 0.0 },
+              "loss_w": { "type": "number" },
+              "loss_db": { "type": ["number", "null"] },
+              "model_source": { "type": "string" },
+              "warning": { "type": ["string", "null"] }
+            }
+          }
+        },
+        "conservation_residual_w": { "type": ["number", "null"] },
+        "reason": { "type": ["string", "null"] }
+      }
+    },
+    "convergence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["overall_status", "checks"],
+      "properties": {
+        "overall_status": { "enum": ["pass", "warning", "fail", "not_evaluated"] },
+        "checks": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["check_id", "status", "metric", "value", "tolerance", "unit", "message"],
+            "properties": {
+              "check_id": { "$ref": "common.schema.json#/$defs/identifier" },
+              "status": { "enum": ["pass", "warning", "fail", "not_evaluated", "not_applicable"] },
+              "metric": { "type": "string" },
+              "value": { "type": ["number", "null"] },
+              "tolerance": { "type": ["number", "null"] },
+              "unit": { "type": ["string", "null"] },
+              "message": { "type": "string" }
+            }
+          }
+        }
+      }
+    },
+    "placement": { "type": "object" }
+  }
+}

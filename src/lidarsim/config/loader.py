@@ -11,11 +11,13 @@ from typing import Any
 
 import yaml
 
+from lidarsim.assets.loader import AssetRegistry, load_asset_registry
 from lidarsim.catalog.loader import Catalog, load_catalog
 from lidarsim.config.immutable import canonical_hash, deep_freeze, deep_thaw
 from lidarsim.config.schema import SchemaStore
 from lidarsim.config.units import resolve_quantities
 from lidarsim.errors import ConfigFileError, ConfigValidationError, Diagnostic
+from lidarsim.geometry.placement import resolve_assembly
 
 
 @dataclass(frozen=True, slots=True)
@@ -27,6 +29,7 @@ class ResolvedProject:
     scenarios: Mapping[str, Mapping[str, Any]]
     experiments: Mapping[str, Mapping[str, Any]]
     catalog: Catalog
+    assets: AssetRegistry
     warnings: tuple[Diagnostic, ...]
     config_hash: str
 
@@ -52,6 +55,7 @@ class ResolvedProject:
                 }
                 for identifier, entry in self.catalog.entries.items()
             },
+            "assets": self.assets.to_dict(),
             "warnings": [
                 {
                     "source": item.source,
@@ -422,6 +426,7 @@ def _physical_hash_payload(
     scenarios: Mapping[str, Mapping[str, Any]],
     experiments: Mapping[str, Mapping[str, Any]],
     catalog: Catalog,
+    assets: AssetRegistry,
 ) -> dict[str, Any]:
     physical_project = dict(project)
     physical_project.pop("display_units", None)
@@ -431,6 +436,7 @@ def _physical_hash_payload(
         "scenarios": scenarios,
         "experiments": experiments,
         "catalog": {identifier: entry.data for identifier, entry in catalog.entries.items()},
+        "assets": assets.physical_hash_data(),
     }
 
 
@@ -450,14 +456,14 @@ def load_project(project_path: str | Path = "configs/project.yaml") -> ResolvedP
         field="catalog_paths",
         require_directory=True,
     )
-    _resolve_paths(
+    asset_paths = _resolve_paths(
         raw_project["asset_paths"],
         base_dir=project_dir,
         source=path,
         field="asset_paths",
         require_directory=True,
     )
-    _resolve_paths(
+    measurement_paths = _resolve_paths(
         raw_project.get("measurement_paths", ()),
         base_dir=project_dir,
         source=path,
@@ -465,6 +471,7 @@ def load_project(project_path: str | Path = "configs/project.yaml") -> ResolvedP
         require_directory=True,
     )
     catalog = load_catalog(catalog_paths, schemas)
+    assets = load_asset_registry(asset_paths, measurement_paths, schemas, catalog)
 
     scenario_files = _resolve_paths(
         raw_project["scenarios"],
@@ -482,6 +489,7 @@ def load_project(project_path: str | Path = "configs/project.yaml") -> ResolvedP
             schemas.validate(raw_scenario, "scenario.schema.json", source=str(scenario_path))
             resolved_scenario = resolve_quantities(raw_scenario, source=str(scenario_path))
             _validate_scenario(resolved_scenario, source=scenario_path, catalog=catalog)
+            resolve_assembly(resolved_scenario, catalog, source=str(scenario_path))
         except ConfigValidationError as exc:
             diagnostics.extend(exc.diagnostics)
             continue
@@ -516,7 +524,7 @@ def load_project(project_path: str | Path = "configs/project.yaml") -> ResolvedP
         require_directory=False,
     )
     experiments: dict[str, Mapping[str, Any]] = {}
-    warnings: list[Diagnostic] = []
+    warnings: list[Diagnostic] = list(assets.warnings)
     for experiment_path in experiment_files:
         raw_experiment = _load_yaml_mapping(experiment_path)
         try:
@@ -552,7 +560,13 @@ def load_project(project_path: str | Path = "configs/project.yaml") -> ResolvedP
     frozen_scenarios = MappingProxyType(scenarios)
     frozen_experiments = MappingProxyType(experiments)
     config_hash = canonical_hash(
-        _physical_hash_payload(frozen_project, frozen_scenarios, frozen_experiments, catalog)
+        _physical_hash_payload(
+            frozen_project,
+            frozen_scenarios,
+            frozen_experiments,
+            catalog,
+            assets,
+        )
     )
     return ResolvedProject(
         project_path=path,
@@ -560,6 +574,7 @@ def load_project(project_path: str | Path = "configs/project.yaml") -> ResolvedP
         scenarios=frozen_scenarios,
         experiments=frozen_experiments,
         catalog=catalog,
+        assets=assets,
         warnings=tuple(warnings),
         config_hash=config_hash,
     )
