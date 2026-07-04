@@ -273,7 +273,8 @@ def load_stl_asset(
             path="validation.normal_policy",
             message=f"Geometry와 일치하지 않는 facet normal {audit.normal_mismatch_count}개를 찾았습니다.",
             hint=(
-                "normal_policy=repair이면 simulation load 시 geometry normal로 교체합니다."
+                "Phase 0.1은 normal mismatch를 기록만 하며 mesh data를 수정하지 않습니다. "
+                "현재는 FreeCAD 등에서 normal을 재계산해 다시 export하세요."
                 if normal_policy == "repair"
                 else None
             ),

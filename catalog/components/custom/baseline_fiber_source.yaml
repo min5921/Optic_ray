@@ -11,9 +11,14 @@ optical:
   m2_x: 1.0
   m2_y: 1.0
 
+validity:
+  wavelength_range_m: [1200 nm, 1700 nm]
+
 ports:
   - id: output
     role: output
+    interface_type: free_space
+    reference_plane: source_waist
     origin_local_m: [0.0, 0.0, 0.0]
     propagation_axis_local: [0.0, 0.0, 1.0]
     transverse_x_local: [1.0, 0.0, 0.0]

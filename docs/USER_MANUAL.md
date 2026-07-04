@@ -1,9 +1,9 @@
 # 사용자 설정 및 부품 교체 매뉴얼
 
-- 문서 상태: Draft v0.1
+- 문서 상태: Draft v0.2
 - 대상 프로젝트: Custom Beam, Scanner, and Optical Return Simulator
 - 기준 설계: `PROJECT_VISION.md` Draft v0.2
-- 작성일: 2026-06-28
+- 마지막 갱신: 2026-06-29
 
 ## 1. 이 매뉴얼의 목적
 
@@ -24,7 +24,7 @@
 
 ## 2. 현재 구현 상태
 
-Phase 0가 완료되었다. `lidarsim validate`는 project/scenario/experiment/catalog YAML을 JSON Schema로 검사하고, 명시 단위를 SI/radian 값으로 변환하며, component/material/port/scanner 참조와 placement dependency를 의미적으로 검증한다. 검증된 구성은 변경 불가능한 snapshot과 재현 가능한 SHA-256 hash로 만들어진다. `lidarsim placement`는 active scenario의 absolute·port-to-port placement를 world transform으로 계산한다. `inspect-mesh`와 `inspect-measurement`는 실제 STL·measurement sidecar 및 referenced file을 검사한다. `report`는 confidence·energy·convergence 상태를 저장하고 `view`는 2D/3D placement PNG를 만든다.
+Phase 0와 검수 강화 단계인 Phase 0.1이 완료되었다. `lidarsim validate`는 project/scenario/experiment/catalog YAML을 JSON Schema로 검사하고, 명시 단위를 SI/radian 값으로 변환하며, 양수 물리량, wavelength validity, component/material/port/scanner 참조와 placement dependency를 검증한다. 검증된 구성은 변경 불가능한 snapshot과 재현 가능한 SHA-256 hash로 만들어진다. `lidarsim placement`는 active scenario의 absolute·port-to-port placement와 port interface를 world transform으로 계산한다. `inspect-mesh`와 `inspect-measurement`는 실제 STL·measurement sidecar 및 referenced file을 검사한다. `report`는 confidence·hardware readiness·energy·convergence 상태를 저장하고, `view`는 배치와 설정된 scan/FOV/return guide를 PNG로 만든다. `review`는 그림과 검수 결과를 standalone HTML로 묶는다.
 
 `lidarsim run`, `compare`와 실제 beam·radiometry 계산은 Phase 1 이후 구현한다. 현재 단계에서는 설정을 수정한 뒤 반드시 `lidarsim validate configs/project.yaml`을 실행한다.
 
@@ -80,7 +80,7 @@ Optic_ray_project/
 2. `configs/baseline_1550nm.yaml`을 복사한다.
 3. 복사한 파일의 `scenario_id`를 고유하게 변경한다.
 4. 필요한 물리 조건이나 `component_ref`만 변경한다.
-5. Planned validator로 units, references, wavelength와 placement를 검사한다.
+5. `lidarsim validate`로 units, references, wavelength와 placement를 검사한다.
 6. Baseline과 variant를 같은 sampling/seed로 실행한다.
 7. 결과 metric의 절대값과 baseline 대비 변화량을 비교한다.
 8. 사용한 effective config와 결과를 함께 보존한다.
@@ -128,6 +128,8 @@ Field suffix `_m`, `_w`, `_rad`, `_hz`는 resolved canonical unit을 뜻한다. 
 기준 설정은 다음 영역으로 나뉜다.
 
 ```yaml
+model_purpose: analytical_regression
+
 source:             # wavelength, power, beam parameters
 optical_assembly:   # component references, placement, optical paths
 scanner:            # motion and timing
@@ -143,8 +145,12 @@ outputs:            # requested results
 
 ```yaml
 source:
+  element_id: source
+  parameter_ownership: scenario_operating_point
   wavelength_m: 1550 nm
 ```
+
+`scenario_operating_point`는 실제 실행에 쓰는 wavelength, power와 beam 조건은 scenario 값이 authoritative source라는 뜻이다. Component catalog의 값은 부품의 nominal specification·validity·provenance이며 scenario 운전값을 조용히 덮어쓰지 않는다.
 
 예:
 
@@ -159,7 +165,7 @@ wavelength_m: 1064 nm
 wavelength_m: 905 nm
 ```
 
-Wavelength를 변경하면 validator가 다음 항목을 함께 확인해야 한다.
+Wavelength를 변경하면 다음 항목을 함께 확인해야 한다.
 
 - source와 fiber MFD validity
 - collimator design wavelength/range
@@ -169,6 +175,8 @@ Wavelength를 변경하면 validator가 다음 항목을 함께 확인해야 한
 - receiver/detector spectral response
 
 Wavelength만 변경하고 component data를 그대로 사용할 수 없는 경우 warning 또는 validation error가 발생해야 한다.
+
+현재 Phase 0.1 validator는 source와 optical component의 declared wavelength range를 강제하고, target material의 기준 wavelength가 다르면 warning을 낸다. 상세 coating curve, glass dispersion와 detector spectral response 검사는 해당 model이 구현되는 Phase에서 추가한다.
 
 ## 7. Source와 Beam 조건 변경
 
@@ -280,6 +288,9 @@ id: custom:my_collimator
 component_type: collimator
 model_level: paraxial_specification
 
+validity:
+  wavelength_range_m: [1500 nm, 1600 nm]
+
 optical:
   model: ideal_thin_lens
   design_wavelength_m: 1550 nm
@@ -290,12 +301,16 @@ optical:
 ports:
   - id: input
     role: input
+    interface_type: free_space
+    reference_plane: optical_surface
     origin_local_m: [0.0, 0.0, 0.0]
     propagation_axis_local: [0.0, 0.0, 1.0]
     transverse_x_local: [1.0, 0.0, 0.0]
 
   - id: output
     role: output
+    interface_type: free_space
+    reference_plane: optical_surface
     origin_local_m: [0.0, 0.0, 0.0]
     propagation_axis_local: [0.0, 0.0, 1.0]
     transverse_x_local: [1.0, 0.0, 0.0]
@@ -504,6 +519,7 @@ material_ref: custom:diffuse_gray_020
 ```yaml
 receiver:
   architecture: virtual_monostatic
+  model_level: virtual_aperture
   position_m: [0.0, 0.0, 0.0]
   direction: [1.0, 0.0, 0.0]
   aperture_diameter_m: 25 mm
@@ -512,7 +528,9 @@ receiver:
   detector_model: none
 ```
 
-초기 결과는 receiver aperture에 도달한 optical power다.
+`virtual_monostatic/virtual_aperture`는 실제 beamsplitter, scanner 역경로, receive lens와 detector를 생략한 분석용 aperture다. 실제 장비 배치를 주장하려면 해당 부품과 reverse optical path를 assembly에 추가하고 `model_level`을 구현된 수준에 맞춰 변경해야 한다.
+
+Phase 5에서 구현할 radiometric receiver의 첫 결과 목표는 receiver aperture에 도달한 optical power다. Phase 0.1은 아직 이 값을 계산하지 않는다.
 
 향후 변경 가능한 항목:
 
@@ -665,7 +683,12 @@ lidarsim report configs/project.yaml --output results/phase0_report.yaml
 
 # Headless 2D/3D placement PNG 생성
 lidarsim view configs/project.yaml --output results/placement.png
+
+# 그림·지원 output·경고·수치 검사를 한 HTML로 생성
+lidarsim review configs/project.yaml --output results/phase0_1_review.html
 ```
+
+`review` 그림의 scan limit, receiver FOV와 return path는 설정값 기반 기하학 가이드다. 실제 beam envelope, footprint 또는 received power로 해석하지 않는다.
 
 다음 명령은 이후 Phase에서 구현할 계획이다.
 
@@ -703,6 +726,12 @@ CLI와 GUI는 동일한 config/schema/validator를 사용해야 한다.
 원인: STL unit이 없거나 FreeCAD mm export를 m로 해석함.
 
 조치: Sidecar의 `unit_scale_m`과 imported bounding box를 확인한다.
+
+### STL normal이 geometry와 다름
+
+원인: Export된 facet normal과 vertex winding으로 다시 계산한 normal이 일치하지 않음.
+
+조치: Phase 0.1의 `normal_policy=repair`는 mismatch를 기록하지만 파일을 자동 수정하지 않는다. FreeCAD 또는 mesh 도구에서 normal을 재계산한 뒤 다시 export하고 `lidarsim inspect-mesh`로 확인한다.
 
 ### Component를 바꿨는데 초점이 맞지 않음
 

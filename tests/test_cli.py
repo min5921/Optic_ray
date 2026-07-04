@@ -16,7 +16,9 @@ def test_validate_command_reports_resolved_project(project_root: Path, capsys) -
     assert "Project valid: optic_ray_default" in output.out
     assert "4 components, 1 materials" in output.out
     assert "Resolved config SHA-256:" in output.out
-    assert output.err == ""
+    assert "virtual_monostatic receiver" in output.err
+    assert "현재 Phase에서 생성되지 않는 output" in output.err
+    assert "analytical regression 기준" in output.err
 
 
 def test_validate_command_returns_nonzero_for_missing_project(tmp_path: Path, capsys) -> None:
@@ -227,4 +229,29 @@ def test_view_command_writes_headless_png(project_root: Path, tmp_path: Path, ca
     assert result == 0
     assert output_path.read_bytes().startswith(b"\x89PNG\r\n\x1a\n")
     assert "Placement view:" in output.out
+    assert output.err == ""
+
+
+def test_review_command_writes_html_and_png(project_root: Path, tmp_path: Path, capsys) -> None:
+    output_path = tmp_path / "phase0_1_review.html"
+
+    result = main(
+        [
+            "review",
+            str(project_root / "configs" / "project.yaml"),
+            "--output",
+            str(output_path),
+            "--dpi",
+            "72",
+        ]
+    )
+    output = capsys.readouterr()
+
+    assert result == 0
+    assert "Phase 0.1 review:" in output.out
+    assert "Hardware readiness: analytical_only" in output.out
+    assert output_path.is_file()
+    assert output_path.with_name("phase0_1_review_placement.png").read_bytes().startswith(
+        b"\x89PNG\r\n\x1a\n"
+    )
     assert output.err == ""

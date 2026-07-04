@@ -9,6 +9,7 @@ from .reports import (
     RunManifest,
     build_phase0_report,
 )
+from .html import write_review_html
 
 __all__ = [
     "AccuracyReport",
@@ -18,4 +19,5 @@ __all__ = [
     "Phase0Report",
     "RunManifest",
     "build_phase0_report",
+    "write_review_html",
 ]

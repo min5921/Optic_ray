@@ -9,6 +9,9 @@ optical:
   clear_height_m: 20 mm
   power_reflectivity: 1.0
 
+validity:
+  wavelength_range_m: [1200 nm, 1700 nm]
+
 mechanical:
   pivot_local_m: [0.0, 0.0, 0.0]
   default_rotation_axis_local: [0.0, 1.0, 0.0]

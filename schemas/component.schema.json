@@ -3,7 +3,7 @@
   "$id": "https://optic-ray.local/schemas/component.schema.json",
   "title": "Optic Ray Component Record",
   "type": "object",
-  "additionalProperties": true,
+  "additionalProperties": false,
   "required": ["schema_version", "id", "component_type", "model_level", "optical", "provenance"],
   "properties": {
     "schema_version": { "const": 1 },
@@ -15,24 +15,46 @@
     "model_level": { "enum": ["ideal", "paraxial_specification", "sequential_prescription", "vendor_blackbox", "measured_calibrated"] },
     "optical": { "type": "object" },
     "mechanical": { "type": "object" },
+    "validity": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "wavelength_range_m": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 2,
+          "items": { "$ref": "common.schema.json#/$defs/quantity" }
+        },
+        "temperature_range_k": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 2,
+          "items": { "$ref": "common.schema.json#/$defs/quantity" }
+        }
+      }
+    },
     "ports": {
       "type": "array",
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["id", "role", "origin_local_m", "propagation_axis_local", "transverse_x_local"],
+        "required": ["id", "role", "interface_type", "reference_plane", "origin_local_m", "propagation_axis_local", "transverse_x_local"],
         "properties": {
           "id": { "$ref": "common.schema.json#/$defs/identifier" },
           "role": { "enum": ["input", "output", "bidirectional"] },
+          "interface_type": { "enum": ["free_space", "fiber_fc_pc", "fiber_fc_apc", "fiber_pigtail", "electrical", "none"] },
+          "reference_plane": { "enum": ["source_waist", "optical_surface", "exit_aperture", "fiber_end", "mechanical_datum", "detector_plane"] },
           "origin_local_m": { "$ref": "common.schema.json#/$defs/vec3" },
           "propagation_axis_local": { "$ref": "common.schema.json#/$defs/vec3" },
-          "transverse_x_local": { "$ref": "common.schema.json#/$defs/vec3" }
+          "transverse_x_local": { "$ref": "common.schema.json#/$defs/vec3" },
+          "clear_aperture_diameter_m": { "$ref": "common.schema.json#/$defs/quantity" }
         }
       }
     },
     "tolerances": { "type": "object" },
     "provenance": { "$ref": "common.schema.json#/$defs/provenance" },
-    "notes": { "type": ["string", "null"] }
+    "notes": { "type": ["string", "null"] },
+    "extensions": { "type": "object", "additionalProperties": true }
   },
   "allOf": [
     {
@@ -85,6 +107,16 @@
               "clear_width_m": { "$ref": "common.schema.json#/$defs/quantity" },
               "clear_height_m": { "$ref": "common.schema.json#/$defs/quantity" },
               "power_reflectivity": { "type": "number", "minimum": 0.0, "maximum": 1.0 }
+            }
+          },
+          "mechanical": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["pivot_local_m", "default_rotation_axis_local", "surface_normal_local"],
+            "properties": {
+              "pivot_local_m": { "$ref": "common.schema.json#/$defs/vec3" },
+              "default_rotation_axis_local": { "$ref": "common.schema.json#/$defs/vec3" },
+              "surface_normal_local": { "$ref": "common.schema.json#/$defs/vec3" }
             }
           }
         }

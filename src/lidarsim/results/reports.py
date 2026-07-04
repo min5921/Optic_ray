@@ -33,6 +33,9 @@ class AccuracyReport:
     accuracy_mode: str
     confidence_level: str
     calibration_status: str
+    model_purpose: str
+    hardware_readiness: str
+    receiver_model: str
     component_model_levels: dict[str, str]
     assumptions: tuple[str, ...]
     validity: dict[str, Any]
@@ -141,10 +144,20 @@ def _accuracy_report(project: Any, assembly: AssemblyPlacement) -> AccuracyRepor
             f"target {target['id']}: material={material_ref}, model={material.get('model_level', 'unknown')}"
         )
     warnings.extend(item.format() for item in project.warnings)
+    model_purpose = str(scenario["model_purpose"])
+    readiness = {
+        "analytical_regression": "analytical_only",
+        "bench_template": "bench_template",
+        "calibrated_hardware": "calibrated",
+    }[model_purpose]
+    receiver = scenario["receiver"]
     return AccuracyReport(
         accuracy_mode=mode,
         confidence_level=confidence,
         calibration_status=calibration,
+        model_purpose=model_purpose,
+        hardware_readiness=readiness,
+        receiver_model=f"{receiver['architecture']}/{receiver['model_level']}",
         component_model_levels=component_levels,
         assumptions=tuple(assumptions),
         validity={

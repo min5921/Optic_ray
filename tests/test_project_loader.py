@@ -130,3 +130,137 @@ def test_canonical_scenario_save_and_reload_preserves_hash_and_placement(
     assert assembly["collimator"].T_world_from_component.translation_m == pytest.approx(
         (0.0, 0.0, -0.08)
     )
+
+
+@pytest.mark.parametrize(
+    ("path", "value", "message"),
+    [
+        (("source", "wavelength_m"), "-1550 nm", "0보다 큰 값"),
+        (("source", "optical_power_w"), "-10 mW", "0보다 큰 값"),
+        (("receiver", "aperture_diameter_m"), "-25 mm", "0보다 큰 값"),
+    ],
+)
+def test_negative_physical_quantities_are_rejected(
+    copied_project: Path,
+    path: tuple[str, str],
+    value: str,
+    message: str,
+) -> None:
+    scenario_path = copied_project.parent / "baseline_1550nm.yaml"
+    scenario = _read_yaml(scenario_path)
+    scenario[path[0]][path[1]] = value
+    _write_yaml(scenario_path, scenario)
+
+    with pytest.raises(ConfigValidationError, match=message):
+        load_project(copied_project)
+
+
+def test_negative_target_size_is_rejected(copied_project: Path) -> None:
+    scenario_path = copied_project.parent / "baseline_1550nm.yaml"
+    scenario = _read_yaml(scenario_path)
+    scenario["scene"]["targets"][0]["geometry"]["width_m"] = "-4 m"
+    _write_yaml(scenario_path, scenario)
+
+    with pytest.raises(ConfigValidationError, match="0보다 큰 값"):
+        load_project(copied_project)
+
+
+def test_source_wavelength_outside_catalog_validity_is_rejected(copied_project: Path) -> None:
+    scenario_path = copied_project.parent / "baseline_1550nm.yaml"
+    scenario = _read_yaml(scenario_path)
+    scenario["source"]["wavelength_m"] = "2000 nm"
+    _write_yaml(scenario_path, scenario)
+
+    with pytest.raises(ConfigValidationError, match="validity range"):
+        load_project(copied_project)
+
+
+def test_wavelength_outside_downstream_component_validity_is_rejected(
+    copied_project: Path,
+) -> None:
+    component_path = (
+        copied_project.parent.parent
+        / "catalog"
+        / "components"
+        / "custom"
+        / "ideal_collimator_f20.yaml"
+    )
+    component = _read_yaml(component_path)
+    component["validity"]["wavelength_range_m"] = ["1000 nm", "1400 nm"]
+    _write_yaml(component_path, component)
+
+    with pytest.raises(ConfigValidationError, match="element 'collimator'.*validity range"):
+        load_project(copied_project)
+
+
+def test_material_wavelength_mismatch_is_reported(copied_project: Path) -> None:
+    material_path = (
+        copied_project.parent.parent
+        / "catalog"
+        / "materials"
+        / "custom"
+        / "diffuse_gray_020.yaml"
+    )
+    material = _read_yaml(material_path)
+    material["optical"]["wavelength_m"] = "1310 nm"
+    _write_yaml(material_path, material)
+
+    project = load_project(copied_project)
+
+    assert any(
+        item.path == "scene.targets[0].material_ref"
+        and "scenario wavelength" in item.message
+        for item in project.warnings
+    )
+
+
+def test_incompatible_port_interfaces_are_rejected(copied_project: Path) -> None:
+    source_path = (
+        copied_project.parent.parent
+        / "catalog"
+        / "components"
+        / "custom"
+        / "baseline_fiber_source.yaml"
+    )
+    source_record = _read_yaml(source_path)
+    source_record["ports"][0]["interface_type"] = "fiber_fc_pc"
+    _write_yaml(source_path, source_record)
+
+    with pytest.raises(ConfigValidationError, match="Port interface"):
+        load_project(copied_project)
+
+
+def test_unknown_component_catalog_field_is_rejected(copied_project: Path) -> None:
+    component_path = (
+        copied_project.parent.parent
+        / "catalog"
+        / "components"
+        / "custom"
+        / "ideal_collimator_f20.yaml"
+    )
+    component = _read_yaml(component_path)
+    component["typo_focal_lenght"] = "20 mm"
+    _write_yaml(component_path, component)
+
+    with pytest.raises(ConfigValidationError) as captured:
+        load_project(copied_project)
+
+    assert any("Additional properties" in item.message for item in captured.value.diagnostics)
+
+
+def test_scanner_axis_must_lie_in_mirror_surface(copied_project: Path) -> None:
+    component_path = (
+        copied_project.parent.parent
+        / "catalog"
+        / "components"
+        / "custom"
+        / "ideal_scan_mirror_20mm.yaml"
+    )
+    component = _read_yaml(component_path)
+    component["mechanical"]["default_rotation_axis_local"] = component["mechanical"][
+        "surface_normal_local"
+    ]
+    _write_yaml(component_path, component)
+
+    with pytest.raises(ConfigValidationError, match="surface normal과 수직"):
+        load_project(copied_project)

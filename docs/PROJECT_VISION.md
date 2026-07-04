@@ -884,7 +884,9 @@ src/lidarsim/
 
 완료 조건: 두 개의 ideal optical component를 배치하고 port로 연결한 뒤 config를 저장/재로드하고 3D 위치와 optical axis를 검증한다.
 
-Phase 0 완료 상태 (2026-06-29): Python package/test 구조, unit-aware YAML resolution, JSON Schema project/scenario/experiment/catalog/result validation, catalog/port/scanner 의미 검증, immutable resolved configuration, physical configuration hash, `RigidTransform`, optical port frame, absolute·port-to-port placement resolver, STL·measurement asset registry, accuracy·energy·convergence·manifest report와 headless 2D/3D placement viewer가 구현되었다. `lidarsim validate/placement/inspect-mesh/inspect-measurement/report/view` CLI와 자동 test로 검증했으며 canonical config 저장→재로드 후 hash와 world placement가 유지됨을 확인했다. 다음 활성 단계는 Phase 1 Beam Engine이다.
+Phase 0 완료 상태 (2026-06-29): Python package/test 구조, unit-aware YAML resolution, JSON Schema project/scenario/experiment/catalog/result validation, catalog/port/scanner 의미 검증, immutable resolved configuration, physical configuration hash, `RigidTransform`, optical port frame, absolute·port-to-port placement resolver, STL·measurement asset registry, accuracy·energy·convergence·manifest report와 headless 2D/3D placement viewer가 구현되었다. Canonical config 저장→재로드 후 hash와 world placement가 유지됨을 확인했다.
+
+Phase 0.1 검수 강화 상태 (2026-06-29): 양수여야 하는 물리량과 wavelength/component validity의 cross-field 검사, scenario가 source 운전값을 소유하는 contract, port `interface_type`·`reference_plane`, `model_purpose`·receiver `model_level`과 hardware readiness를 추가했다. Baseline은 `analytical_regression`이며 ideal thin lens와 `virtual_monostatic/virtual_aperture`를 사용하므로 실제 상용 collimator 또는 수신계의 절대 성능을 예측한다고 주장하지 않는다. Viewer는 mirror zero normal, 기계각의 두 배가 되는 declared optical scan limit, receiver FOV와 return-path guide를 표시하고, `lidarsim review`는 지원 output·경고·수치 검사를 standalone HTML로 만든다. 이 guide들은 Phase 1 이후의 beam propagation이나 Phase 5의 received-power 계산 결과가 아니다. STL `normal_policy=repair`도 현재 자동 수정으로 과장하지 않고 mismatch 기록과 외부 재-export 절차로 제한한다. 다음 활성 단계는 Phase 1 Beam Engine이다.
 
 ### Phase 1 — Beam Engine
 

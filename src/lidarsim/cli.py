@@ -14,7 +14,7 @@ from lidarsim.config import load_project
 from lidarsim.config.schema import SchemaStore
 from lidarsim.errors import ConfigError
 from lidarsim.geometry import resolve_assembly
-from lidarsim.results import build_phase0_report
+from lidarsim.results import build_phase0_report, write_review_html
 from lidarsim.visualization import render_placement_view
 
 
@@ -75,6 +75,17 @@ def _parser() -> argparse.ArgumentParser:
         default=Path("results/placement.png"),
     )
     view.add_argument("--dpi", type=int, default=150)
+    review = subparsers.add_parser(
+        "review",
+        help="write a self-contained Phase 0.1 HTML review and placement PNG",
+    )
+    review.add_argument("project", nargs="?", default="configs/project.yaml")
+    review.add_argument(
+        "--output",
+        type=Path,
+        default=Path("results/phase0_1_review.html"),
+    )
+    review.add_argument("--dpi", type=int, default=150)
     return parser
 
 
@@ -251,6 +262,35 @@ def _view(args: argparse.Namespace) -> int:
     return 0
 
 
+def _review(args: argparse.Namespace) -> int:
+    try:
+        project = load_project(args.project)
+        assembly = resolve_assembly(
+            project.active_scenario,
+            project.catalog,
+            source=str(project.project_path),
+        )
+        report = build_phase0_report(project, assembly)
+        schemas = SchemaStore.load(project.project_path.parent.parent / "schemas")
+        schemas.validate(
+            report.to_dict(),
+            "phase0_report.schema.json",
+            source="generated Phase 0.1 review report",
+        )
+        html_path = args.output.resolve()
+        image_path = html_path.with_name(f"{html_path.stem}_placement.png")
+        render_placement_view(project, image_path, assembly, dpi=args.dpi)
+        write_review_html(project, report, image_path, html_path)
+    except (ConfigError, OSError, ValueError) as exc:
+        print(exc, file=sys.stderr)
+        return 2
+
+    print(f"Phase 0.1 review: {html_path}")
+    print(f"Placement view: {image_path}")
+    print(f"Hardware readiness: {report.accuracy.hardware_readiness}")
+    return 0
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     """Run the requested CLI command."""
 
@@ -267,6 +307,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         return _report(args)
     if args.command == "view":
         return _view(args)
+    if args.command == "review":
+        return _review(args)
     raise AssertionError(f"Unhandled command: {args.command}")
 
 

@@ -4,11 +4,12 @@
   "title": "Optic Ray Scenario",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schema_version", "scenario_id", "coordinates", "source", "optical_assembly", "scanner", "scene", "receiver", "simulation", "outputs"],
+  "required": ["schema_version", "scenario_id", "model_purpose", "coordinates", "source", "optical_assembly", "scanner", "scene", "receiver", "simulation", "outputs"],
   "properties": {
     "schema_version": { "const": 1 },
     "scenario_id": { "$ref": "common.schema.json#/$defs/identifier" },
     "description": { "type": "string" },
+    "model_purpose": { "enum": ["analytical_regression", "bench_template", "calibrated_hardware"] },
     "coordinates": {
       "type": "object",
       "additionalProperties": false,
@@ -22,8 +23,10 @@
     "source": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["type", "wavelength_m", "optical_power_w"],
+      "required": ["element_id", "parameter_ownership", "type", "wavelength_m", "optical_power_w"],
       "properties": {
+        "element_id": { "$ref": "common.schema.json#/$defs/identifier" },
+        "parameter_ownership": { "const": "scenario_operating_point" },
         "type": { "enum": ["fiber_gaussian", "free_space_gaussian", "measured_profile"] },
         "wavelength_m": { "$ref": "common.schema.json#/$defs/quantity" },
         "optical_power_w": { "$ref": "common.schema.json#/$defs/quantity" },
@@ -125,9 +128,10 @@
     "receiver": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["architecture", "position_m", "direction", "aperture_diameter_m", "full_fov_rad", "optical_efficiency", "detector_model"],
+      "required": ["architecture", "model_level", "position_m", "direction", "aperture_diameter_m", "full_fov_rad", "optical_efficiency", "detector_model"],
       "properties": {
         "architecture": { "enum": ["virtual_monostatic", "monostatic", "bistatic"] },
+        "model_level": { "enum": ["virtual_aperture", "geometric_optics", "calibrated"] },
         "position_m": { "$ref": "common.schema.json#/$defs/vec3" },
         "direction": { "$ref": "common.schema.json#/$defs/vec3" },
         "aperture_diameter_m": { "$ref": "common.schema.json#/$defs/quantity" },

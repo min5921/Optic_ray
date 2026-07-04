@@ -31,11 +31,14 @@
     "accuracy": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["accuracy_mode", "confidence_level", "calibration_status", "component_model_levels", "assumptions", "validity", "warnings"],
+      "required": ["accuracy_mode", "confidence_level", "calibration_status", "model_purpose", "hardware_readiness", "receiver_model", "component_model_levels", "assumptions", "validity", "warnings"],
       "properties": {
         "accuracy_mode": { "enum": ["relative_design", "absolute_radiometric", "coherent_fmcw"] },
         "confidence_level": { "enum": ["illustrative", "comparative", "engineering_estimate", "calibrated", "out_of_validity"] },
         "calibration_status": { "enum": ["uncalibrated", "partially_calibrated", "calibrated"] },
+        "model_purpose": { "enum": ["analytical_regression", "bench_template", "calibrated_hardware"] },
+        "hardware_readiness": { "enum": ["analytical_only", "bench_template", "calibrated"] },
+        "receiver_model": { "type": "string" },
         "component_model_levels": { "type": "object", "additionalProperties": { "type": "string" } },
         "assumptions": { "type": "array", "items": { "type": "string" } },
         "validity": { "type": "object", "additionalProperties": true },

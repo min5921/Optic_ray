@@ -53,6 +53,8 @@ class AssemblyPlacement:
                 world_from_port = element.world_from_port(port_id)
                 ports[port_id] = {
                     "role": element.ports[port_id].role,
+                    "interface_type": element.ports[port_id].interface_type,
+                    "reference_plane": element.ports[port_id].reference_plane,
                     "origin_world_m": world_from_port.translation_m.tolist(),
                     "propagation_axis_world": world_from_port.rotation[:, 2].tolist(),
                     "transverse_x_world": world_from_port.rotation[:, 0].tolist(),
@@ -129,6 +131,22 @@ def _check_port_roles(
                 source=source,
                 path=f"{path}.connect_to",
                 message=f"Target port role은 input 또는 bidirectional이어야 합니다: {target_port.role!r}",
+            )
+        )
+    if (
+        source_port.interface_type != "unspecified"
+        and target_port.interface_type != "unspecified"
+        and source_port.interface_type != target_port.interface_type
+    ):
+        diagnostics.append(
+            Diagnostic(
+                source=source,
+                path=path,
+                message=(
+                    f"Port interface가 호환되지 않습니다: {source_port.interface_type!r} -> "
+                    f"{target_port.interface_type!r}"
+                ),
+                hint="Free-space port와 fiber connector를 rigid optical placement로 직접 연결하지 마세요.",
             )
         )
     if diagnostics:

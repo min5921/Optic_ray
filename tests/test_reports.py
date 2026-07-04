@@ -7,7 +7,8 @@ import pytest
 
 from lidarsim.config import load_project
 from lidarsim.config.schema import SchemaStore
-from lidarsim.results import build_phase0_report
+from lidarsim.results import build_phase0_report, write_review_html
+from lidarsim.visualization import render_placement_view
 
 
 def test_phase0_report_is_schema_valid_and_does_not_claim_uncomputed_power(
@@ -29,6 +30,9 @@ def test_phase0_report_is_schema_valid_and_does_not_claim_uncomputed_power(
     assert report.manifest.created_at_utc == "2026-06-29T00:00:00Z"
     assert report.accuracy.confidence_level == "comparative"
     assert report.accuracy.calibration_status == "uncalibrated"
+    assert report.accuracy.model_purpose == "analytical_regression"
+    assert report.accuracy.hardware_readiness == "analytical_only"
+    assert report.accuracy.receiver_model == "virtual_monostatic/virtual_aperture"
     assert report.energy_ledger.status == "not_evaluated"
     assert report.energy_ledger.source_power_w == pytest.approx(0.01)
     assert report.energy_ledger.entries == ()
@@ -58,3 +62,21 @@ def test_phase0_report_records_model_assumptions_and_numerical_checks(
     assert checks["port_axis_norm"].status == "pass"
     assert checks["port_angular_alignment"].status == "pass"
     assert checks["beam_physics_convergence"].status == "not_evaluated"
+
+
+def test_phase0_1_html_review_is_self_contained(
+    project_root: Path,
+    tmp_path: Path,
+) -> None:
+    project = load_project(project_root / "configs" / "project.yaml")
+    report = build_phase0_report(project)
+    image_path = render_placement_view(project, tmp_path / "placement.png", dpi=72)
+
+    result = write_review_html(project, report, image_path, tmp_path / "review.html")
+
+    document = result.read_text(encoding="utf-8")
+    assert "Phase 0.1 LiDAR setup review" in document
+    assert "analytical_only" in document
+    assert "virtual_monostatic/virtual_aperture" in document
+    assert "data:image/png;base64," in document
+    assert "실제 수신광 계산은 아직 수행하지 않습니다" in document

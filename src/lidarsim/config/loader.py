@@ -14,6 +14,7 @@ import yaml
 from lidarsim.assets.loader import AssetRegistry, load_asset_registry
 from lidarsim.catalog.loader import Catalog, load_catalog
 from lidarsim.config.immutable import canonical_hash, deep_freeze, deep_thaw
+from lidarsim.config.physical import validate_scenario_physics
 from lidarsim.config.schema import SchemaStore
 from lidarsim.config.units import resolve_quantities
 from lidarsim.errors import ConfigFileError, ConfigValidationError, Diagnostic
@@ -483,12 +484,18 @@ def load_project(project_path: str | Path = "configs/project.yaml") -> ResolvedP
     scenarios: dict[str, Mapping[str, Any]] = {}
     scenario_paths: dict[Path, str] = {}
     diagnostics: list[Diagnostic] = []
+    warnings: list[Diagnostic] = list(assets.warnings)
     for scenario_path in scenario_files:
         raw_scenario = _load_yaml_mapping(scenario_path)
         try:
             schemas.validate(raw_scenario, "scenario.schema.json", source=str(scenario_path))
             resolved_scenario = resolve_quantities(raw_scenario, source=str(scenario_path))
             _validate_scenario(resolved_scenario, source=scenario_path, catalog=catalog)
+            scenario_warnings = validate_scenario_physics(
+                resolved_scenario,
+                source=scenario_path,
+                catalog=catalog,
+            )
             resolve_assembly(resolved_scenario, catalog, source=str(scenario_path))
         except ConfigValidationError as exc:
             diagnostics.extend(exc.diagnostics)
@@ -505,6 +512,7 @@ def load_project(project_path: str | Path = "configs/project.yaml") -> ResolvedP
             continue
         scenarios[scenario_id] = deep_freeze(resolved_scenario)
         scenario_paths[scenario_path] = scenario_id
+        warnings.extend(scenario_warnings)
 
     active_baseline = str(raw_project["active_baseline"])
     if active_baseline not in scenarios and not diagnostics:
@@ -524,7 +532,6 @@ def load_project(project_path: str | Path = "configs/project.yaml") -> ResolvedP
         require_directory=False,
     )
     experiments: dict[str, Mapping[str, Any]] = {}
-    warnings: list[Diagnostic] = list(assets.warnings)
     for experiment_path in experiment_files:
         raw_experiment = _load_yaml_mapping(experiment_path)
         try:

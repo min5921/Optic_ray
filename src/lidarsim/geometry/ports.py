@@ -17,6 +17,8 @@ class OpticalPort:
 
     identifier: str
     role: str
+    interface_type: str
+    reference_plane: str
     T_component_from_port: RigidTransform
 
     @classmethod
@@ -27,6 +29,8 @@ class OpticalPort:
         role = str(data["role"])
         if role not in {"input", "output", "bidirectional"}:
             raise ValueError(f"지원하지 않는 optical port role입니다: {role!r}")
+        interface_type = str(data.get("interface_type", "unspecified"))
+        reference_plane = str(data.get("reference_plane", "unspecified"))
 
         z_axis = normalize_vector(data["propagation_axis_local"], name=f"{identifier}.z axis")
         x_candidate = np.array(data["transverse_x_local"], dtype=np.float64, copy=True)
@@ -37,4 +41,10 @@ class OpticalPort:
         y_axis = normalize_vector(np.cross(z_axis, x_axis), name=f"{identifier}.y axis")
         rotation = np.column_stack((x_axis, y_axis, z_axis))
         transform = RigidTransform(rotation, data["origin_local_m"])
-        return cls(identifier=identifier, role=role, T_component_from_port=transform)
+        return cls(
+            identifier=identifier,
+            role=role,
+            interface_type=interface_type,
+            reference_plane=reference_plane,
+            T_component_from_port=transform,
+        )

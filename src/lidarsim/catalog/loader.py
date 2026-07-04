@@ -11,6 +11,7 @@ from typing import Any
 import yaml
 
 from lidarsim.config.immutable import deep_freeze
+from lidarsim.config.physical import validate_catalog_record_physics
 from lidarsim.config.schema import SchemaStore
 from lidarsim.config.units import resolve_quantities
 from lidarsim.errors import ConfigFileError, ConfigValidationError, Diagnostic
@@ -101,6 +102,7 @@ def load_catalog(paths: Iterable[Path], schemas: SchemaStore) -> Catalog:
         try:
             schemas.validate(raw, schema_name, source=str(path))
             resolved = resolve_quantities(raw, source=str(path))
+            validate_catalog_record_physics(resolved, source=str(path), kind=kind)
         except ConfigValidationError as exc:
             diagnostics.extend(exc.diagnostics)
             continue

@@ -8,7 +8,7 @@
 - 원본 coherent FMCW LiDAR 자료는 `docs/original/coherent-fmcw-lidar-sim-docs/`에 보존되어 있다.
 - 여러 컴퓨터에서 사용할 Git·Codex·line ending·secret·생성 output 규칙이 설정되어 있다.
 - GitHub remote `origin`은 `https://github.com/min5921/Optic_ray.git`에 연결되어 있으며 `main`이 동기화되어 있다.
-- Phase 0가 완료되어 configuration, coordinate, placement, asset, result contract와 최소 viewer가 `src/lidarsim/`에 구현되어 있다.
+- Phase 0와 Phase 0.1 검수 강화가 완료되어 configuration, coordinate, placement, asset, result contract와 검토용 viewer/HTML이 `src/lidarsim/`에 구현되어 있다.
 - 프로젝트의 중심 범위는 catalog 기반 또는 사용자 정의 광학 부품의 3D 배치, 포인트·라인·면적 빔, collimator 광학계, 사용자 정의 scanner, target interaction과 receiver return 분석이다.
 - Draft v0.2에는 model fidelity contract, commercial component catalog, optical/CAD import, coordinate frame, rigid transform, optical port, placement constraint, structured result, visualization과 tolerance analysis가 포함된다.
 - Phase 0~5의 임시 초기값은 `docs/specs/INITIAL_BASELINE.md`에 정리되어 있으며 모든 값은 configuration으로 교체할 수 있다.
@@ -19,15 +19,17 @@
 - Draft JSON Schema contract는 project, scenario, experiment, component, material, STL metadata와 measurement metadata를 다룬다.
 - Accuracy·calibration, UX, energy·convergence와 measurement data contract 및 measurement asset template가 준비되어 있다.
 - `docs/USER_MANUAL.md`는 향후 사용자가 변경할 수 있는 조건, 부품 교체, FreeCAD/STL 절차, experiment 비교와 CLI workflow를 설명한다.
-- `lidarsim validate`는 project·scenario·experiment·catalog YAML을 읽고 JSON Schema를 검증하며, 단위 포함 값을 SI/radian으로 변환하고, 잘못된 component·material·port·scanner reference를 거부한다.
+- `lidarsim validate`는 project·scenario·experiment·catalog YAML을 읽고 JSON Schema를 검증하며, 단위 포함 값을 SI/radian으로 변환하고, 음수 물리량, wavelength validity 위반과 잘못된 component·material·port·scanner reference를 거부한다.
 - `RigidTransform`, right-handed optical port frame과 absolute·port-to-port assembly resolver가 구현되어 있다. `lidarsim placement`로 active scenario의 world position·axis를 확인하거나 YAML report로 저장할 수 있다.
 - Binary·ASCII STL parser와 asset registry가 구현되어 raw·SI bounds, topology, normal, degenerate triangle, content hash, material, placement와 scanner metadata를 검증한다.
 - Measurement loader는 metadata schema, condition unit, data column unit, referenced file과 declared SHA-256을 검증한다. Example template은 active asset scan에서 제외한다.
 - `lidarsim inspect-mesh`와 `lidarsim inspect-measurement`로 개별 asset을 검사하고 YAML report를 저장할 수 있다.
 - `lidarsim report`는 schema-validated run manifest, accuracy·confidence, energy ledger, convergence와 placement report를 생성한다. 계산하지 않은 beam·radiometry 값은 `not_evaluated`로 표시한다.
-- `lidarsim view`는 component origin, port axis, optical path, target plane, receiver와 STL bounds를 full 3D scene 및 X-Z detail PNG로 렌더링한다.
+- Component port에는 `interface_type`과 `reference_plane`이 있고 source 운전값은 scenario가 소유한다. Baseline은 `analytical_regression`, receiver는 `virtual_monostatic/virtual_aperture`로 명시되어 실제 장비 예측과 구분된다.
+- `lidarsim view`는 component origin, port axis, optical path, mirror normal, declared scan limit, target plane, receiver FOV, return guide와 STL bounds를 full 3D scene 및 X-Z detail PNG로 렌더링한다.
+- `lidarsim review`는 placement PNG, hardware readiness, component/port, output 지원 상태, convergence와 경고를 self-contained HTML로 생성한다.
 - Resolved project state는 재귀적으로 변경 불가능하며 안정적인 물리 configuration SHA-256을 갖는다. 표시 단위와 UI preference는 이 hash를 바꾸지 않는다.
-- Local `.venv`는 `pyproject.toml`에서 설치했으며, deprecation·user warning을 error로 처리해도 자동 test 41개가 통과한다.
+- Local `.venv`는 `pyproject.toml`에서 설치했으며, deprecation·user warning을 error로 처리해도 자동 test 55개가 통과한다.
 - 다음 활성 목표는 Phase 1 Beam Engine이다.
 
 ## 유지할 결정 사항
@@ -65,7 +67,10 @@ Phase 1의 첫 vertical slice로 immutable `BeamState`, circular Gaussian point 
 - Canonical SI scenario를 저장하고 재로드했을 때 config hash와 collimator world placement가 동일함을 확인했다.
 - `lidarsim report configs/project.yaml`: schema validation 통과. Confidence는 `comparative`, energy ledger는 `not_evaluated`, convergence는 Phase 1 physics가 없어 `warning`으로 정확히 표시된다.
 - `lidarsim view configs/project.yaml`: headless PNG 생성과 시각 검수를 완료했다. Full 3D scene과 X-Z assembly detail에 baseline placement가 표시된다.
-- 현재 revision의 resolved physical config SHA-256: `b479192169edc61b65b7cc77638cb021a2c4f691803056e1634fec70f069f259`.
+- Phase 0.1에서 물리·cross-field validation, source ownership, port interface, readiness report와 HTML review를 추가했다.
+- `python -W error::DeprecationWarning -W error::UserWarning -m pytest -q`: 55개 통과.
+- `lidarsim review configs/project.yaml --output results/phase0_1_review.html --dpi 140`: HTML과 placement PNG 생성 및 시각 검수 통과. 설정 기반 ±10° optical scan guide, 25° full receiver FOV와 return guide를 확인했다.
+- 현재 revision의 resolved physical config SHA-256: `dfbd5161c87868780cef2c29fefded64f83902a62524e5366538817c5cb9d6cb`.
 
 ## 세션 갱신 형식
 
