@@ -357,3 +357,36 @@ def test_beam_command_default_creates_timestamped_run_directory(
     assert (run_directories[0] / "beam_report.yaml").is_file()
     assert (run_directories[0] / "beam_summary.yaml").is_file()
     assert (run_directories[0] / "beam.png").is_file()
+
+
+def test_optical_train_command_writes_schema_validated_report_and_plot(
+    project_root: Path,
+    tmp_path: Path,
+    capsys,
+) -> None:
+    report_path = tmp_path / "phase2_train.yaml"
+    plot_path = tmp_path / "phase2_train.png"
+
+    result = main(
+        [
+            "optical-train",
+            str(project_root / "configs" / "project.yaml"),
+            "--output",
+            str(report_path),
+            "--plot",
+            str(plot_path),
+            "--dpi",
+            "72",
+        ]
+    )
+    output = capsys.readouterr()
+
+    assert result == 0
+    report = yaml.safe_load(report_path.read_text(encoding="utf-8"))
+    assert report["report_type"] == "phase2_optical_train"
+    assert report["summary"]["q_parameter_status"] == "pass"
+    assert report["summary"]["energy_ledger_status"] == "pass"
+    assert report["summary"]["aperture_status"] == "pass"
+    assert plot_path.read_bytes().startswith(b"\x89PNG\r\n\x1a\n")
+    assert "Phase 2 optical train report:" in output.out
+    assert "unsupported=1" in output.out

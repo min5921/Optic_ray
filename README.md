@@ -14,9 +14,11 @@
 
 정확도 mode는 `relative_design`, `absolute_radiometric`, `coherent_fmcw`로 구분한다. JSON validation contract는 [`schemas/`](schemas/)에 있으며, 측정 calibration·validation data는 [`assets/measurements/`](assets/measurements/)에 둔다.
 
-## Phase 1 빠른 시작
+## Phase 1·2 빠른 시작
 
 Phase 0.1의 검증 기반 위에 NumPy/float64 Gaussian Beam Engine을 구현했다. 현재 point·elliptical·line Gaussian의 자유공간 전파, M², q-parameter, second moment, power-normalized irradiance와 PNG 시각화를 지원한다.
+
+Phase 2의 첫 vertical slice로 source에서 ideal thin-lens collimator를 지나 scanner component origin까지 가는 transmitter optical train을 계산한다. `lidarsim optical-train`은 free-space propagation, thin-lens ABCD transform, centered circular aperture clipping, catalog power transmission과 element별 power ledger를 YAML/PNG로 저장한다. Mirror reflection, scanner motion, target footprint와 receiver return은 아직 후속 Phase 범위다.
 
 ```powershell
 py -m venv .venv
@@ -28,6 +30,7 @@ lidarsim report configs/project.yaml
 lidarsim view configs/project.yaml
 lidarsim review configs/project.yaml
 lidarsim beam configs/project.yaml
+lidarsim optical-train configs/project.yaml
 python -m pytest -q
 ```
 
@@ -36,6 +39,8 @@ python -m pytest -q
 `report`는 run manifest, confidence, model purpose, hardware readiness, energy ledger와 convergence 상태를 schema-validated YAML로 저장한다. `view`는 full 3D scene, X-Z assembly detail, mirror, 설정된 scan limit, receiver FOV와 return guide를 PNG로 렌더링한다. `review`는 이 그림과 지원 output·경고·수치 검사를 self-contained HTML 한 파일로 묶는다. Scan/FOV/return 선은 설정값 기반 기하학 가이드이며 아직 전파·수신광 계산 결과가 아니다.
 
 `beam`은 active source에서 첫 downstream element까지 기본 자유공간 전파를 계산한다. 결과는 덮어쓰지 않도록 `results/phase1/<timestamp>_<scenario>_<hash>/` 아래에 full report, compact summary와 PNG로 저장된다. `--z-max-m "100 mm"`처럼 단위를 포함해 범위를 바꿀 수 있다. Line-beam 예제는 `lidarsim beam configs/line_beam_project.example.yaml`로 실행한다. Phase 1은 downstream lens·aperture·mirror를 아직 적용하지 않는다.
+
+`optical-train`은 Phase 2 첫 조각으로 collimator 전후 `BeamState`, aperture clipping loss와 component transmission을 계산한다. 결과는 `results/phase2/<timestamp>_<scenario>_<hash>/` 아래에 `optical_train_report.yaml`과 `optical_train.png`로 저장된다. 현재는 ideal centered thin lens와 circular aperture만 계산하며, scanner mirror는 unsupported downstream element로 기록한다. 같은 명령은 짧게 `lidarsim train configs/project.yaml`로도 실행할 수 있다.
 
 Phase 1 결과는 numerical check가 통과해도 실제 측정으로 calibration되지 않았다면 전체 상태를 `warning`, hardware readiness를 `analytical_only`로 표시한다. Fiber MFD의 정의와 catalog nominal override 여부도 configuration에 명시해야 한다.
 

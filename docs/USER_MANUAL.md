@@ -3,7 +3,7 @@
 - 문서 상태: Draft v0.2
 - 대상 프로젝트: Custom Beam, Scanner, and Optical Return Simulator
 - 기준 설계: `PROJECT_VISION.md` Draft v0.2
-- 마지막 갱신: 2026-07-04
+- 마지막 갱신: 2026-07-08
 
 ## 1. 이 매뉴얼의 목적
 
@@ -26,7 +26,7 @@
 
 Phase 0·0.1과 Phase 1 Gaussian Beam Engine이 완료되었다. `lidarsim validate`는 project/scenario/experiment/catalog YAML을 검사하고 단위, 물리 범위, wavelength validity와 참조·배치를 검증한다. `placement`, `inspect-mesh`, `inspect-measurement`, `report`, `view`, `review`로 배치와 입력 contract를 확인할 수 있다. `lidarsim beam`은 active source의 point·elliptical·line Gaussian을 NumPy/float64로 자유공간 전파하고 radius, divergence, q-parameter, second moment와 power-normalized irradiance를 YAML/PNG로 저장한다. Numerical check와 실제 장비 calibration을 구분해 confidence, provenance, paraxial validity와 hardware readiness를 함께 표시한다.
 
-Phase 1은 source에서 출발한 자유공간 Gaussian만 계산한다. Collimator/lens/aperture/mirror와 clipping은 Phase 2, scanner motion은 Phase 3, target footprint는 Phase 4, receiver return은 Phase 5에서 연결한다. `lidarsim run`, `compare`와 end-to-end radiometry는 아직 구현되지 않았다.
+Phase 2의 첫 vertical slice로 `lidarsim optical-train`이 추가되었다. 이 명령은 source에서 ideal thin-lens collimator를 거쳐 scanner component origin까지 free-space propagation, ABCD thin-lens transform, centered circular aperture clipping, catalog power transmission과 element별 power ledger를 계산한다. 현재는 ideal centered thin lens만 지원하며, scanner mirror는 아직 반사/스캔하지 않고 downstream unsupported element로 기록한다. Scanner motion은 Phase 3, target footprint는 Phase 4, receiver return은 Phase 5에서 연결한다. `lidarsim run`, `compare`와 end-to-end radiometry는 아직 구현되지 않았다.
 
 ## 3. 주요 파일 위치
 
@@ -730,6 +730,16 @@ lidarsim beam configs/line_beam_project.example.yaml
 `review` 그림의 scan limit, receiver FOV와 return path는 설정값 기반 기하학 가이드다. 실제 beam envelope, footprint 또는 received power로 해석하지 않는다.
 
 `beam` 결과의 radius는 1/e² irradiance radius다. 기본 실행은 `results/phase1/<timestamp>_<scenario>_<hash>/` 아래에 `beam_report.yaml`, `beam_summary.yaml`, `beam.png`를 생성하므로 이전 결과를 덮어쓰지 않는다. YAML report의 첫 `summary`와 `accuracy`에서 전체 상태·신뢰도·보정 여부를 먼저 확인한다. `profile_audit`은 Gaussian tail truncation, base/refined grid quadrature와 grid convergence를 분리한다. `analytical_checks`는 내부 일관성 검사이며 실제 측정 validation이 아니다. 이 명령은 downstream optical component를 적용하지 않는다.
+
+```powershell
+# Phase 2 source→collimator→scanner origin optical train 계산
+lidarsim optical-train configs/project.yaml
+
+# 짧은 alias
+lidarsim train configs/project.yaml
+```
+
+`optical-train` 결과의 `optical_train.states`에는 source output, collimator input/output, scanner origin의 `BeamState`가 저장된다. `power_ledger`는 free-space, aperture clipping, component transmission을 순서대로 기록한다. `component_reports[].aperture_clip`에서 clear aperture 대비 clipping fraction을 확인하고, `summary.total_transmission`과 `summary.total_loss_w`로 optical train 손실을 빠르게 본다. 현재 centered circular aperture를 지난 뒤의 diffraction/truncated profile shape는 계산하지 않고 Gaussian power loss로만 반영한다.
 
 다음 명령은 이후 Phase에서 구현할 계획이다.
 

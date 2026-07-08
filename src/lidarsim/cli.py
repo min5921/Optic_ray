@@ -16,8 +16,17 @@ from lidarsim.config.units import resolve_quantities
 from lidarsim.config.schema import SchemaStore
 from lidarsim.errors import ConfigError
 from lidarsim.geometry import resolve_assembly
-from lidarsim.results import build_phase0_report, build_phase1_beam_report, write_review_html
-from lidarsim.visualization import render_beam_view, render_placement_view
+from lidarsim.results import (
+    build_phase0_report,
+    build_phase1_beam_report,
+    build_phase2_optical_train_report,
+    write_review_html,
+)
+from lidarsim.visualization import (
+    render_beam_view,
+    render_optical_train_view,
+    render_placement_view,
+)
 
 
 def _length_argument(value: str) -> float:
@@ -127,6 +136,23 @@ def _parser() -> argparse.ArgumentParser:
     beam.add_argument("--grid-size", type=int, default=301)
     beam.add_argument("--extent-radii", type=float, default=4.0)
     beam.add_argument("--dpi", type=int, default=150)
+    optical_train = subparsers.add_parser(
+        "optical-train",
+        aliases=["train"],
+        help="run Phase 2 source-to-collimator optical train propagation",
+    )
+    optical_train.add_argument("project", nargs="?", default="configs/project.yaml")
+    optical_train.add_argument(
+        "--output",
+        type=Path,
+        help="YAML report path; default creates a timestamped run directory",
+    )
+    optical_train.add_argument(
+        "--plot",
+        type=Path,
+        help="PNG path; default uses the run directory",
+    )
+    optical_train.add_argument("--dpi", type=int, default=150)
     return parser
 
 
@@ -450,6 +476,67 @@ def _beam(args: argparse.Namespace) -> int:
     return 0
 
 
+def _optical_train(args: argparse.Namespace) -> int:
+    try:
+        project = load_project(args.project)
+        report = build_phase2_optical_train_report(project)
+        schemas = SchemaStore.load(project.project_path.parent.parent / "schemas")
+        schemas.validate(
+            report.to_dict(),
+            "phase2_optical_train_report.schema.json",
+            source="generated Phase 2 optical train report",
+        )
+        result_root = (
+            project.project_path.parent / str(project.project.get("result_root", "../results"))
+        ).resolve()
+        timestamp = str(report.manifest["created_at_utc"])
+        run_stamp = timestamp.replace("-", "").replace(":", "").replace(".", "")
+        run_id = (
+            f"{run_stamp}_{project.active_scenario['scenario_id']}_"
+            f"{project.config_hash[:8]}"
+        )
+        run_directory = result_root / "phase2" / run_id
+        if args.output is not None:
+            report_target = args.output
+            plot_target = args.plot or args.output.with_name(f"{args.output.stem}_plot.png")
+        elif args.plot is not None:
+            plot_target = args.plot
+            report_target = args.plot.with_name(f"{args.plot.stem}_report.yaml")
+        else:
+            report_target = run_directory / "optical_train_report.yaml"
+            plot_target = run_directory / "optical_train.png"
+        report_path = _write_yaml_report(report_target, report.to_dict())
+        plot_path = render_optical_train_view(report, plot_target, dpi=args.dpi)
+    except (ConfigError, OSError, ValueError) as exc:
+        print(exc, file=sys.stderr)
+        return 2
+
+    summary = report.summary
+    print(f"Phase 2 optical train report: {report_path}")
+    print(f"Optical train plot: {plot_path}")
+    print(
+        f"Path: {summary['optical_path_id']} -> final={summary['final_plane']}, "
+        f"radius=({summary['final_radius_x_m']:.9g}, {summary['final_radius_y_m']:.9g}) m"
+    )
+    print(
+        f"Power: {summary['final_power_w']:.9g} W, "
+        f"transmission={summary['total_transmission']:.9g}, "
+        f"loss={summary['total_loss_w']:.3e} W"
+    )
+    print(
+        f"Checks: q={summary['q_parameter_status']}, "
+        f"energy={summary['energy_ledger_status']}, aperture={summary['aperture_status']}"
+    )
+    print(
+        f"Overall: {summary['overall_status']} | "
+        f"readiness={report.accuracy['hardware_readiness']} | "
+        f"unsupported={summary['unsupported_element_count']}"
+    )
+    for warning in report.accuracy["warnings"]:
+        print(warning, file=sys.stderr)
+    return 0
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     """Run the requested CLI command."""
 
@@ -470,6 +557,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         return _review(args)
     if args.command == "beam":
         return _beam(args)
+    if args.command in {"optical-train", "train"}:
+        return _optical_train(args)
     raise AssertionError(f"Unhandled command: {args.command}")
 
 

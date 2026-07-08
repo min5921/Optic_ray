@@ -11,6 +11,7 @@ from .reports import (
 )
 from .html import write_review_html
 from .beam import BeamSample, Phase1BeamReport, build_phase1_beam_report
+from .optical_train import Phase2OpticalTrainReport, build_phase2_optical_train_report
 
 __all__ = [
     "AccuracyReport",
@@ -23,5 +24,7 @@ __all__ = [
     "BeamSample",
     "Phase1BeamReport",
     "build_phase1_beam_report",
+    "Phase2OpticalTrainReport",
+    "build_phase2_optical_train_report",
     "write_review_html",
 ]
