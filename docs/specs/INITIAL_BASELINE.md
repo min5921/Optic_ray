@@ -60,10 +60,13 @@
 | Wavelength | 1550 nm |
 | Optical power | 10 mW |
 | Fiber mode-field diameter | 10 µm |
+| MFD definition | Gaussian 1/e² intensity diameter analytical reference |
 | Waist radius | 5 µm |
 | M² | 1.0 |
 | Polarization | 지정하지 않은 scalar |
 | Spectral model | Single wavelength |
+
+이 기준에서 `waist radius=MFD/2`는 명시적인 analytical Gaussian 가정이다. 실제 fiber가 Petermann II 또는 제조사 고유 MFD를 사용할 경우 definition, uncertainty와 Gaussian-equivalent approximation을 configuration/report에 남긴다.
 
 ### Line-beam reference
 

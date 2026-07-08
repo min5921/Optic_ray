@@ -1,0 +1,194 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://optic-ray.local/schemas/phase1_beam_report.schema.json",
+  "title": "Optic Ray Phase 1 Beam Report",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "report_type", "manifest", "summary", "accuracy", "model", "source_state", "propagation", "profile_audit", "analytical_checks"],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "report_type": { "const": "phase1_beam" },
+    "manifest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["project_id", "scenario_id", "config_hash", "created_at_utc", "software_version", "backend", "real_dtype"],
+      "properties": {
+        "project_id": { "$ref": "common.schema.json#/$defs/identifier" },
+        "scenario_id": { "$ref": "common.schema.json#/$defs/identifier" },
+        "config_hash": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        "created_at_utc": { "type": "string", "format": "date-time" },
+        "software_version": { "type": "string" },
+        "backend": { "const": "numpy" },
+        "real_dtype": { "const": "float64" }
+      }
+    },
+    "summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["overall_status", "profile_kind", "profile_distance_m", "radius_x_m", "radius_y_m", "divergence_x_rad", "divergence_y_rad", "power_w", "profile_power_status", "internal_consistency_status", "paraxial_validity_status"],
+      "properties": {
+        "overall_status": { "enum": ["pass", "warning", "fail"] },
+        "profile_kind": { "enum": ["circular_gaussian", "elliptical_gaussian", "line_gaussian"] },
+        "profile_distance_m": { "type": "number", "minimum": 0.0 },
+        "radius_x_m": { "type": "number", "exclusiveMinimum": 0.0 },
+        "radius_y_m": { "type": "number", "exclusiveMinimum": 0.0 },
+        "divergence_x_rad": { "type": "number", "exclusiveMinimum": 0.0 },
+        "divergence_y_rad": { "type": "number", "exclusiveMinimum": 0.0 },
+        "power_w": { "type": "number", "exclusiveMinimum": 0.0 },
+        "profile_power_status": { "enum": ["pass", "fail"] },
+        "internal_consistency_status": { "enum": ["pass", "fail"] },
+        "paraxial_validity_status": { "enum": ["pass", "warning"] }
+      }
+    },
+    "accuracy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["model_purpose", "accuracy_mode", "hardware_readiness", "confidence_level", "calibration_status", "scope", "source_component_ref", "source_model_level", "source_provenance", "catalog_parameter_policy", "mfd_interpretation", "mfd_uncertainty_m", "paraxial_validity", "assumptions", "warnings"],
+      "properties": {
+        "model_purpose": { "enum": ["analytical_regression", "bench_template", "calibrated_hardware"] },
+        "accuracy_mode": { "enum": ["relative_design", "absolute_radiometric", "coherent_fmcw"] },
+        "hardware_readiness": { "enum": ["analytical_only", "bench_template", "calibrated"] },
+        "confidence_level": { "enum": ["comparative", "engineering_estimate", "calibrated"] },
+        "calibration_status": { "enum": ["uncalibrated", "calibrated"] },
+        "scope": { "const": "source_free_space_only" },
+        "source_component_ref": { "type": "string" },
+        "source_model_level": { "type": "string" },
+        "source_provenance": { "type": "object", "additionalProperties": true },
+        "catalog_parameter_policy": { "enum": ["match_nominal", "explicit_override"] },
+        "mfd_interpretation": { "type": ["string", "null"] },
+        "mfd_uncertainty_m": { "type": ["number", "null"], "minimum": 0.0 },
+        "paraxial_validity": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["maximum_divergence_half_angle_rad", "small_angle_geometric_proxy_error", "tolerance", "status", "interpretation"],
+          "properties": {
+            "maximum_divergence_half_angle_rad": { "type": "number", "minimum": 0.0 },
+            "small_angle_geometric_proxy_error": { "type": "number", "minimum": 0.0 },
+            "tolerance": { "type": "number", "exclusiveMinimum": 0.0 },
+            "status": { "enum": ["pass", "warning"] },
+            "interpretation": { "type": "string" }
+          }
+        },
+        "assumptions": { "type": "array", "items": { "type": "string" } },
+        "warnings": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "model": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["profile_kind", "propagation_model", "radius_definition", "validity", "limitations"],
+      "properties": {
+        "profile_kind": { "enum": ["circular_gaussian", "elliptical_gaussian", "line_gaussian"] },
+        "propagation_model": { "enum": ["gaussian_m2", "second_moment"] },
+        "radius_definition": { "const": "1/e^2 irradiance radius" },
+        "validity": { "type": "string" },
+        "limitations": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "source_state": { "$ref": "#/$defs/beamState" },
+    "propagation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["z_min_m", "z_max_m", "sample_count", "samples"],
+      "properties": {
+        "z_min_m": { "type": "number", "minimum": 0.0 },
+        "z_max_m": { "type": "number", "exclusiveMinimum": 0.0 },
+        "sample_count": { "type": "integer", "minimum": 2 },
+        "samples": {
+          "type": "array",
+          "minItems": 2,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["distance_m", "radius_x_m", "radius_y_m", "q_x_real_m", "q_x_imag_m", "q_y_real_m", "q_y_imag_m", "power_w"],
+            "properties": {
+              "distance_m": { "type": "number", "minimum": 0.0 },
+              "radius_x_m": { "type": "number", "exclusiveMinimum": 0.0 },
+              "radius_y_m": { "type": "number", "exclusiveMinimum": 0.0 },
+              "q_x_real_m": { "type": "number" },
+              "q_x_imag_m": { "type": "number", "exclusiveMinimum": 0.0 },
+              "q_y_real_m": { "type": "number" },
+              "q_y_imag_m": { "type": "number", "exclusiveMinimum": 0.0 },
+              "power_w": { "type": "number", "exclusiveMinimum": 0.0 }
+            }
+          }
+        }
+      }
+    },
+    "profile_audit": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["check_scope", "distance_m", "grid_size", "refined_grid_size", "extent_radii", "radius_x_m", "radius_y_m", "peak_irradiance_w_m2", "requested_power_w", "analytical_truncated_power_w", "integrated_power_w", "refined_integrated_power_w", "truncation_relative_error", "numerical_quadrature_relative_error", "grid_convergence_relative_error", "relative_power_error", "status", "power_tolerance", "grid_convergence_tolerance"],
+      "properties": {
+        "check_scope": { "const": "numerical_quadrature_and_grid_convergence" },
+        "distance_m": { "type": "number", "minimum": 0.0 },
+        "grid_size": { "type": "integer", "minimum": 11 },
+        "refined_grid_size": { "type": "integer", "minimum": 21 },
+        "extent_radii": { "type": "number", "exclusiveMinimum": 0.0 },
+        "radius_x_m": { "type": "number", "exclusiveMinimum": 0.0 },
+        "radius_y_m": { "type": "number", "exclusiveMinimum": 0.0 },
+        "peak_irradiance_w_m2": { "type": "number", "exclusiveMinimum": 0.0 },
+        "requested_power_w": { "type": "number", "exclusiveMinimum": 0.0 },
+        "analytical_truncated_power_w": { "type": "number", "minimum": 0.0 },
+        "integrated_power_w": { "type": "number", "minimum": 0.0 },
+        "refined_integrated_power_w": { "type": "number", "minimum": 0.0 },
+        "truncation_relative_error": { "type": "number", "minimum": 0.0 },
+        "numerical_quadrature_relative_error": { "type": "number", "minimum": 0.0 },
+        "grid_convergence_relative_error": { "type": "number", "minimum": 0.0 },
+        "relative_power_error": { "type": "number", "minimum": 0.0 },
+        "status": { "enum": ["pass", "fail"] },
+        "power_tolerance": { "type": "number", "exclusiveMinimum": 0.0 },
+        "grid_convergence_tolerance": { "type": "number", "exclusiveMinimum": 0.0 }
+      }
+    },
+    "analytical_checks": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["check_scope", "second_moment_radius_max_relative_error", "rayleigh_identity_max_relative_error", "tolerance", "status", "external_validation_status", "message"],
+      "properties": {
+        "check_scope": { "const": "internal_consistency_only" },
+        "second_moment_radius_max_relative_error": { "type": "number", "minimum": 0.0 },
+        "rayleigh_identity_max_relative_error": { "type": "number", "minimum": 0.0 },
+        "tolerance": { "type": "number", "exclusiveMinimum": 0.0 },
+        "status": { "enum": ["pass", "fail"] },
+        "external_validation_status": { "const": "not_evaluated" },
+        "message": { "type": "string" }
+      }
+    }
+  },
+  "$defs": {
+    "beamState": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["time_s", "origin_m", "direction", "transverse_x_axis", "transverse_y_axis", "wavelength_m", "power_w", "profile_kind", "propagation_model", "waist_radius_x_m", "waist_radius_y_m", "m2_x", "m2_y", "rayleigh_range_x_m", "rayleigh_range_y_m", "divergence_x_rad", "divergence_y_rad", "distance_from_waist_m", "radius_x_m", "radius_y_m", "polarization", "optical_path_length_m", "accumulated_transmission", "source_component_id", "source_component_ref", "optical_path_id"],
+      "properties": {
+        "time_s": { "type": "number" },
+        "origin_m": { "$ref": "common.schema.json#/$defs/vec3" },
+        "direction": { "$ref": "common.schema.json#/$defs/vec3" },
+        "transverse_x_axis": { "$ref": "common.schema.json#/$defs/vec3" },
+        "transverse_y_axis": { "$ref": "common.schema.json#/$defs/vec3" },
+        "wavelength_m": { "type": "number", "exclusiveMinimum": 0.0 },
+        "power_w": { "type": "number", "exclusiveMinimum": 0.0 },
+        "profile_kind": { "type": "string" },
+        "propagation_model": { "type": "string" },
+        "waist_radius_x_m": { "type": "number", "exclusiveMinimum": 0.0 },
+        "waist_radius_y_m": { "type": "number", "exclusiveMinimum": 0.0 },
+        "m2_x": { "type": "number", "minimum": 1.0 },
+        "m2_y": { "type": "number", "minimum": 1.0 },
+        "rayleigh_range_x_m": { "type": "number", "exclusiveMinimum": 0.0 },
+        "rayleigh_range_y_m": { "type": "number", "exclusiveMinimum": 0.0 },
+        "divergence_x_rad": { "type": "number", "exclusiveMinimum": 0.0 },
+        "divergence_y_rad": { "type": "number", "exclusiveMinimum": 0.0 },
+        "distance_from_waist_m": { "type": "number" },
+        "radius_x_m": { "type": "number", "exclusiveMinimum": 0.0 },
+        "radius_y_m": { "type": "number", "exclusiveMinimum": 0.0 },
+        "polarization": { "type": "string" },
+        "optical_path_length_m": { "type": "number", "minimum": 0.0 },
+        "accumulated_transmission": { "type": "number", "minimum": 0.0, "maximum": 1.0 },
+        "source_component_id": { "type": ["string", "null"] },
+        "source_component_ref": { "type": ["string", "null"] },
+        "optical_path_id": { "type": ["string", "null"] }
+      }
+    }
+  }
+}

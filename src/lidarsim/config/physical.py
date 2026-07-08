@@ -18,7 +18,10 @@ IMPLEMENTED_OUTPUTS = {
     "energy_ledger",
     "convergence_report",
     "layout_3d",
+    "beam_envelope",
 }
+
+PARAXIAL_PROXY_TOLERANCE = 1e-3
 
 
 def _require_finite(
@@ -129,7 +132,7 @@ def validate_catalog_record_physics(
     optical = record["optical"]
     if kind == "component":
         component_type = str(record["component_type"])
-        if component_type == "fiber_source":
+        if component_type in {"fiber_source", "beam_source"}:
             for field in ("wavelength_m", "optical_power_w", "mode_field_diameter_m"):
                 if field in optical:
                     _require_positive(
@@ -138,6 +141,41 @@ def validate_catalog_record_physics(
                         path=f"optical.{field}",
                         diagnostics=diagnostics,
                     )
+            source_model = str(optical.get("source_model", ""))
+            if source_model == "fiber_gaussian" and "mode_field_diameter_m" in optical:
+                if "mode_field_diameter_definition" not in optical:
+                    diagnostics.append(
+                        Diagnostic(
+                            source=source,
+                            path="optical.mode_field_diameter_definition",
+                            message="Fiber MFD의 정의를 명시해야 합니다.",
+                        )
+                    )
+                if optical.get("mode_field_diameter_uncertainty_m") is not None:
+                    _require_positive(
+                        optical["mode_field_diameter_uncertainty_m"],
+                        source=source,
+                        path="optical.mode_field_diameter_uncertainty_m",
+                        diagnostics=diagnostics,
+                        allow_zero=True,
+                    )
+            if source_model == "free_space_gaussian":
+                for field in ("waist_radius_x_m", "waist_radius_y_m"):
+                    if field not in optical:
+                        diagnostics.append(
+                            Diagnostic(
+                                source=source,
+                                path=f"optical.{field}",
+                                message=f"free_space_gaussian component에는 {field}이 필요합니다.",
+                            )
+                        )
+                    else:
+                        _require_positive(
+                            optical[field],
+                            source=source,
+                            path=f"optical.{field}",
+                            diagnostics=diagnostics,
+                        )
         elif component_type == "collimator":
             for field in (
                 "design_wavelength_m",
@@ -230,7 +268,10 @@ def _source_element(
     candidates: list[tuple[str, Mapping[str, Any]]] = []
     for element_id, element in elements.items():
         component_ref = str(element["component_ref"])
-        if component_ref in catalog and catalog[component_ref].data.get("component_type") == "fiber_source":
+        if component_ref in catalog and catalog[component_ref].data.get("component_type") in {
+            "fiber_source",
+            "beam_source",
+        }:
             candidates.append((element_id, element))
     return candidates[0] if len(candidates) == 1 else None
 
@@ -260,6 +301,8 @@ def validate_scenario_physics(
         diagnostics=diagnostics,
     )
     source_type = str(source_config["type"])
+    profile_kind = str(source_config["profile_kind"])
+    propagation_model = str(source_config["propagation_model"])
     if source_type == "fiber_gaussian":
         if "mode_field_diameter_m" not in source_config:
             diagnostics.append(
@@ -275,6 +318,47 @@ def validate_scenario_physics(
                 source=source_text,
                 path="source.mode_field_diameter_m",
                 diagnostics=diagnostics,
+            )
+        for field in ("mode_field_diameter_definition", "mfd_gaussian_approximation"):
+            if field not in source_config:
+                diagnostics.append(
+                    Diagnostic(
+                        source=source_text,
+                        path=f"source.{field}",
+                        message=f"fiber_gaussian source에는 {field}이 필요합니다.",
+                    )
+                )
+        if source_config.get("mfd_gaussian_approximation") is False:
+            diagnostics.append(
+                Diagnostic(
+                    source=source_text,
+                    path="source.mfd_gaussian_approximation",
+                    message=(
+                        "Gaussian beam engine은 MFD를 Gaussian-equivalent waist로 해석해야 합니다. "
+                        "이 근사를 사용하지 않으려면 measured_profile을 선택하세요."
+                    ),
+                )
+            )
+        definition = source_config.get("mode_field_diameter_definition")
+        if definition not in {None, "gaussian_1e2_intensity"}:
+            warnings.append(
+                Diagnostic(
+                    source=source_text,
+                    path="source.mode_field_diameter_definition",
+                    message=(
+                        f"{definition} MFD를 Gaussian 1/e^2 intensity diameter로 근사합니다."
+                    ),
+                    hint="실제 장비 예측에는 measured beam profile 또는 M² 측정값을 사용하세요.",
+                    severity="warning",
+                )
+            )
+        if source_config.get("mode_field_diameter_uncertainty_m") is not None:
+            _require_positive(
+                source_config["mode_field_diameter_uncertainty_m"],
+                source=source_text,
+                path="source.mode_field_diameter_uncertainty_m",
+                diagnostics=diagnostics,
+                allow_zero=True,
             )
     elif source_type == "free_space_gaussian":
         for field in ("waist_radius_x_m", "waist_radius_y_m"):
@@ -301,6 +385,106 @@ def validate_scenario_physics(
                 message="measured_profile source에는 profile_file이 필요합니다.",
             )
         )
+    if source_type == "measured_profile":
+        if profile_kind != "measured" or propagation_model != "measured_transfer":
+            diagnostics.append(
+                Diagnostic(
+                    source=source_text,
+                    path="source",
+                    message=(
+                        "measured_profile은 profile_kind=measured와 "
+                        "propagation_model=measured_transfer를 사용해야 합니다."
+                    ),
+                )
+            )
+    elif profile_kind == "measured" or propagation_model == "measured_transfer":
+        diagnostics.append(
+            Diagnostic(
+                source=source_text,
+                path="source",
+                message="Gaussian source에는 measured profile/model을 사용할 수 없습니다.",
+            )
+        )
+    if profile_kind == "line_gaussian" and source_type != "free_space_gaussian":
+        diagnostics.append(
+            Diagnostic(
+                source=source_text,
+                path="source.profile_kind",
+                message="line_gaussian은 두 waist radius가 명시된 free_space_gaussian으로 정의합니다.",
+            )
+        )
+    m2_x = float(source_config.get("m2_x", 1.0))
+    m2_y = float(source_config.get("m2_y", 1.0))
+    if profile_kind == "circular_gaussian":
+        same_m2 = math.isclose(m2_x, m2_y, rel_tol=1e-12, abs_tol=0.0)
+        same_waist = True
+        if source_type == "free_space_gaussian":
+            same_waist = math.isclose(
+                float(source_config["waist_radius_x_m"]),
+                float(source_config["waist_radius_y_m"]),
+                rel_tol=1e-12,
+                abs_tol=0.0,
+            )
+        if not same_m2 or not same_waist:
+            diagnostics.append(
+                Diagnostic(
+                    source=source_text,
+                    path="source.profile_kind",
+                    message="circular_gaussian은 x/y waist radius와 M²가 같아야 합니다.",
+                )
+            )
+    if profile_kind == "line_gaussian" and source_type == "free_space_gaussian" and math.isclose(
+        float(source_config["waist_radius_x_m"]),
+        float(source_config["waist_radius_y_m"]),
+        rel_tol=1e-12,
+        abs_tol=0.0,
+    ):
+        diagnostics.append(
+            Diagnostic(
+                source=source_text,
+                path="source.profile_kind",
+                message="line_gaussian은 서로 다른 x/y waist radius가 필요합니다.",
+            )
+        )
+
+    waist_values: tuple[float, float] | None = None
+    if source_type == "fiber_gaussian" and source_config.get("mode_field_diameter_m") is not None:
+        radius = float(source_config["mode_field_diameter_m"]) / 2.0
+        waist_values = (radius, radius)
+    elif source_type == "free_space_gaussian" and all(
+        field in source_config for field in ("waist_radius_x_m", "waist_radius_y_m")
+    ):
+        waist_values = (
+            float(source_config["waist_radius_x_m"]),
+            float(source_config["waist_radius_y_m"]),
+        )
+    if wavelength is not None and waist_values is not None and all(value > 0.0 for value in waist_values):
+        divergences = (
+            m2_x * wavelength / (math.pi * waist_values[0]),
+            m2_y * wavelength / (math.pi * waist_values[1]),
+        )
+        maximum_angle = max(divergences)
+        if maximum_angle >= math.pi / 2.0:
+            proxy_error = math.inf
+        else:
+            proxy_error = max(
+                abs(math.sin(maximum_angle) - maximum_angle) / maximum_angle,
+                abs(math.tan(maximum_angle) - maximum_angle) / maximum_angle,
+            )
+        if proxy_error > PARAXIAL_PROXY_TOLERANCE:
+            warnings.append(
+                Diagnostic(
+                    source=source_text,
+                    path="source.propagation_model",
+                    message=(
+                        f"Maximum Gaussian divergence half-angle {maximum_angle:.6g} rad에서 "
+                        f"small-angle geometric proxy error {proxy_error:.3e}가 "
+                        f"tolerance {PARAXIAL_PROXY_TOLERANCE:.1e}를 넘습니다."
+                    ),
+                    hint="Non-paraxial 또는 measured-profile model의 필요성을 검토하세요.",
+                    severity="warning",
+                )
+            )
 
     element_list = scenario["optical_assembly"]["elements"]
     elements = {str(element["id"]): element for element in element_list}
@@ -317,7 +501,8 @@ def validate_scenario_physics(
         source_element_id, source_element_spec = source_element
         component_ref = str(source_element_spec["component_ref"])
         component = catalog[component_ref].data
-        catalog_model = str(component["optical"].get("source_model", ""))
+        component_optical = component["optical"]
+        catalog_model = str(component_optical.get("source_model", ""))
         if catalog_model and catalog_model != source_type:
             diagnostics.append(
                 Diagnostic(
@@ -327,6 +512,52 @@ def validate_scenario_physics(
                         f"Scenario source type {source_type!r}이 element {source_element_id!r}의 "
                         f"catalog source_model {catalog_model!r}과 다릅니다."
                     ),
+                )
+            )
+        comparable_fields = ["wavelength_m", "optical_power_w", "m2_x", "m2_y"]
+        if source_type == "fiber_gaussian":
+            comparable_fields.extend(
+                ["mode_field_diameter_m", "mode_field_diameter_definition"]
+            )
+        elif source_type == "free_space_gaussian":
+            comparable_fields.extend(["waist_radius_x_m", "waist_radius_y_m"])
+        differences: list[str] = []
+        for field in comparable_fields:
+            if field not in source_config or field not in component_optical:
+                continue
+            scenario_value = source_config[field]
+            catalog_value = component_optical[field]
+            if isinstance(scenario_value, (int, float)) and isinstance(catalog_value, (int, float)):
+                matches = math.isclose(
+                    float(scenario_value),
+                    float(catalog_value),
+                    rel_tol=1e-12,
+                    abs_tol=0.0,
+                )
+            else:
+                matches = scenario_value == catalog_value
+            if not matches:
+                differences.append(field)
+        policy = str(source_config["catalog_parameter_policy"])
+        if differences and policy == "match_nominal":
+            diagnostics.append(
+                Diagnostic(
+                    source=source_text,
+                    path="source.catalog_parameter_policy",
+                    message=(
+                        "Scenario source 값이 catalog nominal과 다릅니다: "
+                        + ", ".join(differences)
+                    ),
+                    hint="의도한 변경이면 catalog_parameter_policy=explicit_override를 사용하세요.",
+                )
+            )
+        elif differences:
+            warnings.append(
+                Diagnostic(
+                    source=source_text,
+                    path="source.catalog_parameter_policy",
+                    message="Catalog nominal을 명시적으로 override한 값: " + ", ".join(differences),
+                    severity="warning",
                 )
             )
         validity = component.get("validity", {})
@@ -515,7 +746,7 @@ def validate_scenario_physics(
                 source=source_text,
                 path="outputs",
                 message=f"현재 Phase에서 생성되지 않는 output입니다: {', '.join(unavailable)}",
-                hint="Phase 1 이후 구현 전까지 report에서 not_evaluated로 취급하세요.",
+                hint="해당 후속 Phase 구현 전까지 report에서 not_evaluated로 취급하세요.",
                 severity="warning",
             )
         )

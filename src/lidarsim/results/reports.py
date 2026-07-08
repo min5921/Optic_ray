@@ -301,7 +301,10 @@ def _convergence_report(project: Any, assembly: AssemblyPlacement) -> Convergenc
             value=None,
             tolerance=None,
             unit=None,
-            message="Beam engine이 구현된 Phase 1부터 resolution convergence를 계산합니다.",
+            message=(
+                "Phase 0 report는 beam sampling을 실행하지 않습니다. "
+                "Phase 1 검증은 lidarsim beam report에서 확인합니다."
+            ),
         )
     )
     if any(check.status == "fail" for check in checks):

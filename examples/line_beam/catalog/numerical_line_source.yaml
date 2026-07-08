@@ -1,19 +1,19 @@
 schema_version: 1
-id: custom:baseline_fiber_source
-component_type: fiber_source
+id: custom:numerical_line_source_1550
+component_type: beam_source
 model_level: ideal
 
 optical:
-  source_model: fiber_gaussian
+  source_model: free_space_gaussian
   wavelength_m: 1550 nm
   optical_power_w: 10 mW
-  mode_field_diameter_m: 10 um
-  mode_field_diameter_definition: gaussian_1e2_intensity
+  waist_radius_x_m: 3.0 mm
+  waist_radius_y_m: 0.25 mm
   m2_x: 1.0
   m2_y: 1.0
 
 validity:
-  wavelength_range_m: [1200 nm, 1700 nm]
+  wavelength_range_m: [1500 nm, 1600 nm]
 
 ports:
   - id: output
@@ -28,4 +28,4 @@ provenance:
   type: analytical_reference
   source: docs/specs/INITIAL_BASELINE.md
 
-notes: Replace through configuration when actual source data is available.
+notes: Numerical elliptical-Gaussian preset; not a Powell lens or commercial line generator.

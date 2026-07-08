@@ -255,3 +255,105 @@ def test_review_command_writes_html_and_png(project_root: Path, tmp_path: Path, 
         b"\x89PNG\r\n\x1a\n"
     )
     assert output.err == ""
+
+
+def test_beam_command_writes_schema_validated_report_and_plot(
+    project_root: Path,
+    tmp_path: Path,
+    capsys,
+) -> None:
+    report_path = tmp_path / "beam.yaml"
+    plot_path = tmp_path / "beam.png"
+
+    result = main(
+        [
+            "beam",
+            str(project_root / "configs" / "project.yaml"),
+            "--output",
+            str(report_path),
+            "--plot",
+            str(plot_path),
+            "--z-max-m",
+            "0.02",
+            "--samples",
+            "21",
+            "--grid-size",
+            "101",
+            "--dpi",
+            "72",
+        ]
+    )
+    output = capsys.readouterr()
+
+    assert result == 0
+    report = yaml.safe_load(report_path.read_text(encoding="utf-8"))
+    assert report["report_type"] == "phase1_beam"
+    assert report["profile_audit"]["status"] == "pass"
+    assert report["analytical_checks"]["status"] == "pass"
+    assert report["accuracy"]["hardware_readiness"] == "analytical_only"
+    assert report["summary"]["paraxial_validity_status"] == "warning"
+    assert plot_path.read_bytes().startswith(b"\x89PNG\r\n\x1a\n")
+    assert report_path.with_name("beam_summary.yaml").is_file()
+    assert "Power integral: pass" in output.out
+    assert "small-angle geometric proxy error" in output.err
+
+
+def test_beam_command_accepts_unit_bearing_cli_lengths(
+    project_root: Path,
+    tmp_path: Path,
+    capsys,
+) -> None:
+    report_path = tmp_path / "unit_beam.yaml"
+
+    result = main(
+        [
+            "beam",
+            str(project_root / "configs" / "project.yaml"),
+            "--output",
+            str(report_path),
+            "--plot",
+            str(tmp_path / "unit_beam.png"),
+            "--z-max-m",
+            "20 mm",
+            "--profile-distance-m",
+            "10 mm",
+            "--samples",
+            "11",
+            "--grid-size",
+            "51",
+            "--dpi",
+            "72",
+        ]
+    )
+    capsys.readouterr()
+
+    report = yaml.safe_load(report_path.read_text(encoding="utf-8"))
+    assert result == 0
+    assert report["propagation"]["z_max_m"] == pytest.approx(0.02)
+    assert report["profile_audit"]["distance_m"] == pytest.approx(0.01)
+
+
+def test_beam_command_default_creates_timestamped_run_directory(
+    copied_project: Path,
+    capsys,
+) -> None:
+    result = main(
+        [
+            "beam",
+            str(copied_project),
+            "--samples",
+            "11",
+            "--grid-size",
+            "51",
+            "--dpi",
+            "72",
+        ]
+    )
+    capsys.readouterr()
+
+    run_directories = list((copied_project.parent.parent / "results" / "phase1").iterdir())
+    assert result == 0
+    assert len(run_directories) == 1
+    assert (run_directories[0] / "beam_report.yaml").is_file()
+    assert (run_directories[0] / "beam_summary.yaml").is_file()
+    assert (run_directories[0] / "beam.png").is_file()

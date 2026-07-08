@@ -1,0 +1,32 @@
+schema_version: 1
+project_id: optic_ray_line_example
+description: Phase 1 numerical elliptical-Gaussian line-beam example.
+
+catalog_paths:
+  - ../catalog/components
+  - ../catalog/materials
+  - ../examples/line_beam/catalog
+
+asset_paths:
+  - ../assets/meshes
+  - ../assets/source/freecad
+
+measurement_paths:
+  - ../assets/measurements
+
+scenarios:
+  - ../examples/line_beam/line_beam_1550nm.yaml
+
+active_baseline: line_beam_1550nm
+result_root: ../results
+
+display_units:
+  wavelength: nm
+  length: mm
+  angle: deg
+  power: mW
+  frequency: Hz
+
+ui:
+  language: ko
+  autosave_drafts: true

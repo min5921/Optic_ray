@@ -886,7 +886,7 @@ src/lidarsim/
 
 Phase 0 완료 상태 (2026-06-29): Python package/test 구조, unit-aware YAML resolution, JSON Schema project/scenario/experiment/catalog/result validation, catalog/port/scanner 의미 검증, immutable resolved configuration, physical configuration hash, `RigidTransform`, optical port frame, absolute·port-to-port placement resolver, STL·measurement asset registry, accuracy·energy·convergence·manifest report와 headless 2D/3D placement viewer가 구현되었다. Canonical config 저장→재로드 후 hash와 world placement가 유지됨을 확인했다.
 
-Phase 0.1 검수 강화 상태 (2026-06-29): 양수여야 하는 물리량과 wavelength/component validity의 cross-field 검사, scenario가 source 운전값을 소유하는 contract, port `interface_type`·`reference_plane`, `model_purpose`·receiver `model_level`과 hardware readiness를 추가했다. Baseline은 `analytical_regression`이며 ideal thin lens와 `virtual_monostatic/virtual_aperture`를 사용하므로 실제 상용 collimator 또는 수신계의 절대 성능을 예측한다고 주장하지 않는다. Viewer는 mirror zero normal, 기계각의 두 배가 되는 declared optical scan limit, receiver FOV와 return-path guide를 표시하고, `lidarsim review`는 지원 output·경고·수치 검사를 standalone HTML로 만든다. 이 guide들은 Phase 1 이후의 beam propagation이나 Phase 5의 received-power 계산 결과가 아니다. STL `normal_policy=repair`도 현재 자동 수정으로 과장하지 않고 mismatch 기록과 외부 재-export 절차로 제한한다. 다음 활성 단계는 Phase 1 Beam Engine이다.
+Phase 0.1 검수 강화 상태 (2026-06-29): 양수여야 하는 물리량과 wavelength/component validity의 cross-field 검사, scenario가 source 운전값을 소유하는 contract, port `interface_type`·`reference_plane`, `model_purpose`·receiver `model_level`과 hardware readiness를 추가했다. Baseline은 `analytical_regression`이며 ideal thin lens와 `virtual_monostatic/virtual_aperture`를 사용하므로 실제 상용 collimator 또는 수신계의 절대 성능을 예측한다고 주장하지 않는다. Viewer는 mirror zero normal, 기계각의 두 배가 되는 declared optical scan limit, receiver FOV와 return-path guide를 표시하고, `lidarsim review`는 지원 output·경고·수치 검사를 standalone HTML로 만든다. 이 guide들은 Phase 1의 beam propagation이나 Phase 5의 received-power 계산 결과가 아니다. STL `normal_policy=repair`도 현재 자동 수정으로 과장하지 않고 mismatch 기록과 외부 재-export 절차로 제한한다.
 
 ### Phase 1 — Beam Engine
 
@@ -897,6 +897,8 @@ Phase 0.1 검수 강화 상태 (2026-06-29): 양수여야 하는 물리량과 wa
 - beam/profile visualization
 
 완료 조건: 분석식과 일치하는 beam radius/divergence/power를 얻고 point/line beam preset을 시각화한다.
+
+Phase 1 완료 상태 (2026-07-04): 불변 `BeamState`, 오른손 local beam frame, circular·elliptical·line Gaussian profile, M² 기반 Rayleigh range·발산·1/e² radius, complex q-parameter, free-space propagation과 second-moment covariance propagation을 NumPy/float64로 구현했다. Irradiance는 `2P/(π w_x w_y)`로 정규화하며 field amplitude weight와 power를 분리한다. Fiber MFD definition과 Gaussian-equivalent 해석, catalog nominal match/explicit override, small-angle paraxial proxy를 명시적으로 검증한다. `phase1_beam_report.schema.json`과 compact summary에는 model purpose, confidence, calibration, hardware readiness, provenance, 가정과 경고를 포함한다. Power audit은 analytical tail truncation, base/refined grid quadrature와 grid convergence를 분리하고 Gaussian/second-moment 비교는 `internal_consistency_only`, 외부 측정 검증은 `not_evaluated`로 표시한다. `lidarsim beam`은 단위 포함 거리와 timestamp run directory를 지원하며 point/line radius·profile PNG를 생성한다. Measured profile은 입력 contract만 제공하며 실제 전파는 아직 지원하지 않는다. Downstream lens·aperture·mirror와 clipping/loss는 Phase 2 범위다.
 
 ### Phase 2 — Optical Components, Catalog와 Assembly
 

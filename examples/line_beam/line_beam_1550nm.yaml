@@ -1,6 +1,6 @@
 schema_version: 1
-scenario_id: baseline_1550nm
-description: Analytical regression reference; values are not commercial-product specifications or a physical receiver layout.
+scenario_id: line_beam_1550nm
+description: Numerical elliptical-Gaussian line-beam regression example; not a commercial line generator.
 model_purpose: analytical_regression
 
 coordinates:
@@ -12,14 +12,13 @@ source:
   element_id: source
   parameter_ownership: scenario_operating_point
   catalog_parameter_policy: match_nominal
-  type: fiber_gaussian
-  profile_kind: circular_gaussian
+  type: free_space_gaussian
+  profile_kind: line_gaussian
   propagation_model: gaussian_m2
   wavelength_m: 1550 nm
   optical_power_w: 10 mW
-  mode_field_diameter_m: 10 um
-  mode_field_diameter_definition: gaussian_1e2_intensity
-  mfd_gaussian_approximation: true
+  waist_radius_x_m: 3.0 mm
+  waist_radius_y_m: 0.25 mm
   waist_offset_m: 0 m
   m2_x: 1.0
   m2_y: 1.0
@@ -28,12 +27,11 @@ source:
 optical_assembly:
   elements:
     - id: source
-      component_ref: custom:baseline_fiber_source
+      component_ref: custom:numerical_line_source_1550
       placement:
         mode: absolute
         translation_m: [0.0, 0.0, -0.100]
         quaternion_wxyz: [1.0, 0.0, 0.0, 0.0]
-
     - id: collimator
       component_ref: custom:ideal_collimator_f20
       placement:
@@ -41,14 +39,12 @@ optical_assembly:
         connect_from: source.output
         connect_to: collimator.input
         axial_gap_m: 20 mm
-
     - id: scan_mirror
       component_ref: custom:ideal_scan_mirror_20mm
       placement:
         mode: absolute
         translation_m: [0.0, 0.0, 0.0]
         quaternion_wxyz: [1.0, 0.0, 0.0, 0.0]
-
   optical_paths:
     - id: transmit_main
       elements: [source, collimator, scan_mirror]
@@ -96,10 +92,6 @@ outputs:
   - accuracy_report
   - placement_report
   - beam_envelope
-  - scan_path
-  - target_footprint
-  - received_aperture_power
-  - link_budget
   - energy_ledger
   - convergence_report
   - layout_3d

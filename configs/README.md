@@ -4,12 +4,17 @@
 
 - `project.yaml`: catalog·asset·measurement 경로, scenario 목록, experiment, 활성 baseline과 표시 단위
 - `baseline_1550nm.yaml`: 초기 analytical reference scenario
+- `line_beam_project.example.yaml`: numerical elliptical-Gaussian line-beam project 예제
 - `experiments/`: parameter 및 부품 교체 정의
 
-현재 Phase 0 loader가 이 파일을 읽어 schema, unit과 상호 참조를 검증한다.
+현재 loader가 이 파일을 읽어 schema, unit과 상호 참조를 검증하며 Phase 1 beam engine은 active source 설정을 사용한다.
+
+Source의 `catalog_parameter_policy`가 `match_nominal`이면 scenario와 component catalog의 wavelength, power, waist/MFD와 M²가 같아야 한다. 의도적인 변경은 `explicit_override`로 표시해 결과 warning과 provenance에 남긴다.
 
 ```powershell
 lidarsim validate configs/project.yaml
+lidarsim beam configs/project.yaml --z-max-m "20 mm"
+lidarsim beam configs/line_beam_project.example.yaml
 ```
 
 Contract의 상세 내용은 [`../docs/specs/CONFIGURATION_AND_EXPERIMENTS.md`](../docs/specs/CONFIGURATION_AND_EXPERIMENTS.md)를 참고한다.

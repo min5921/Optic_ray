@@ -264,3 +264,42 @@ def test_scanner_axis_must_lie_in_mirror_surface(copied_project: Path) -> None:
 
     with pytest.raises(ConfigValidationError, match="surface normal과 수직"):
         load_project(copied_project)
+
+
+def test_circular_profile_requires_equal_axis_parameters(copied_project: Path) -> None:
+    scenario_path = copied_project.parent / "baseline_1550nm.yaml"
+    scenario = _read_yaml(scenario_path)
+    scenario["source"]["m2_y"] = 1.2
+    _write_yaml(scenario_path, scenario)
+
+    with pytest.raises(ConfigValidationError, match="x/y waist radius와 M²"):
+        load_project(copied_project)
+
+
+def test_catalog_nominal_mismatch_requires_explicit_override(copied_project: Path) -> None:
+    scenario_path = copied_project.parent / "baseline_1550nm.yaml"
+    scenario = _read_yaml(scenario_path)
+    scenario["source"]["optical_power_w"] = "12 mW"
+    _write_yaml(scenario_path, scenario)
+
+    with pytest.raises(ConfigValidationError, match="catalog nominal과 다릅니다"):
+        load_project(copied_project)
+
+    scenario["source"]["catalog_parameter_policy"] = "explicit_override"
+    _write_yaml(scenario_path, scenario)
+    project = load_project(copied_project)
+    assert any("명시적으로 override" in item.message for item in project.warnings)
+
+
+def test_non_gaussian_mfd_definition_is_reported_as_approximation(
+    copied_project: Path,
+) -> None:
+    scenario_path = copied_project.parent / "baseline_1550nm.yaml"
+    scenario = _read_yaml(scenario_path)
+    scenario["source"]["mode_field_diameter_definition"] = "petermann_ii"
+    scenario["source"]["catalog_parameter_policy"] = "explicit_override"
+    _write_yaml(scenario_path, scenario)
+
+    project = load_project(copied_project)
+
+    assert any("Gaussian 1/e^2" in item.message for item in project.warnings)

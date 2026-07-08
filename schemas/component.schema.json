@@ -11,7 +11,7 @@
     "manufacturer": { "type": ["string", "null"] },
     "part_number": { "type": ["string", "null"] },
     "revision": { "type": ["string", "null"] },
-    "component_type": { "enum": ["fiber_source", "collimator", "lens", "aperture", "mirror", "scanner_mirror", "beamsplitter", "receiver_optic", "detector"] },
+    "component_type": { "enum": ["fiber_source", "beam_source", "collimator", "lens", "aperture", "mirror", "scanner_mirror", "beamsplitter", "receiver_optic", "detector"] },
     "model_level": { "enum": ["ideal", "paraxial_specification", "sequential_prescription", "vendor_blackbox", "measured_calibrated"] },
     "optical": { "type": "object" },
     "mechanical": { "type": "object" },
@@ -58,7 +58,7 @@
   },
   "allOf": [
     {
-      "if": { "properties": { "component_type": { "const": "fiber_source" } } },
+      "if": { "properties": { "component_type": { "enum": ["fiber_source", "beam_source"] } } },
       "then": {
         "properties": {
           "optical": {
@@ -69,6 +69,10 @@
               "wavelength_m": { "$ref": "common.schema.json#/$defs/quantity" },
               "optical_power_w": { "$ref": "common.schema.json#/$defs/quantity" },
               "mode_field_diameter_m": { "$ref": "common.schema.json#/$defs/quantity" },
+              "mode_field_diameter_definition": { "enum": ["gaussian_1e2_intensity", "petermann_ii", "manufacturer_unspecified"] },
+              "mode_field_diameter_uncertainty_m": { "$ref": "common.schema.json#/$defs/quantity" },
+              "waist_radius_x_m": { "$ref": "common.schema.json#/$defs/quantity" },
+              "waist_radius_y_m": { "$ref": "common.schema.json#/$defs/quantity" },
               "m2_x": { "type": "number", "minimum": 1.0 },
               "m2_y": { "type": "number", "minimum": 1.0 }
             }

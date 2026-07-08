@@ -3,7 +3,7 @@
 - 문서 상태: Draft v0.2
 - 대상 프로젝트: Custom Beam, Scanner, and Optical Return Simulator
 - 기준 설계: `PROJECT_VISION.md` Draft v0.2
-- 마지막 갱신: 2026-06-29
+- 마지막 갱신: 2026-07-04
 
 ## 1. 이 매뉴얼의 목적
 
@@ -24,9 +24,9 @@
 
 ## 2. 현재 구현 상태
 
-Phase 0와 검수 강화 단계인 Phase 0.1이 완료되었다. `lidarsim validate`는 project/scenario/experiment/catalog YAML을 JSON Schema로 검사하고, 명시 단위를 SI/radian 값으로 변환하며, 양수 물리량, wavelength validity, component/material/port/scanner 참조와 placement dependency를 검증한다. 검증된 구성은 변경 불가능한 snapshot과 재현 가능한 SHA-256 hash로 만들어진다. `lidarsim placement`는 active scenario의 absolute·port-to-port placement와 port interface를 world transform으로 계산한다. `inspect-mesh`와 `inspect-measurement`는 실제 STL·measurement sidecar 및 referenced file을 검사한다. `report`는 confidence·hardware readiness·energy·convergence 상태를 저장하고, `view`는 배치와 설정된 scan/FOV/return guide를 PNG로 만든다. `review`는 그림과 검수 결과를 standalone HTML로 묶는다.
+Phase 0·0.1과 Phase 1 Gaussian Beam Engine이 완료되었다. `lidarsim validate`는 project/scenario/experiment/catalog YAML을 검사하고 단위, 물리 범위, wavelength validity와 참조·배치를 검증한다. `placement`, `inspect-mesh`, `inspect-measurement`, `report`, `view`, `review`로 배치와 입력 contract를 확인할 수 있다. `lidarsim beam`은 active source의 point·elliptical·line Gaussian을 NumPy/float64로 자유공간 전파하고 radius, divergence, q-parameter, second moment와 power-normalized irradiance를 YAML/PNG로 저장한다. Numerical check와 실제 장비 calibration을 구분해 confidence, provenance, paraxial validity와 hardware readiness를 함께 표시한다.
 
-`lidarsim run`, `compare`와 실제 beam·radiometry 계산은 Phase 1 이후 구현한다. 현재 단계에서는 설정을 수정한 뒤 반드시 `lidarsim validate configs/project.yaml`을 실행한다.
+Phase 1은 source에서 출발한 자유공간 Gaussian만 계산한다. Collimator/lens/aperture/mirror와 clipping은 Phase 2, scanner motion은 Phase 3, target footprint는 Phase 4, receiver return은 Phase 5에서 연결한다. `lidarsim run`, `compare`와 end-to-end radiometry는 아직 구현되지 않았다.
 
 ## 3. 주요 파일 위치
 
@@ -147,6 +147,9 @@ outputs:            # requested results
 source:
   element_id: source
   parameter_ownership: scenario_operating_point
+  catalog_parameter_policy: match_nominal
+  profile_kind: circular_gaussian
+  propagation_model: gaussian_m2
   wavelength_m: 1550 nm
 ```
 
@@ -199,12 +202,27 @@ optical_power_w: 50 mW
 ```yaml
 source:
   type: fiber_gaussian
+  profile_kind: circular_gaussian
+  propagation_model: gaussian_m2
   mode_field_diameter_m: 10 um
+  mode_field_diameter_definition: gaussian_1e2_intensity
+  mfd_gaussian_approximation: true
+  waist_offset_m: 0 m
   m2_x: 1.0
   m2_y: 1.0
 ```
 
 실제 fiber를 사용할 때는 제조사와 wavelength에 따른 MFD를 입력한다. NA와 MFD가 모두 있더라도 어느 값을 canonical beam input으로 사용할지 model에 명시해야 한다.
+
+`mode_field_diameter_definition`은 다음 중 하나다.
+
+- `gaussian_1e2_intensity`: MFD를 Gaussian 1/e² intensity diameter로 정의
+- `petermann_ii`: Petermann II MFD를 Gaussian-equivalent diameter로 근사
+- `manufacturer_unspecified`: 제조사 정의가 명확하지 않음
+
+`petermann_ii` 또는 `manufacturer_unspecified`를 사용하면 approximation warning이 발생한다. 불확도를 알고 있으면 `mode_field_diameter_uncertainty_m`에 입력한다. 현재 Phase 1 report는 이 불확도를 기록하지만 tolerance propagation은 아직 하지 않는다. Gaussian 근사를 허용하지 않을 경우 `mfd_gaussian_approximation: false`로 두고 measured-profile workflow를 사용해야 한다.
+
+Scenario 값을 catalog nominal과 같게 유지할 때는 `catalog_parameter_policy: match_nominal`을 사용한다. Power, wavelength, MFD 등을 의도적으로 바꿀 때는 `explicit_override`로 변경해야 하며 report에 override warning이 남는다.
 
 ### 7.3 Free-space measured beam
 
@@ -213,17 +231,21 @@ source:
 ```yaml
 source:
   type: measured_profile
+  profile_kind: measured
+  propagation_model: measured_transfer
   wavelength_m: 1550 nm
   optical_power_w: 10 mW
   profile_file: assets/measurements/source_profile.csv
-  reference_plane_m: [0.0, 0.0, 0.0]
 ```
+
+현재 validator는 measured input contract를 검사하지만 `lidarsim beam`은 measured propagation을 실행하지 않는다.
 
 ### 7.4 Beam type 선택
 
-초기 구현:
+현재 구현:
 
 - point Gaussian
+- elliptical Gaussian
 - elliptical line Gaussian
 
 향후 구현:
@@ -234,6 +256,14 @@ source:
 - Powell/cylindrical-lens-generated line profile
 
 Top-hat이나 실제 Powell line beam을 단순 Gaussian q-parameter model로 해석하지 않는다.
+
+Numerical line-beam 예제:
+
+```powershell
+lidarsim beam configs/line_beam_project.example.yaml
+```
+
+이 예제는 3.0 mm × 0.25 mm의 1/e² waist radius를 가진 elliptical Gaussian이며 상용 line generator를 뜻하지 않는다.
 
 ## 8. Optical component 교체
 
@@ -686,9 +716,20 @@ lidarsim view configs/project.yaml --output results/placement.png
 
 # 그림·지원 output·경고·수치 검사를 한 HTML로 생성
 lidarsim review configs/project.yaml --output results/phase0_1_review.html
+
+# Phase 1 Gaussian 자유공간 전파·power audit·PNG 생성
+lidarsim beam configs/project.yaml
+
+# 전파 거리와 profile plane을 단위 포함 값으로 지정
+lidarsim beam configs/project.yaml --z-max-m "100 mm" --profile-distance-m "50 mm"
+
+# Numerical elliptical-Gaussian line-beam 예제
+lidarsim beam configs/line_beam_project.example.yaml
 ```
 
 `review` 그림의 scan limit, receiver FOV와 return path는 설정값 기반 기하학 가이드다. 실제 beam envelope, footprint 또는 received power로 해석하지 않는다.
+
+`beam` 결과의 radius는 1/e² irradiance radius다. 기본 실행은 `results/phase1/<timestamp>_<scenario>_<hash>/` 아래에 `beam_report.yaml`, `beam_summary.yaml`, `beam.png`를 생성하므로 이전 결과를 덮어쓰지 않는다. YAML report의 첫 `summary`와 `accuracy`에서 전체 상태·신뢰도·보정 여부를 먼저 확인한다. `profile_audit`은 Gaussian tail truncation, base/refined grid quadrature와 grid convergence를 분리한다. `analytical_checks`는 내부 일관성 검사이며 실제 측정 validation이 아니다. 이 명령은 downstream optical component를 적용하지 않는다.
 
 다음 명령은 이후 Phase에서 구현할 계획이다.
 
@@ -744,6 +785,18 @@ CLI와 GUI는 동일한 config/schema/validator를 사용해야 한다.
 원인: Lens/coating/material/detector validity range를 벗어남.
 
 조치: 해당 wavelength를 지원하는 catalog data나 component로 함께 교체한다.
+
+### Catalog nominal과 source 값이 다르다는 오류
+
+원인: `catalog_parameter_policy: match_nominal` 상태에서 scenario의 power, wavelength, MFD 또는 M²를 바꿈.
+
+조치: 입력 실수라면 catalog 값으로 되돌린다. 의도한 운전 조건 변경이면 `catalog_parameter_policy: explicit_override`로 바꾸고 report의 override warning을 보존한다.
+
+### Paraxial small-angle warning
+
+원인: Source divergence에서 sin/tan small-angle proxy가 software tolerance를 넘음.
+
+조치: 이 값은 직접적인 실제 오차가 아니라 model validity 경고다. 정확한 장비 예측이 필요하면 measured profile, non-paraxial propagation 또는 bench comparison을 사용한다.
 
 ### STL lens가 빛을 굴절시키지 않음
 

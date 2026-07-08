@@ -1,6 +1,6 @@
 # 프로젝트 인계 문서
 
-마지막 갱신: 2026-06-29 (Asia/Seoul)
+마지막 갱신: 2026-07-04 (Asia/Seoul)
 
 ## 현재 상태
 
@@ -8,7 +8,7 @@
 - 원본 coherent FMCW LiDAR 자료는 `docs/original/coherent-fmcw-lidar-sim-docs/`에 보존되어 있다.
 - 여러 컴퓨터에서 사용할 Git·Codex·line ending·secret·생성 output 규칙이 설정되어 있다.
 - GitHub remote `origin`은 `https://github.com/min5921/Optic_ray.git`에 연결되어 있으며 `main`이 동기화되어 있다.
-- Phase 0와 Phase 0.1 검수 강화가 완료되어 configuration, coordinate, placement, asset, result contract와 검토용 viewer/HTML이 `src/lidarsim/`에 구현되어 있다.
+- Phase 0·0.1과 Phase 1이 완료되어 configuration, coordinate, placement, asset, 검토용 viewer/HTML와 Gaussian Beam Engine이 `src/lidarsim/`에 구현되어 있다.
 - 프로젝트의 중심 범위는 catalog 기반 또는 사용자 정의 광학 부품의 3D 배치, 포인트·라인·면적 빔, collimator 광학계, 사용자 정의 scanner, target interaction과 receiver return 분석이다.
 - Draft v0.2에는 model fidelity contract, commercial component catalog, optical/CAD import, coordinate frame, rigid transform, optical port, placement constraint, structured result, visualization과 tolerance analysis가 포함된다.
 - Phase 0~5의 임시 초기값은 `docs/specs/INITIAL_BASELINE.md`에 정리되어 있으며 모든 값은 configuration으로 교체할 수 있다.
@@ -28,9 +28,14 @@
 - Component port에는 `interface_type`과 `reference_plane`이 있고 source 운전값은 scenario가 소유한다. Baseline은 `analytical_regression`, receiver는 `virtual_monostatic/virtual_aperture`로 명시되어 실제 장비 예측과 구분된다.
 - `lidarsim view`는 component origin, port axis, optical path, mirror normal, declared scan limit, target plane, receiver FOV, return guide와 STL bounds를 full 3D scene 및 X-Z detail PNG로 렌더링한다.
 - `lidarsim review`는 placement PNG, hardware readiness, component/port, output 지원 상태, convergence와 경고를 self-contained HTML로 생성한다.
+- `lidarsim beam`은 active source를 불변 `BeamState`로 만들고 circular·elliptical·line Gaussian의 M² 기반 자유공간 radius, q-parameter, second moment와 power-normalized irradiance를 full report·compact summary·PNG로 생성한다.
+- Fiber MFD definition과 Gaussian approximation, catalog nominal match/explicit override, small-angle paraxial proxy, confidence·calibration·provenance를 검증·보고한다.
+- Power audit은 analytical tail truncation, base/refined grid quadrature와 grid convergence를 분리하며 second-moment 비교는 internal consistency로만 표시한다.
+- CLI distance는 `20 mm` 같은 단위 포함 값을 받고 기본 결과는 timestamp run directory에 저장해 덮어쓰지 않는다.
+- `configs/line_beam_project.example.yaml`은 3.0 mm × 0.25 mm numerical elliptical-Gaussian line preset을 제공하며 Powell lens나 상용 제품 model이 아니다.
 - Resolved project state는 재귀적으로 변경 불가능하며 안정적인 물리 configuration SHA-256을 갖는다. 표시 단위와 UI preference는 이 hash를 바꾸지 않는다.
-- Local `.venv`는 `pyproject.toml`에서 설치했으며, deprecation·user warning을 error로 처리해도 자동 test 55개가 통과한다.
-- 다음 활성 목표는 Phase 1 Beam Engine이다.
+- Local `.venv`는 `pyproject.toml`에서 설치했으며, deprecation·user warning을 error로 처리해도 자동 test 73개가 통과한다.
+- 다음 활성 목표는 Phase 2 Optical Components, Catalog와 Assembly이다.
 
 ## 유지할 결정 사항
 
@@ -47,7 +52,7 @@
 
 ## 가장 좋은 다음 작업
 
-Phase 1의 첫 vertical slice로 immutable `BeamState`, circular Gaussian point beam, power normalization과 free-space analytical propagation을 NumPy·float64로 구현한다. Beam radius, Rayleigh range와 divergence를 closed-form reference와 비교하고 PNG profile·radius plot을 생성한다.
+Phase 2의 첫 vertical slice로 free-space와 ideal thin-lens ABCD transform을 구현하고 source→collimator 전후의 `BeamState`를 연결한다. Lens 뒤 radius/curvature를 q-parameter 분석식과 비교한 뒤 circular aperture clipping과 element별 power ledger를 추가한다.
 
 ## 검증 기록
 
@@ -70,7 +75,13 @@ Phase 1의 첫 vertical slice로 immutable `BeamState`, circular Gaussian point 
 - Phase 0.1에서 물리·cross-field validation, source ownership, port interface, readiness report와 HTML review를 추가했다.
 - `python -W error::DeprecationWarning -W error::UserWarning -m pytest -q`: 55개 통과.
 - `lidarsim review configs/project.yaml --output results/phase0_1_review.html --dpi 140`: HTML과 placement PNG 생성 및 시각 검수 통과. 설정 기반 ±10° optical scan guide, 25° full receiver FOV와 return guide를 확인했다.
-- 현재 revision의 resolved physical config SHA-256: `dfbd5161c87868780cef2c29fefded64f83902a62524e5366538817c5cb9d6cb`.
+- Phase 1에서 immutable `BeamState`, Gaussian/M²/q/second-moment free-space propagation, normalized irradiance, beam report schema, CLI와 point/line PNG를 구현했다.
+- `python -W error::DeprecationWarning -W error::UserWarning -m pytest -q`: 73개 통과.
+- `lidarsim beam configs/project.yaml`: 20 mm plane에서 circular beam radius `1.97352763 mm`, power integral relative error `2.429e-15`, second-moment check `pass`.
+- `lidarsim beam configs/line_beam_project.example.yaml`: 20 mm plane에서 line beam radius `3.0000018 mm × 0.253096651 mm`, power/second-moment check `pass`.
+- Commit 전 realism/UX 재검수에서 MFD assumption, paraxial validity, confidence/provenance, 독립 convergence 의미, CLI unit과 plot 가독성 문제를 보강했다.
+- Point baseline numerical check는 통과하지만 paraxial proxy와 uncalibrated analytical model 때문에 overall `warning`, hardware readiness `analytical_only`로 표시된다.
+- 현재 revision의 resolved physical config SHA-256: `3e9fc0408e8a8aa4f3a1f83c47b9aeebc863d08133ef3a6ab0676cfcb9586c73`.
 
 ## 세션 갱신 형식
 
