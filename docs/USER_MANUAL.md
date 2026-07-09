@@ -783,6 +783,9 @@ lidarsim workspace configs/project.yaml --output results/ui_workspace.png --writ
 # 추가 dependency 없이 열 수 있는 read-only workspace dashboard 생성
 lidarsim dashboard configs/project.yaml --output results/ui_dashboard.html
 
+# Scanner path section까지 포함한 dashboard 생성
+lidarsim dashboard configs/project.yaml --output results/ui_dashboard_with_path.html --include-scanner-path --scanner-path-samples 11
+
 # Baseline을 덮어쓰지 않고 scanner mirror 위치 variant 생성
 lidarsim placement-variant configs/project.yaml --element scan_mirror --scenario-id mirror_shift --translation-m 0.1 0 0
 
@@ -837,6 +840,14 @@ lidarsim scanner-path configs/project.yaml --samples 11 --output results/scanner
 - `ui_dashboard_optical_train.png`
 
 Dashboard HTML에는 workspace 그림, optical train radius/power 그림, summary, generated file path, component report, power ledger, target footprint, receiver return, warning, assumptions와 raw summary가 포함된다. 외부 server 없이 browser에서 열 수 있도록 PNG는 HTML 안에 base64로 포함한다. 이 기능은 Streamlit dashboard 전 단계의 안정적인 결과 viewer이며, 아직 parameter edit나 placement edit를 수행하지 않는다.
+
+`--include-scanner-path`를 추가하면 같은 dashboard에 ideal forward-line scanner path section을 포함한다. 이때 다음 파일도 함께 저장된다.
+
+- `<dashboard_stem>_scanner_path.yaml`
+- `<dashboard_stem>_scanner_path.csv`
+- `<dashboard_stem>_scanner_path.png`
+
+이 section은 command angle, target local coordinate, received power trend를 시간축으로 보여준다. 단, motor/galvo dynamics, lag, jitter, bidirectional return stroke와 calibration table이 빠진 ideal reference임을 dashboard 안에서도 명시한다.
 
 `placement-variant`는 numeric placement editor의 첫 CLI helper다. 원본 baseline scenario를 직접 수정하지 않고, active scenario를 복사한 뒤 지정한 element placement만 바꾼 variant scenario와 variant project를 저장한다.
 

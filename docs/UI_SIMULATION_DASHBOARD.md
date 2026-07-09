@@ -284,6 +284,8 @@ UI 기능은 이 명령들을 우회하지 않고 같은 loader, schema, physics
 - 여러 static scanner command angle의 target hit, received power와 link budget trend를 YAML/CSV/PNG로 저장
 - `lidarsim scanner-path` CLI 명령
 - config의 scanner waveform에서 한 줄 ideal forward path를 시간 sample로 생성하고 target/receiver trend를 YAML/CSV/PNG로 저장
+- `lidarsim dashboard --include-scanner-path` 옵션
+- read-only dashboard에 scanner path plot과 sample table을 선택적으로 embedding
 
 현재 실행 예:
 
@@ -293,6 +295,7 @@ lidarsim dashboard configs/project.yaml --output results/ui_dashboard.html
 lidarsim placement-variant configs/project.yaml --element scan_mirror --scenario-id mirror_shift --translation-m 0.1 0 0
 lidarsim scanner-sweep configs/project.yaml --angles-deg -5 0 5 --output results/scanner_sweep.yaml
 lidarsim scanner-path configs/project.yaml --samples 11 --output results/scanner_path.yaml
+lidarsim dashboard configs/project.yaml --output results/ui_dashboard_with_path.html --include-scanner-path --scanner-path-samples 11
 ```
 
 중요한 한계:

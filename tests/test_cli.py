@@ -463,6 +463,41 @@ def test_dashboard_command_writes_self_contained_workspace_html(
     assert "P_rx=" in output.out
 
 
+def test_dashboard_command_can_embed_scanner_path(
+    project_root: Path,
+    tmp_path: Path,
+    capsys,
+) -> None:
+    html_path = tmp_path / "dashboard_with_path.html"
+
+    result = main(
+        [
+            "dashboard",
+            str(project_root / "configs" / "project.yaml"),
+            "--output",
+            str(html_path),
+            "--include-scanner-path",
+            "--scanner-path-samples",
+            "5",
+            "--dpi",
+            "72",
+        ]
+    )
+    output = capsys.readouterr()
+
+    assert result == 0
+    document = html_path.read_text(encoding="utf-8")
+    assert "Scanner path — ideal forward line" in document
+    assert "ideal command-path reference" in document
+    assert html_path.with_name("dashboard_with_path_scanner_path.yaml").is_file()
+    assert html_path.with_name("dashboard_with_path_scanner_path.csv").is_file()
+    assert html_path.with_name("dashboard_with_path_scanner_path.png").read_bytes().startswith(
+        b"\x89PNG\r\n\x1a\n"
+    )
+    assert "Scanner path report:" in output.out
+    assert "Scanner path plot:" in output.out
+
+
 def test_scanner_sweep_command_writes_yaml_csv_and_plot(
     project_root: Path,
     tmp_path: Path,

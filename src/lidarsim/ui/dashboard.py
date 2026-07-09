@@ -149,6 +149,24 @@ def _receiver_rows(report_data: dict[str, Any]) -> str:
     return "".join(rows)
 
 
+def _scanner_path_rows(scanner_path_data: dict[str, Any]) -> str:
+    rows = []
+    for item in scanner_path_data["samples"]:
+        local = item.get("target_local_coordinates_m")
+        rows.append(
+            "<tr>"
+            f"<td>{_fmt(1.0e3 * item['time_s'], unit='ms')}</td>"
+            f"<td>{_fmt(item['line_position'])}</td>"
+            f"<td>{_fmt(item['command_angle_deg'], unit='deg')}</td>"
+            f"<td>{_status_badge(item['sample_status'])}</td>"
+            f"<td>{'-' if local is None else _fmt(local[0], unit='m')}</td>"
+            f"<td>{'-' if local is None else _fmt(local[1], unit='m')}</td>"
+            f"<td>{_fmt(1.0e9 * item['estimated_received_power_w'], unit='nW')}</td>"
+            "</tr>"
+        )
+    return "".join(rows)
+
+
 def _assumption_items(report_data: dict[str, Any]) -> str:
     assumptions: list[str] = []
     assumptions.extend(str(item) for item in report_data["model"].get("limitations", ()))
@@ -169,6 +187,10 @@ def write_workspace_dashboard_html(
     output_path: str | Path,
     report_path: str | Path | None = None,
     scene_path: str | Path | None = None,
+    scanner_path: Any | None = None,
+    scanner_path_image: str | Path | None = None,
+    scanner_path_report_path: str | Path | None = None,
+    scanner_path_csv_path: str | Path | None = None,
 ) -> Path:
     """Phase 2.3 read-only optical workspace dashboard를 self-contained HTML로 저장한다."""
 
@@ -177,6 +199,10 @@ def write_workspace_dashboard_html(
     accuracy = report_data["accuracy"]
     workspace_uri = _image_uri(workspace_image)
     optical_train_uri = _image_uri(optical_train_image)
+    scanner_path_data = (
+        None if scanner_path is None else scanner_path.to_dict() if hasattr(scanner_path, "to_dict") else dict(scanner_path)
+    )
+    scanner_path_uri = None if scanner_path_image is None else _image_uri(scanner_path_image)
     summary_yaml = yaml.safe_dump(summary, sort_keys=False, allow_unicode=True)
     scene_counts = {
         "components": len(scene.components),
@@ -186,6 +212,49 @@ def write_workspace_dashboard_html(
         "footprints": len(scene.footprints),
     }
     scene_yaml = yaml.safe_dump(scene_counts, sort_keys=False, allow_unicode=True)
+    scanner_file_rows = ""
+    if scanner_path_report_path is not None:
+        scanner_file_rows += (
+            "<tr><td>Scanner path YAML</td><td>"
+            f"{_file_link(scanner_path_report_path, label='ideal path report')}</td></tr>"
+        )
+    if scanner_path_csv_path is not None:
+        scanner_file_rows += (
+            "<tr><td>Scanner path CSV</td><td>"
+            f"{_file_link(scanner_path_csv_path, label='table')}</td></tr>"
+        )
+    if scanner_path_image is not None:
+        scanner_file_rows += (
+            "<tr><td>Scanner path PNG</td><td>"
+            f"{_file_link(scanner_path_image, label='plot')}</td></tr>"
+        )
+    scanner_path_section = ""
+    if scanner_path_data is not None and scanner_path_uri is not None:
+        scanner_summary_yaml = yaml.safe_dump(
+            scanner_path_data["summary"],
+            sort_keys=False,
+            allow_unicode=True,
+        )
+        scanner_path_section = f"""
+<section><h2>Scanner path — ideal forward line</h2>
+<div class="callout">
+이 section은 optional ideal command-path reference입니다. Motor/galvo dynamics, lag, jitter,
+bidirectional return stroke와 calibration table은 아직 포함하지 않습니다.
+</div>
+<div class="cards">
+  {_card("Waveform", _escape(scanner_path_data["waveform"]))}
+  {_card("Samples", _fmt(scanner_path_data["sample_count"]))}
+  {_card("Line duration", _fmt(scanner_path_data["line_duration_s"], unit="s"))}
+  {_card("Positive returns", _fmt(scanner_path_data["summary"]["positive_return_count"]))}
+</div>
+<img class="hero" src="{scanner_path_uri}" alt="Scanner path plot">
+<h3>Scanner path samples</h3>
+<table>
+<tr><th>Time</th><th>Line pos.</th><th>Command</th><th>Status</th><th>Target u</th><th>Target v</th><th>P_rx</th></tr>
+{_scanner_path_rows(scanner_path_data)}
+</table>
+<details><summary>Scanner path summary</summary><pre>{_escape(scanner_summary_yaml)}</pre></details>
+</section>"""
     document = f"""<!doctype html>
 <html lang="ko">
 <head>
@@ -238,11 +307,13 @@ details {{ margin-top: 10px; }}
 <tr><td>Dashboard HTML</td><td><code>{_escape(Path(output_path).resolve())}</code></td></tr>
 <tr><td>Phase 2 report YAML</td><td>{_file_link(report_path, label="schema/report")}</td></tr>
 <tr><td>ViewportScene YAML</td><td>{_file_link(scene_path, label="UI contract")}</td></tr>
+{scanner_file_rows}
 </table></section>
 <section><h2>시각화</h2><div class="grid2">
 <div><h3>Optical assembly workspace</h3><img class="hero" src="{workspace_uri}" alt="Optical assembly workspace"></div>
 <div><h3>Optical train radius / power</h3><img class="hero" src="{optical_train_uri}" alt="Optical train plot"></div>
 </div></section>
+{scanner_path_section}
 <section><h2>Optical component report</h2><table>
 <tr><th>Element</th><th>Type</th><th>Catalog</th><th>Model level</th><th>주요 값</th></tr>
 {_component_rows(report_data)}

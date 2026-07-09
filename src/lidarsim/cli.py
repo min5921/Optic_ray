@@ -215,6 +215,31 @@ def _parser() -> argparse.ArgumentParser:
         type=Path,
         help="optional optical train PNG path; default is next to dashboard",
     )
+    dashboard.add_argument(
+        "--include-scanner-path",
+        action="store_true",
+        help="also run and embed an ideal forward-line scanner path report/plot",
+    )
+    dashboard.add_argument(
+        "--scanner-path-samples",
+        type=int,
+        help="sample count for --include-scanner-path; default uses scanner.samples_per_line",
+    )
+    dashboard.add_argument(
+        "--scanner-path-report",
+        type=Path,
+        help="optional scanner path YAML path; default is next to dashboard",
+    )
+    dashboard.add_argument(
+        "--scanner-path-csv",
+        type=Path,
+        help="optional scanner path CSV path; default is next to dashboard",
+    )
+    dashboard.add_argument(
+        "--scanner-path-plot",
+        type=Path,
+        help="optional scanner path PNG path; default is next to dashboard",
+    )
     dashboard.add_argument("--dpi", type=int, default=150)
     scanner_sweep = subparsers.add_parser(
         "scanner-sweep",
@@ -868,6 +893,37 @@ def _dashboard(args: argparse.Namespace) -> int:
         scene_path = _write_yaml_report(scene_target, scene.to_dict())
         workspace_path = render_viewport_scene(scene, workspace_target, dpi=args.dpi)
         train_path = render_optical_train_view(report, train_target, dpi=args.dpi)
+        scanner_path_result = None
+        scanner_path_report_path = None
+        scanner_path_csv_path = None
+        scanner_path_plot_path = None
+        if args.include_scanner_path:
+            scanner_path_result = run_ideal_scanner_line_path(
+                project,
+                sample_count=args.scanner_path_samples,
+            )
+            scanner_path_report_target = args.scanner_path_report or html_path.with_name(
+                f"{html_path.stem}_scanner_path.yaml"
+            )
+            scanner_path_csv_target = args.scanner_path_csv or html_path.with_name(
+                f"{html_path.stem}_scanner_path.csv"
+            )
+            scanner_path_plot_target = args.scanner_path_plot or html_path.with_name(
+                f"{html_path.stem}_scanner_path.png"
+            )
+            scanner_path_report_path = _write_yaml_report(
+                scanner_path_report_target,
+                scanner_path_result.to_dict(),
+            )
+            scanner_path_csv_path = write_scanner_path_csv(
+                scanner_path_result,
+                scanner_path_csv_target,
+            )
+            scanner_path_plot_path = render_scanner_path_view(
+                scanner_path_result,
+                scanner_path_plot_target,
+                dpi=args.dpi,
+            )
         dashboard_path = write_workspace_dashboard_html(
             project=project,
             report=report,
@@ -877,6 +933,10 @@ def _dashboard(args: argparse.Namespace) -> int:
             output_path=html_path,
             report_path=report_path,
             scene_path=scene_path,
+            scanner_path=scanner_path_result,
+            scanner_path_image=scanner_path_plot_path,
+            scanner_path_report_path=scanner_path_report_path,
+            scanner_path_csv_path=scanner_path_csv_path,
         )
     except (ConfigError, OSError, ValueError) as exc:
         print(exc, file=sys.stderr)
@@ -887,6 +947,10 @@ def _dashboard(args: argparse.Namespace) -> int:
     print(f"Viewport scene: {scene_path}")
     print(f"Workspace plot: {workspace_path}")
     print(f"Optical train plot: {train_path}")
+    if args.include_scanner_path:
+        print(f"Scanner path report: {scanner_path_report_path}")
+        print(f"Scanner path table: {scanner_path_csv_path}")
+        print(f"Scanner path plot: {scanner_path_plot_path}")
     print(
         f"Summary: status={report.summary['overall_status']}, "
         f"P_rx={report.summary['estimated_received_power_w']:.9g} W, "
