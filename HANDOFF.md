@@ -47,7 +47,8 @@
 - Phase 3.1의 첫 ideal scanner line path helper로 `lidarsim scanner-path`가 구현되었다. Config의 `scanner.waveform`, `mechanical_amplitude_rad`, `frequency_hz`, `samples_per_line`에서 한 줄 forward scan path를 만들고, 각 time sample의 target hit와 receiver return을 계산해 YAML/CSV/PNG로 저장한다.
 - `scanner-path`는 ideal command path reference이며 motor/galvo lag, jitter, acceleration limit, bidirectional return stroke와 calibration table은 아직 계산하지 않는다. 따라서 baseline의 `scan_path` output warning은 full scan path가 표준 report로 통합될 때까지 유지한다.
 - Read-only dashboard에 `--include-scanner-path` 옵션이 추가되었다. 옵션을 켜면 ideal scanner path YAML/CSV/PNG를 함께 생성하고, HTML에 scanner path plot, sample table, fidelity warning을 embedding한다.
-- 다음 활성 목표는 full `scan_path` output contract를 정의하고 standard report/schema에 통합하거나, dashboard를 browser form 기반 parameter runner로 확장하는 것이다.
+- Phase 3 scanner reference reports에 JSON Schema contract가 추가되었다. `scanner-sweep`, `scanner-path`, `dashboard --include-scanner-path`는 생성한 scanner report를 YAML로 쓰기 전에 schema validation을 통과해야 한다.
+- 다음 활성 목표는 full `scan_path` output을 standard report/schema에 통합하거나, dashboard를 browser form 기반 parameter runner로 확장하는 것이다.
 
 ## 유지할 결정 사항
 
@@ -64,7 +65,7 @@
 
 ## 가장 좋은 다음 작업
 
-다음 조각을 선택한다. 추천 1순위는 full `scan_path` output contract를 정의하고 standard report/schema에 통합하되, ideal command path와 calibrated scanner dynamics의 fidelity 차이를 명확히 분리하는 것이다. 대안은 dashboard를 browser form 기반 parameter runner로 확장해 scanner angle/path sample 수를 UI에서 입력하게 하는 것이다.
+다음 조각을 선택한다. 추천 1순위는 full `scan_path` output을 standard report/schema에 통합하되, ideal command path와 calibrated scanner dynamics의 fidelity 차이를 명확히 분리하는 것이다. 대안은 dashboard를 browser form 기반 parameter runner로 확장해 scanner angle/path sample 수를 UI에서 입력하게 하는 것이다.
 
 ## 검증 기록
 
@@ -157,6 +158,15 @@
 - `python -W error::DeprecationWarning -W error::UserWarning -m pytest -q`: 114개 통과.
 - `lidarsim dashboard configs/project.yaml --output results/ui_dashboard_with_path.html --include-scanner-path --scanner-path-samples 11 --dpi 140`: 통과. Scanner path YAML/CSV/PNG와 HTML section 생성을 확인했다.
 - `lidarsim validate configs/project.yaml`: 통과. `scan_path` output warning은 full scan path contract 전까지 유지한다.
+- `git diff --check`: 통과.
+- `schemas/phase3_static_scanner_angle_sweep.schema.json`과 `schemas/phase3_ideal_scanner_line_path.schema.json`을 추가했다.
+- `lidarsim scanner-sweep`, `lidarsim scanner-path`, `lidarsim dashboard --include-scanner-path`가 generated scanner report를 schema validation한 뒤 YAML로 저장하도록 했다.
+- `python -m pytest tests/test_scanner_sweep.py tests/test_scanner_path.py tests/test_cli.py -q`: 29개 통과.
+- `lidarsim scanner-sweep configs/project.yaml --angles-deg -5 0 5 --output results/scanner_sweep.yaml --csv results/scanner_sweep.csv --plot results/scanner_sweep.png --dpi 140`: 통과.
+- `lidarsim scanner-path configs/project.yaml --samples 11 --output results/scanner_path.yaml --csv results/scanner_path.csv --plot results/scanner_path.png --dpi 140`: 통과.
+- `lidarsim dashboard configs/project.yaml --output results/ui_dashboard_with_path.html --include-scanner-path --scanner-path-samples 11 --dpi 140`: 통과.
+- `python -m pytest -q`: 116개 통과.
+- `python -W error::DeprecationWarning -W error::UserWarning -m pytest -q`: 116개 통과.
 - `git diff --check`: 통과.
 
 ## 세션 갱신 형식

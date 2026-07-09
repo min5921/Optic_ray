@@ -779,7 +779,14 @@ def _scanner_sweep(args: argparse.Namespace) -> int:
         project = load_project(args.project)
         angles = _scanner_sweep_angles(args, project)
         result = run_static_scanner_angle_sweep(project, angles)
-        report_path = _write_yaml_report(args.output, result.to_dict())
+        result_data = result.to_dict()
+        schemas = SchemaStore.load(project.project_path.parent.parent / "schemas")
+        schemas.validate(
+            result_data,
+            "phase3_static_scanner_angle_sweep.schema.json",
+            source="generated Phase 3 scanner sweep report",
+        )
+        report_path = _write_yaml_report(args.output, result_data)
         csv_target = args.csv or report_path.with_name(f"{report_path.stem}_table.csv")
         plot_target = args.plot or report_path.with_name(f"{report_path.stem}_plot.png")
         csv_path = write_scanner_sweep_csv(result, csv_target)
@@ -811,7 +818,14 @@ def _scanner_path(args: argparse.Namespace) -> int:
     try:
         project = load_project(args.project)
         result = run_ideal_scanner_line_path(project, sample_count=args.samples)
-        report_path = _write_yaml_report(args.output, result.to_dict())
+        result_data = result.to_dict()
+        schemas = SchemaStore.load(project.project_path.parent.parent / "schemas")
+        schemas.validate(
+            result_data,
+            "phase3_ideal_scanner_line_path.schema.json",
+            source="generated Phase 3 scanner path report",
+        )
+        report_path = _write_yaml_report(args.output, result_data)
         csv_target = args.csv or report_path.with_name(f"{report_path.stem}_table.csv")
         plot_target = args.plot or report_path.with_name(f"{report_path.stem}_plot.png")
         csv_path = write_scanner_path_csv(result, csv_target)
@@ -902,6 +916,12 @@ def _dashboard(args: argparse.Namespace) -> int:
                 project,
                 sample_count=args.scanner_path_samples,
             )
+            scanner_path_data = scanner_path_result.to_dict()
+            schemas.validate(
+                scanner_path_data,
+                "phase3_ideal_scanner_line_path.schema.json",
+                source="generated dashboard scanner path report",
+            )
             scanner_path_report_target = args.scanner_path_report or html_path.with_name(
                 f"{html_path.stem}_scanner_path.yaml"
             )
@@ -913,7 +933,7 @@ def _dashboard(args: argparse.Namespace) -> int:
             )
             scanner_path_report_path = _write_yaml_report(
                 scanner_path_report_target,
-                scanner_path_result.to_dict(),
+                scanner_path_data,
             )
             scanner_path_csv_path = write_scanner_path_csv(
                 scanner_path_result,

@@ -1,6 +1,6 @@
 # Configuration schema
 
-이 directory의 JSON Schema Draft 2020-12 파일은 configuration과 Phase 0~2 result validation contract를 정의한다.
+이 directory의 JSON Schema Draft 2020-12 파일은 configuration과 Phase 0~3 reference result validation contract를 정의한다.
 
 - `project.schema.json`
 - `scenario.schema.json`
@@ -13,6 +13,8 @@
 - `phase1_beam_report.schema.json`
 - `phase1_beam_summary.schema.json`
 - `phase2_optical_train_report.schema.json`
+- `phase3_static_scanner_angle_sweep.schema.json`
+- `phase3_ideal_scanner_line_path.schema.json`
 - `common.schema.json`
 
 물리량 field는 다음 중 하나를 입력받는다.
@@ -27,3 +29,7 @@
 `phase1_beam_report.schema.json`은 Gaussian source state, confidence·calibration·provenance, free-space radius sample, profile power 적분·grid convergence와 internal-consistency check를 검증한다. `phase1_beam_summary.schema.json`은 사람이 먼저 확인할 compact 결과를 검증한다.
 
 `phase2_optical_train_report.schema.json`은 source→ideal thin-lens collimator→static scanner mirror reflection→rectangle-plane target footprint→Lambertian virtual receiver return까지의 element별 BeamState, aperture clipping, catalog transmission/reflectivity, power ledger, target footprint, receiver link budget와 내부 일관성 check를 검증한다. Time-dependent scanner motion, STL hit detection, non-Lambertian BRDF/BSDF, detector noise와 coherent FMCW는 아직 이 schema의 계산 범위가 아니다.
+
+`phase3_static_scanner_angle_sweep.schema.json`은 여러 static scanner command angle의 reflected direction, target hit, receiver return과 link loss 비교 report를 검증한다.
+
+`phase3_ideal_scanner_line_path.schema.json`은 scanner waveform에서 만든 한 줄 ideal forward command path의 time sample, command angle, target hit와 receiver return trend를 검증한다. Motor/galvo dynamics, lag, jitter, bidirectional return stroke와 calibration table은 아직 계산 범위가 아니다.

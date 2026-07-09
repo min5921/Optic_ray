@@ -7,6 +7,7 @@ import pytest
 import yaml
 
 from lidarsim.config import load_project
+from lidarsim.config.schema import SchemaStore
 from lidarsim.scanner import (
     ideal_forward_line_command_angles,
     run_ideal_scanner_line_path,
@@ -90,3 +91,14 @@ def test_ideal_scanner_path_serializes_csv_and_png(project_root: Path, tmp_path:
     assert "time_s" in written_csv.read_text(encoding="utf-8").splitlines()[0]
     assert written_png.read_bytes().startswith(b"\x89PNG\r\n\x1a\n")
     assert written_png.stat().st_size > 10_000
+
+
+def test_ideal_scanner_line_path_report_is_schema_valid(project_root: Path) -> None:
+    project = load_project(project_root / "configs" / "project.yaml")
+    result = run_ideal_scanner_line_path(project, sample_count=5)
+
+    SchemaStore.load(project_root / "schemas").validate(
+        result.to_dict(),
+        "phase3_ideal_scanner_line_path.schema.json",
+        source="test scanner path report",
+    )
