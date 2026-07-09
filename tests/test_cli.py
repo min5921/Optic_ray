@@ -463,6 +463,46 @@ def test_dashboard_command_writes_self_contained_workspace_html(
     assert "P_rx=" in output.out
 
 
+def test_scanner_sweep_command_writes_yaml_csv_and_plot(
+    project_root: Path,
+    tmp_path: Path,
+    capsys,
+) -> None:
+    report_path = tmp_path / "scanner_sweep.yaml"
+    csv_path = tmp_path / "scanner_sweep.csv"
+    plot_path = tmp_path / "scanner_sweep.png"
+
+    result = main(
+        [
+            "scanner-sweep",
+            str(project_root / "configs" / "project.yaml"),
+            "--angles-deg",
+            "-2",
+            "0",
+            "2",
+            "--output",
+            str(report_path),
+            "--csv",
+            str(csv_path),
+            "--plot",
+            str(plot_path),
+            "--dpi",
+            "72",
+        ]
+    )
+    output = capsys.readouterr()
+
+    assert result == 0
+    report = yaml.safe_load(report_path.read_text(encoding="utf-8"))
+    assert report["report_type"] == "phase3_static_scanner_angle_sweep"
+    assert report["summary"]["sample_count"] == 3
+    assert report["summary"]["target_hit_count"] == 3
+    assert csv_path.read_text(encoding="utf-8").splitlines()[0].startswith("sample_index")
+    assert plot_path.read_bytes().startswith(b"\x89PNG\r\n\x1a\n")
+    assert "Scanner sweep report:" in output.out
+    assert "static command-angle comparison only" in output.out
+
+
 def test_placement_variant_command_writes_valid_variant_project(
     copied_project: Path,
     capsys,

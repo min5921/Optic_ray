@@ -43,7 +43,8 @@
 - UI MVP 0의 read-only dashboard 조각으로 `lidarsim dashboard configs/project.yaml --output results/ui_dashboard.html` 명령이 구현되었다. 추가 dependency 없이 Phase 2 report YAML, `ViewportScene` YAML, workspace PNG, optical train PNG와 self-contained dashboard HTML을 생성한다.
 - Numeric placement editor의 첫 CLI helper로 `lidarsim placement-variant`가 구현되었다. Absolute placement의 `translation_m/quaternion_wxyz`, port placement의 `axial_gap_m/transverse_offset_m/clocking_rad/angular_misalignment_rad`를 baseline을 덮어쓰지 않고 variant scenario/project YAML로 저장한다.
 - Phase 3의 첫 static scanner command angle slice가 진행되어 `scanner.static_command_angle_rad`가 mirror normal과 aperture axes에 적용된다. Reflected ray, target hit, footprint와 receiver return이 static command angle에 따라 바뀌며 `workspace`/`dashboard`에는 report 기반으로 반영된다.
-- 다음 활성 목표는 scanner command angle UI helper 또는 Phase 3.1 scanner waveform/time sampling이다.
+- Phase 3 static scanner angle sweep helper로 `lidarsim scanner-sweep`이 구현되었다. 여러 정적 command angle을 독립 Phase 2 reference run으로 계산해 angle별 reflected ray, target hit coordinate, target power, received aperture power와 link loss를 YAML/CSV/PNG로 비교한다.
+- 다음 활성 목표는 Phase 3.1 scanner waveform/time sampling 또는 browser/dashboard에서 scanner angle sweep을 parameter form으로 노출하는 것이다.
 
 ## 유지할 결정 사항
 
@@ -60,7 +61,7 @@
 
 ## 가장 좋은 다음 작업
 
-다음 조각을 선택한다. 추천 1순위는 Phase 3.1 scanner waveform/time sampling을 구현하기 전에, static command angle sweep helper를 추가해 여러 scanner angle에서 target hit와 receiver return을 비교하는 것이다. 대안은 `placement-variant`와 scanner angle을 browser/dashboard UI form으로 노출하는 것이다.
+다음 조각을 선택한다. 추천 1순위는 Phase 3.1 scanner waveform/time sampling의 CPU reference를 구현해 static angle sweep을 시간 sample sequence로 확장하는 것이다. 대안은 `scanner-sweep`과 `placement-variant`를 browser/dashboard UI form으로 노출해 사용자가 angle/placement variant를 더 쉽게 만들게 하는 것이다.
 
 ## 검증 기록
 
@@ -131,6 +132,14 @@
 - `lidarsim dashboard configs/project.yaml --output results/ui_dashboard.html --dpi 140`: 통과. Static command angle `0 rad` reference로 workspace/dashboard 결과를 생성했다.
 - `python -m pytest -q`: 104개 통과.
 - `python -W error::DeprecationWarning -W error::UserWarning -m pytest -q`: 104개 통과.
+- Static scanner angle sweep helper에서 `src/lidarsim/scanner/sweep.py`, `src/lidarsim/visualization/scanner_sweep.py`, `lidarsim scanner-sweep` CLI와 tests를 추가했다.
+- `lidarsim scanner-sweep configs/project.yaml --angles-deg -5 0 5 --output results/scanner_sweep.yaml --csv results/scanner_sweep.csv --plot results/scanner_sweep.png --dpi 140`: 통과. 3개 sample 모두 target hit와 positive return이며 최대 received power는 중심 angle에서 `2.49999335e-09 W`다. 생성 PNG를 시각 검수해 target local hit 위치와 received power trend가 읽기 쉬운지 확인했다.
+- `python -m pytest tests/test_scanner_sweep.py tests/test_cli.py -q`: 21개 통과.
+- `python -m pytest -q`: 108개 통과.
+- `python -W error::DeprecationWarning -W error::UserWarning -m pytest -q`: 108개 통과.
+- `lidarsim validate configs/project.yaml`: 통과. 기존 small-angle paraxial, virtual receiver, `scan_path` 미구현, analytical regression warning을 확인했다.
+- `lidarsim dashboard configs/project.yaml --output results/ui_dashboard.html --dpi 140`: 통과.
+- `git diff --check`: 통과.
 
 ## 세션 갱신 형식
 

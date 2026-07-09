@@ -280,6 +280,8 @@ UI 기능은 이 명령들을 우회하지 않고 같은 loader, schema, physics
 - summary, warning, power ledger, target footprint, receiver return을 HTML에서 표시
 - `lidarsim placement-variant` CLI 명령
 - absolute placement와 port placement의 numeric edit를 variant scenario/project로 저장
+- `lidarsim scanner-sweep` CLI 명령
+- 여러 static scanner command angle의 target hit, received power와 link budget trend를 YAML/CSV/PNG로 저장
 
 현재 실행 예:
 
@@ -287,6 +289,7 @@ UI 기능은 이 명령들을 우회하지 않고 같은 loader, schema, physics
 lidarsim workspace configs/project.yaml --output results/ui_workspace.png --write-scene results/ui_workspace_scene.yaml
 lidarsim dashboard configs/project.yaml --output results/ui_dashboard.html
 lidarsim placement-variant configs/project.yaml --element scan_mirror --scenario-id mirror_shift --translation-m 0.1 0 0
+lidarsim scanner-sweep configs/project.yaml --angles-deg -5 0 5 --output results/scanner_sweep.yaml
 ```
 
 중요한 한계:
@@ -296,6 +299,7 @@ lidarsim placement-variant configs/project.yaml --element scan_mirror --scenario
 - 아직 browser UI 형태의 numeric placement editor는 없다.
 - 아직 snapping, mate, drag/rotate gizmo는 없다.
 - `placement-variant`는 baseline을 덮어쓰지 않고 variant config를 생성한다.
+- `scanner-sweep`은 static angle 비교 helper이며 scanner time waveform은 아직 아니다.
 
 이번 slice의 의미는 “나중에 어떤 UI를 쓰든 같은 `ViewportScene`과 Phase 2 report를 소비하게 만드는 것”이다. Streamlit, Plotly, Three.js, React frontend는 이 contract 위에 붙이면 된다.
 

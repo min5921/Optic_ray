@@ -3,10 +3,13 @@
 from __future__ import annotations
 
 import argparse
+import math
 import sys
 from collections.abc import Sequence
 from pathlib import Path
+from typing import Any
 
+import numpy as np
 import yaml
 
 from lidarsim.assets import load_measurement, load_stl_asset
@@ -22,11 +25,17 @@ from lidarsim.results import (
     build_phase2_optical_train_report,
     write_review_html,
 )
+from lidarsim.scanner import (
+    default_static_sweep_angles,
+    run_static_scanner_angle_sweep,
+    write_scanner_sweep_csv,
+)
 from lidarsim.ui import build_viewport_scene, create_placement_variant, write_workspace_dashboard_html
 from lidarsim.visualization import (
     render_beam_view,
     render_optical_train_view,
     render_placement_view,
+    render_scanner_sweep_view,
     render_viewport_scene,
 )
 
@@ -204,6 +213,50 @@ def _parser() -> argparse.ArgumentParser:
         help="optional optical train PNG path; default is next to dashboard",
     )
     dashboard.add_argument("--dpi", type=int, default=150)
+    scanner_sweep = subparsers.add_parser(
+        "scanner-sweep",
+        help="run a static scanner command-angle sweep against the Phase 2 reference model",
+    )
+    scanner_sweep.add_argument("project", nargs="?", default="configs/project.yaml")
+    scanner_sweep.add_argument(
+        "--angles-deg",
+        type=float,
+        nargs="+",
+        help="explicit static scanner command angles in degrees",
+    )
+    scanner_sweep.add_argument(
+        "--start-deg",
+        type=float,
+        help="range start angle in degrees; default uses -mechanical_amplitude",
+    )
+    scanner_sweep.add_argument(
+        "--stop-deg",
+        type=float,
+        help="range stop angle in degrees; default uses +mechanical_amplitude",
+    )
+    scanner_sweep.add_argument(
+        "--count",
+        type=int,
+        default=11,
+        help="number of range samples when --angles-deg is not used",
+    )
+    scanner_sweep.add_argument(
+        "--output",
+        type=Path,
+        default=Path("results/scanner_sweep.yaml"),
+        help="YAML sweep report path",
+    )
+    scanner_sweep.add_argument(
+        "--csv",
+        type=Path,
+        help="CSV table path; default is next to --output",
+    )
+    scanner_sweep.add_argument(
+        "--plot",
+        type=Path,
+        help="PNG trend plot path; default is next to --output",
+    )
+    scanner_sweep.add_argument("--dpi", type=int, default=150)
     placement_variant = subparsers.add_parser(
         "placement-variant",
         help="write a variant scenario/project with numeric placement edits",
@@ -652,6 +705,53 @@ def _optical_train(args: argparse.Namespace) -> int:
     return 0
 
 
+def _scanner_sweep_angles(args: argparse.Namespace, project: Any) -> tuple[float, ...]:
+    if args.angles_deg is not None:
+        return tuple(math.radians(float(value)) for value in args.angles_deg)
+    count = int(args.count)
+    if count < 1:
+        raise ValueError("--count는 1 이상이어야 합니다.")
+    amplitude = float(project.active_scenario["scanner"].get("mechanical_amplitude_rad", 0.0))
+    if args.start_deg is None and args.stop_deg is None:
+        return default_static_sweep_angles(project, count=count)
+    start_rad = -amplitude if args.start_deg is None else math.radians(float(args.start_deg))
+    stop_rad = amplitude if args.stop_deg is None else math.radians(float(args.stop_deg))
+    return tuple(float(value) for value in np.linspace(start_rad, stop_rad, count))
+
+
+def _scanner_sweep(args: argparse.Namespace) -> int:
+    try:
+        project = load_project(args.project)
+        angles = _scanner_sweep_angles(args, project)
+        result = run_static_scanner_angle_sweep(project, angles)
+        report_path = _write_yaml_report(args.output, result.to_dict())
+        csv_target = args.csv or report_path.with_name(f"{report_path.stem}_table.csv")
+        plot_target = args.plot or report_path.with_name(f"{report_path.stem}_plot.png")
+        csv_path = write_scanner_sweep_csv(result, csv_target)
+        plot_path = render_scanner_sweep_view(result, plot_target, dpi=args.dpi)
+    except (ConfigError, OSError, ValueError) as exc:
+        print(exc, file=sys.stderr)
+        return 2
+
+    data = result.to_dict()
+    summary = data["summary"]
+    print(f"Scanner sweep report: {report_path}")
+    print(f"Scanner sweep table: {csv_path}")
+    print(f"Scanner sweep plot: {plot_path}")
+    print(
+        f"Samples: {summary['sample_count']}, hits={summary['target_hit_count']}, "
+        f"positive_returns={summary['positive_return_count']}, "
+        f"max_P_rx={summary['max_estimated_received_power_w']:.9g} W"
+    )
+    print(
+        "Scope: static command-angle comparison only; scanner waveform/time dynamics "
+        "are not simulated."
+    )
+    for warning in result.warnings:
+        print(warning, file=sys.stderr)
+    return 0
+
+
 def _workspace(args: argparse.Namespace) -> int:
     try:
         project = load_project(args.project)
@@ -808,6 +908,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         return _workspace(args)
     if args.command == "dashboard":
         return _dashboard(args)
+    if args.command == "scanner-sweep":
+        return _scanner_sweep(args)
     if args.command == "placement-variant":
         return _placement_variant(args)
     raise AssertionError(f"Unhandled command: {args.command}")
