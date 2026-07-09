@@ -503,6 +503,44 @@ def test_scanner_sweep_command_writes_yaml_csv_and_plot(
     assert "static command-angle comparison only" in output.out
 
 
+def test_scanner_path_command_writes_yaml_csv_and_plot(
+    project_root: Path,
+    tmp_path: Path,
+    capsys,
+) -> None:
+    report_path = tmp_path / "scanner_path.yaml"
+    csv_path = tmp_path / "scanner_path.csv"
+    plot_path = tmp_path / "scanner_path.png"
+
+    result = main(
+        [
+            "scanner-path",
+            str(project_root / "configs" / "project.yaml"),
+            "--samples",
+            "5",
+            "--output",
+            str(report_path),
+            "--csv",
+            str(csv_path),
+            "--plot",
+            str(plot_path),
+            "--dpi",
+            "72",
+        ]
+    )
+    output = capsys.readouterr()
+
+    assert result == 0
+    report = yaml.safe_load(report_path.read_text(encoding="utf-8"))
+    assert report["report_type"] == "phase3_ideal_scanner_line_path"
+    assert report["sample_count"] == 5
+    assert report["summary"]["target_hit_count"] == 5
+    assert csv_path.read_text(encoding="utf-8").splitlines()[0].startswith("sample_index")
+    assert plot_path.read_bytes().startswith(b"\x89PNG\r\n\x1a\n")
+    assert "Scanner path report:" in output.out
+    assert "ideal forward-line command path only" in output.out
+
+
 def test_placement_variant_command_writes_valid_variant_project(
     copied_project: Path,
     capsys,

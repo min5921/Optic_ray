@@ -27,7 +27,9 @@ from lidarsim.results import (
 )
 from lidarsim.scanner import (
     default_static_sweep_angles,
+    run_ideal_scanner_line_path,
     run_static_scanner_angle_sweep,
+    write_scanner_path_csv,
     write_scanner_sweep_csv,
 )
 from lidarsim.ui import build_viewport_scene, create_placement_variant, write_workspace_dashboard_html
@@ -35,6 +37,7 @@ from lidarsim.visualization import (
     render_beam_view,
     render_optical_train_view,
     render_placement_view,
+    render_scanner_path_view,
     render_scanner_sweep_view,
     render_viewport_scene,
 )
@@ -257,6 +260,33 @@ def _parser() -> argparse.ArgumentParser:
         help="PNG trend plot path; default is next to --output",
     )
     scanner_sweep.add_argument("--dpi", type=int, default=150)
+    scanner_path = subparsers.add_parser(
+        "scanner-path",
+        help="run one ideal forward-line scanner path from active scanner waveform settings",
+    )
+    scanner_path.add_argument("project", nargs="?", default="configs/project.yaml")
+    scanner_path.add_argument(
+        "--samples",
+        type=int,
+        help="override scanner.samples_per_line for this reference run",
+    )
+    scanner_path.add_argument(
+        "--output",
+        type=Path,
+        default=Path("results/scanner_path.yaml"),
+        help="YAML scanner path report path",
+    )
+    scanner_path.add_argument(
+        "--csv",
+        type=Path,
+        help="CSV table path; default is next to --output",
+    )
+    scanner_path.add_argument(
+        "--plot",
+        type=Path,
+        help="PNG path plot; default is next to --output",
+    )
+    scanner_path.add_argument("--dpi", type=int, default=150)
     placement_variant = subparsers.add_parser(
         "placement-variant",
         help="write a variant scenario/project with numeric placement edits",
@@ -752,6 +782,38 @@ def _scanner_sweep(args: argparse.Namespace) -> int:
     return 0
 
 
+def _scanner_path(args: argparse.Namespace) -> int:
+    try:
+        project = load_project(args.project)
+        result = run_ideal_scanner_line_path(project, sample_count=args.samples)
+        report_path = _write_yaml_report(args.output, result.to_dict())
+        csv_target = args.csv or report_path.with_name(f"{report_path.stem}_table.csv")
+        plot_target = args.plot or report_path.with_name(f"{report_path.stem}_plot.png")
+        csv_path = write_scanner_path_csv(result, csv_target)
+        plot_path = render_scanner_path_view(result, plot_target, dpi=args.dpi)
+    except (ConfigError, OSError, ValueError) as exc:
+        print(exc, file=sys.stderr)
+        return 2
+
+    data = result.to_dict()
+    summary = data["summary"]
+    print(f"Scanner path report: {report_path}")
+    print(f"Scanner path table: {csv_path}")
+    print(f"Scanner path plot: {plot_path}")
+    print(
+        f"Waveform: {result.waveform}, samples={summary['target_hit_count']}/"
+        f"{result.sample_count} hits, positive_returns={summary['positive_return_count']}, "
+        f"line_duration={result.line_duration_s:.9g} s"
+    )
+    print(
+        "Scope: ideal forward-line command path only; scanner dynamics/calibration "
+        "are not simulated."
+    )
+    for warning in result.warnings:
+        print(warning, file=sys.stderr)
+    return 0
+
+
 def _workspace(args: argparse.Namespace) -> int:
     try:
         project = load_project(args.project)
@@ -910,6 +972,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         return _dashboard(args)
     if args.command == "scanner-sweep":
         return _scanner_sweep(args)
+    if args.command == "scanner-path":
+        return _scanner_path(args)
     if args.command == "placement-variant":
         return _placement_variant(args)
     raise AssertionError(f"Unhandled command: {args.command}")

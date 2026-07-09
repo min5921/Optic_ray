@@ -26,7 +26,7 @@
 
 Phase 0·0.1과 Phase 1 Gaussian Beam Engine이 완료되었다. `lidarsim validate`는 project/scenario/experiment/catalog YAML을 검사하고 단위, 물리 범위, wavelength validity와 참조·배치를 검증한다. `placement`, `inspect-mesh`, `inspect-measurement`, `report`, `view`, `review`로 배치와 입력 contract를 확인할 수 있다. `lidarsim beam`은 active source의 point·elliptical·line Gaussian을 NumPy/float64로 자유공간 전파하고 radius, divergence, q-parameter, second moment와 power-normalized irradiance를 YAML/PNG로 저장한다. Numerical check와 실제 장비 calibration을 구분해 confidence, provenance, paraxial validity와 hardware readiness를 함께 표시한다.
 
-Phase 2의 vertical slice로 `lidarsim optical-train`이 추가되었다. 이 명령은 source에서 ideal thin-lens collimator를 거쳐 scanner mirror에서 정지 반사되고, rectangle-plane target footprint와 첫 Lambertian receiver return까지 free-space propagation, ABCD thin-lens transform, centered circular aperture clipping, static flat-mirror reflection, mirror aperture clipping, catalog power transmission/reflectivity, target hit/footprint, receiver aperture power와 link budget을 계산한다. 현재는 `scanner.static_command_angle_rad` 하나를 static pose로 적용해 mirror normal, reflected ray, target hit와 receiver return을 바꿀 수 있다. Phase 3의 첫 helper로 `lidarsim scanner-sweep`이 추가되어 여러 static command angle에서 target hit와 receiver return 변화를 YAML/CSV/PNG로 비교할 수 있다. Dynamic lag, jitter, waveform time sampling과 scan path는 아직 적용하지 않는다. STL hit detection, visibility/occlusion, non-Lambertian BRDF/BSDF, detector noise, speckle와 coherent FMCW는 아직 구현되지 않았다. `lidarsim run`, `compare`와 time-sampled scan radiometry는 아직 구현되지 않았다.
+Phase 2의 vertical slice로 `lidarsim optical-train`이 추가되었다. 이 명령은 source에서 ideal thin-lens collimator를 거쳐 scanner mirror에서 정지 반사되고, rectangle-plane target footprint와 첫 Lambertian receiver return까지 free-space propagation, ABCD thin-lens transform, centered circular aperture clipping, static flat-mirror reflection, mirror aperture clipping, catalog power transmission/reflectivity, target hit/footprint, receiver aperture power와 link budget을 계산한다. 현재는 `scanner.static_command_angle_rad` 하나를 static pose로 적용해 mirror normal, reflected ray, target hit와 receiver return을 바꿀 수 있다. Phase 3의 첫 helper로 `lidarsim scanner-sweep`이 추가되어 여러 static command angle에서 target hit와 receiver return 변화를 YAML/CSV/PNG로 비교할 수 있다. 이어서 `lidarsim scanner-path`가 추가되어 config의 scanner waveform에서 한 줄의 ideal forward scan path를 시간 샘플로 만들고, 각 sample의 target hit와 receiver return을 계산한다. Dynamic lag, jitter, bidirectional return stroke, calibration table과 실제 scanner dynamics는 아직 적용하지 않는다. STL hit detection, visibility/occlusion, non-Lambertian BRDF/BSDF, detector noise, speckle와 coherent FMCW는 아직 구현되지 않았다. `lidarsim run`, `compare`와 calibrated scan radiometry는 아직 구현되지 않았다.
 
 ## 3. 주요 파일 위치
 
@@ -471,6 +471,31 @@ lidarsim scanner-sweep configs/project.yaml --start-deg -3 --stop-deg 3 --count 
 
 각 sample은 독립적인 Phase 2 analytical reference run이다. 따라서 `scanner-sweep` 결과는 static angle별 비교에는 유용하지만, 시간 순서, waveform phase, scan velocity, acceleration, galvo/모터 lag, jitter 또는 calibration table을 포함한 scan path로 해석하면 안 된다.
 
+한 줄의 이상적인 scanner path를 보고 싶을 때는 `scanner-path`를 사용한다.
+
+```powershell
+# baseline scanner 설정의 triangle waveform에서 한 줄 forward path 생성
+lidarsim scanner-path configs/project.yaml --samples 11 --output results/scanner_path.yaml
+```
+
+`scanner-path`는 `scanner.waveform`, `mechanical_amplitude_rad`, `frequency_hz`, `samples_per_line`을 읽는다. 현재 지원하는 waveform은 다음과 같다.
+
+- `static`: `static_command_angle_rad`를 모든 sample에 적용
+- `triangle`: `-mechanical_amplitude_rad`에서 `+mechanical_amplitude_rad`까지 forward half-period line
+- `sinusoidal`: sinusoidal half-cycle의 forward line
+
+출력은 다음을 포함한다.
+
+- sample time
+- command angle
+- target local hit coordinate
+- estimated power on target
+- estimated received aperture power
+- receiver FOV status
+- link loss
+
+이 명령은 ideal command path reference다. 아직 motor/galvo dynamics, lag, jitter, acceleration limit, bidirectional return stroke, calibration table과 실제 encoder measurement는 반영하지 않는다. 따라서 validate에서 요청된 `scan_path` output warning은 full scan path가 표준 report로 통합되고 fidelity contract가 정리될 때까지 유지한다.
+
 ## 13. FreeCAD/STL geometry 사용
 
 ### 13.1 권장 파일 흐름
@@ -778,11 +803,16 @@ lidarsim train configs/project.yaml
 
 # 여러 static scanner command angle에서 target hit와 received power 비교
 lidarsim scanner-sweep configs/project.yaml --angles-deg -5 0 5 --output results/scanner_sweep.yaml
+
+# Config의 scanner waveform으로 한 줄 ideal forward scan path 생성
+lidarsim scanner-path configs/project.yaml --samples 11 --output results/scanner_path.yaml
 ```
 
 `optical-train` 결과의 `optical_train.states`에는 source output, collimator input/output, scanner mirror origin과 reflected output의 `BeamState`가 저장된다. `power_ledger`는 free-space, collimator aperture clipping, component transmission, mirror rectangular aperture와 mirror reflectivity를 순서대로 기록한다. `component_reports[].aperture_clip`에서 clear aperture 대비 clipping fraction을 확인하고, `summary.total_transmission`과 `summary.total_loss_w`로 optical train 손실을 빠르게 본다. `target_footprints[]`에는 rectangle-plane hit, incidence angle, projected Gaussian footprint, target에 걸린 power와 clipping 여부가 저장된다. `receiver_return`에는 Lambertian reflectivity, receiver aperture/FOV 판정, estimated received aperture power와 link loss가 저장된다. 현재 aperture를 지난 뒤의 diffraction/truncated profile shape, mirror edge scattering, polarization, STL visibility, non-Lambertian BRDF, detector noise와 coherent field sum은 계산하지 않는다.
 
 `scanner-sweep` 결과는 단일 `optical-train` 결과를 angle별로 반복 실행한 요약이다. YAML의 `samples[]`에는 command angle, reflected/final direction, target hit 좌표, target local coordinate, target power, received power, receiver FOV status와 link loss가 들어간다. CSV는 같은 값을 spreadsheet에서 비교하기 위한 경량 table이다. PNG는 angle에 따른 target local hit 위치와 received power 추세를 보여준다. 이 명령은 baseline config를 수정하지 않으며, sample별 `scenario_config_hash`로 angle이 반영된 reference snapshot을 구분한다.
+
+`scanner-path` 결과는 `scanner-sweep`의 angle별 static reference를 시간 순서에 맞게 배열한 한 줄 scan report다. YAML의 `samples[]`에는 `time_s`, `line_position`, command angle과 각 sample의 target/receiver 결과가 들어간다. CSV는 같은 값을 table로 저장하고, PNG는 command angle, target hit 좌표, received power를 시간축에서 보여준다. 이 명령은 “ideal forward-line command path”만 구현하므로 실제 구동기의 lag나 calibration error를 포함하는 full scanner dynamics로 해석하지 않는다.
 
 `workspace`는 optical assembly workspace의 초기 viewer 명령이다. 현재 configuration과 Phase 2.3 report를 읽어 `ViewportScene`을 만들고, 다음 요소를 3D PNG로 그린다.
 

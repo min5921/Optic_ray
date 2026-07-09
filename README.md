@@ -34,6 +34,7 @@ lidarsim review configs/project.yaml
 lidarsim beam configs/project.yaml
 lidarsim optical-train configs/project.yaml
 lidarsim scanner-sweep configs/project.yaml --angles-deg -5 0 5 --output results/scanner_sweep.yaml
+lidarsim scanner-path configs/project.yaml --samples 11 --output results/scanner_path.yaml
 lidarsim workspace configs/project.yaml --output results/ui_workspace.png --write-scene results/ui_workspace_scene.yaml
 lidarsim dashboard configs/project.yaml --output results/ui_dashboard.html
 lidarsim placement-variant configs/project.yaml --element scan_mirror --scenario-id mirror_shift --translation-m 0.1 0 0
@@ -49,6 +50,8 @@ python -m pytest -q
 `optical-train`은 Phase 2 조각으로 collimator 전후와 scanner mirror 반사 후의 `BeamState`, aperture clipping loss, component transmission, mirror reflectivity, rectangle-plane target footprint와 Lambertian receiver return을 계산한다. 결과는 `results/phase2/<timestamp>_<scenario>_<hash>/` 아래에 `optical_train_report.yaml`과 `optical_train.png`로 저장된다. `scanner.static_command_angle_rad`는 static pose로 적용되어 mirror normal, reflected ray, target hit와 receiver return을 바꾼다. 시간 구동 scanner waveform과 scan path는 아직 적용하지 않는다. 같은 명령은 짧게 `lidarsim train configs/project.yaml`로도 실행할 수 있다.
 
 `scanner-sweep`은 Phase 3의 정적 scanner 비교 helper다. 여러 `static_command_angle_rad` 값을 독립적인 Phase 2 reference run으로 계산해 angle별 reflected ray, target hit 좌표, target power, received aperture power와 link loss를 YAML/CSV/PNG로 저장한다. 명령 입력은 degree가 편하지만 내부 계산과 report는 radian/SI 기준을 유지한다. 이 기능은 scanner waveform이나 time-sampled scan path가 아니며, motor lag·jitter·calibration table은 아직 적용하지 않는다.
+
+`scanner-path`는 config의 `scanner.waveform`, `mechanical_amplitude_rad`, `frequency_hz`, `samples_per_line`을 사용해 한 줄의 ideal forward scan path를 샘플링한다. 각 시간 샘플은 static scanner angle reference run으로 계산되어 target hit와 receiver return을 포함한다. 현재 `triangle`과 `sinusoidal`은 forward half-cycle만 지원하며, bidirectional return stroke, motor dynamics, lag, jitter와 calibration table은 아직 제외된다.
 
 `workspace`는 현재 Phase 2.3 결과를 optical assembly workspace용 `ViewportScene`으로 변환하고, source/collimator/mirror/target/receiver, local frame, port axis, mirror normal, beam path, target hit, footprint와 receiver FOV를 하나의 3D PNG로 저장한다. `--write-scene`을 주면 향후 Streamlit/Three.js UI가 소비할 수 있는 YAML scene도 함께 저장한다. 이 명령은 아직 placement를 편집하지 않는 read-only viewer이며, UI가 숨겨진 source of truth가 되지 않도록 모든 값은 config와 report에서 나온다.
 

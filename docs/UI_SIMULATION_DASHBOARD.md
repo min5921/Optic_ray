@@ -282,6 +282,8 @@ UI 기능은 이 명령들을 우회하지 않고 같은 loader, schema, physics
 - absolute placement와 port placement의 numeric edit를 variant scenario/project로 저장
 - `lidarsim scanner-sweep` CLI 명령
 - 여러 static scanner command angle의 target hit, received power와 link budget trend를 YAML/CSV/PNG로 저장
+- `lidarsim scanner-path` CLI 명령
+- config의 scanner waveform에서 한 줄 ideal forward path를 시간 sample로 생성하고 target/receiver trend를 YAML/CSV/PNG로 저장
 
 현재 실행 예:
 
@@ -290,6 +292,7 @@ lidarsim workspace configs/project.yaml --output results/ui_workspace.png --writ
 lidarsim dashboard configs/project.yaml --output results/ui_dashboard.html
 lidarsim placement-variant configs/project.yaml --element scan_mirror --scenario-id mirror_shift --translation-m 0.1 0 0
 lidarsim scanner-sweep configs/project.yaml --angles-deg -5 0 5 --output results/scanner_sweep.yaml
+lidarsim scanner-path configs/project.yaml --samples 11 --output results/scanner_path.yaml
 ```
 
 중요한 한계:
@@ -300,6 +303,7 @@ lidarsim scanner-sweep configs/project.yaml --angles-deg -5 0 5 --output results
 - 아직 snapping, mate, drag/rotate gizmo는 없다.
 - `placement-variant`는 baseline을 덮어쓰지 않고 variant config를 생성한다.
 - `scanner-sweep`은 static angle 비교 helper이며 scanner time waveform은 아직 아니다.
+- `scanner-path`는 ideal forward-line command path이며 motor dynamics나 calibration table은 아직 아니다.
 
 이번 slice의 의미는 “나중에 어떤 UI를 쓰든 같은 `ViewportScene`과 Phase 2 report를 소비하게 만드는 것”이다. Streamlit, Plotly, Three.js, React frontend는 이 contract 위에 붙이면 된다.
 
