@@ -91,6 +91,7 @@ def _component_rows(report_data: dict[str, Any]) -> str:
     for item in report_data["optical_train"]["component_reports"]:
         if item.get("component_type") == "scanner_mirror":
             detail = (
+                f"cmd={_fmt(item.get('scanner_command_angle_rad'), unit='rad')}, "
                 f"incidence={_fmt(item.get('incidence_angle_rad'), unit='rad')}, "
                 f"aperture={_escape(item.get('aperture_status'))}, "
                 f"R={_fmt(item.get('power_reflectivity'))}"

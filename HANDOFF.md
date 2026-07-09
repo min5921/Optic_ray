@@ -42,7 +42,8 @@
 - `lidarsim workspace configs/project.yaml --output results/ui_workspace.png --write-scene results/ui_workspace_scene.yaml`로 현재 Phase 2.3 static simulation을 optical assembly workspace용 PNG와 YAML scene으로 확인할 수 있다.
 - UI MVP 0의 read-only dashboard 조각으로 `lidarsim dashboard configs/project.yaml --output results/ui_dashboard.html` 명령이 구현되었다. 추가 dependency 없이 Phase 2 report YAML, `ViewportScene` YAML, workspace PNG, optical train PNG와 self-contained dashboard HTML을 생성한다.
 - Numeric placement editor의 첫 CLI helper로 `lidarsim placement-variant`가 구현되었다. Absolute placement의 `translation_m/quaternion_wxyz`, port placement의 `axial_gap_m/transverse_offset_m/clocking_rad/angular_misalignment_rad`를 baseline을 덮어쓰지 않고 variant scenario/project YAML로 저장한다.
-- 다음 활성 목표는 placement variant를 browser/dashboard UI에서 선택·편집 form으로 노출하거나, Phase 3 scanner command angle physics를 구현해 UI에 연결하는 것이다.
+- Phase 3의 첫 static scanner command angle slice가 진행되어 `scanner.static_command_angle_rad`가 mirror normal과 aperture axes에 적용된다. Reflected ray, target hit, footprint와 receiver return이 static command angle에 따라 바뀌며 `workspace`/`dashboard`에는 report 기반으로 반영된다.
+- 다음 활성 목표는 scanner command angle UI helper 또는 Phase 3.1 scanner waveform/time sampling이다.
 
 ## 유지할 결정 사항
 
@@ -59,7 +60,7 @@
 
 ## 가장 좋은 다음 작업
 
-다음 조각을 선택한다. 추천 1순위는 Phase 3 scanner command angle physics를 구현해 mirror normal/reflected ray/target hit가 scanner command angle에 따라 바뀌도록 하고, `workspace`/`dashboard`에 연결하는 것이다. 대안은 `placement-variant`를 browser/dashboard UI form으로 노출하는 것이다.
+다음 조각을 선택한다. 추천 1순위는 Phase 3.1 scanner waveform/time sampling을 구현하기 전에, static command angle sweep helper를 추가해 여러 scanner angle에서 target hit와 receiver return을 비교하는 것이다. 대안은 `placement-variant`와 scanner angle을 browser/dashboard UI form으로 노출하는 것이다.
 
 ## 검증 기록
 
@@ -88,7 +89,7 @@
 - `lidarsim beam configs/line_beam_project.example.yaml`: 20 mm plane에서 line beam radius `3.0000018 mm × 0.253096651 mm`, power/second-moment check `pass`.
 - Commit 전 realism/UX 재검수에서 MFD assumption, paraxial validity, confidence/provenance, 독립 convergence 의미, CLI unit과 plot 가독성 문제를 보강했다.
 - Point baseline numerical check는 통과하지만 paraxial proxy와 uncalibrated analytical model 때문에 overall `warning`, hardware readiness `analytical_only`로 표시된다.
-- 현재 revision의 resolved physical config SHA-256: `3e9fc0408e8a8aa4f3a1f83c47b9aeebc863d08133ef3a6ab0676cfcb9586c73`.
+- 현재 revision의 resolved physical config SHA-256: `3b3d040200ff6409e7c81dc95d3beb3bf2ba71e3658db0bca88ccbccf84fd608`.
 - Phase 1 checkpoint commit `3ac98b3` (`Implement Phase 1 Gaussian beam engine`)를 `origin/main`에 push했다.
 - Phase 2 first vertical slice에서 `ABCDMatrix`, `apply_abcd_to_beam`, circular aperture clipping, transmitter train propagation, `phase2_optical_train_report.schema.json`, `lidarsim optical-train`, `render_optical_train_view`와 regression test를 추가했다.
 - `python -W error::DeprecationWarning -W error::UserWarning -m pytest -q`: 80개 통과.
@@ -124,6 +125,12 @@
 - `python -m pytest tests/test_placement_editor.py tests/test_cli.py -q`: 22개 통과.
 - `python -m pytest -q`: 103개 통과.
 - `python -W error::DeprecationWarning -W error::UserWarning -m pytest -q`: 103개 통과.
+- Phase 3 static scanner command angle 첫 조각에서 `scanner.static_command_angle_rad` schema/config field를 추가하고, `src/lidarsim/optics/train.py`가 mirror normal/aperture axes를 scanner rotation axis 기준으로 회전하도록 했다.
+- `python -m pytest tests/test_optical_train.py tests/test_scene_receiver.py -q`: 18개 통과.
+- `lidarsim validate configs/project.yaml`: 통과. Resolved config SHA-256은 `3b3d040200ff6409e7c81dc95d3beb3bf2ba71e3658db0bca88ccbccf84fd608`.
+- `lidarsim dashboard configs/project.yaml --output results/ui_dashboard.html --dpi 140`: 통과. Static command angle `0 rad` reference로 workspace/dashboard 결과를 생성했다.
+- `python -m pytest -q`: 104개 통과.
+- `python -W error::DeprecationWarning -W error::UserWarning -m pytest -q`: 104개 통과.
 
 ## 세션 갱신 형식
 

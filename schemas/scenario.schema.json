@@ -92,6 +92,7 @@
         "element_id": { "$ref": "common.schema.json#/$defs/identifier" },
         "type": { "enum": ["one_axis_flat_mirror", "static_mirror"] },
         "rotation_axis_world": { "$ref": "common.schema.json#/$defs/vec3" },
+        "static_command_angle_rad": { "$ref": "common.schema.json#/$defs/quantity" },
         "mechanical_amplitude_rad": { "$ref": "common.schema.json#/$defs/quantity" },
         "frequency_hz": { "$ref": "common.schema.json#/$defs/quantity" },
         "waveform": { "enum": ["static", "triangle", "sinusoidal", "raster", "custom"] },

@@ -642,6 +642,25 @@ def validate_scenario_physics(
                 message="Mechanical scan amplitude는 90 deg보다 작아야 합니다.",
             )
         )
+    command_angle = _require_finite(
+        scanner.get("static_command_angle_rad", 0.0),
+        source=source_text,
+        path="scanner.static_command_angle_rad",
+        diagnostics=diagnostics,
+    )
+    if (
+        command_angle is not None
+        and amplitude is not None
+        and not is_static
+        and abs(command_angle) > amplitude + 1e-15
+    ):
+        diagnostics.append(
+            Diagnostic(
+                source=source_text,
+                path="scanner.static_command_angle_rad",
+                message="Static command angle은 mechanical_amplitude_rad 범위 안에 있어야 합니다.",
+            )
+        )
 
     for index, target in enumerate(scenario["scene"]["targets"]):
         geometry = target["geometry"]

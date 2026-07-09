@@ -297,8 +297,47 @@ def _mirror_aperture_axes(element: Any, component: Any) -> tuple[np.ndarray, np.
     return normal, aperture_x, aperture_y
 
 
+def _rotate_vector_about_axis(vector: Any, axis: Any, angle_rad: float) -> np.ndarray:
+    unit_axis = normalize_vector(axis, name="scanner rotation axis")
+    value = np.asarray(vector, dtype=np.float64)
+    angle = float(angle_rad)
+    cosine = math.cos(angle)
+    sine = math.sin(angle)
+    return normalize_vector(
+        value * cosine
+        + np.cross(unit_axis, value) * sine
+        + unit_axis * float(np.dot(unit_axis, value)) * (1.0 - cosine),
+        name="rotated scanner vector",
+    )
+
+
+def _scanner_static_pose(
+    scenario: Any,
+    *,
+    element_id: str,
+    normal: np.ndarray,
+    aperture_x: np.ndarray,
+    aperture_y: np.ndarray,
+) -> tuple[float, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    scanner = scenario.get("scanner", {})
+    if str(scanner.get("element_id", "")) != element_id:
+        return 0.0, np.zeros(3, dtype=np.float64), normal, aperture_x, aperture_y
+    command_angle = float(scanner.get("static_command_angle_rad", 0.0))
+    rotation_axis = normalize_vector(scanner["rotation_axis_world"], name="scanner rotation axis")
+    if abs(command_angle) <= 1e-15:
+        return command_angle, rotation_axis, normal, aperture_x, aperture_y
+    return (
+        command_angle,
+        rotation_axis,
+        _rotate_vector_about_axis(normal, rotation_axis, command_angle),
+        _rotate_vector_about_axis(aperture_x, rotation_axis, command_angle),
+        _rotate_vector_about_axis(aperture_y, rotation_axis, command_angle),
+    )
+
+
 def _scanner_mirror_report(
     *,
+    scenario: Any,
     optical_path_id: str,
     element_id: str,
     component_ref: str,
@@ -313,6 +352,13 @@ def _scanner_mirror_report(
         raise ValueError(f"지원하지 않는 scanner_mirror surface_model입니다: {surface_model!r}")
 
     normal, aperture_x, aperture_y = _mirror_aperture_axes(element, component)
+    command_angle, rotation_axis, normal, aperture_x, aperture_y = _scanner_static_pose(
+        scenario,
+        element_id=element_id,
+        normal=normal,
+        aperture_x=aperture_x,
+        aperture_y=aperture_y,
+    )
     interaction = interact_flat_mirror(
         before_mirror,
         surface_origin_m=element.T_world_from_component.translation_m,
@@ -367,6 +413,9 @@ def _scanner_mirror_report(
         "surface_model": surface_model,
         "model_level": str(component["model_level"]),
         "incident_direction": before_mirror.direction.tolist(),
+        "scanner_pose_model": "static_command_angle",
+        "scanner_command_angle_rad": command_angle,
+        "scanner_rotation_axis_world": rotation_axis.tolist(),
         "surface_normal_world": interaction.surface_normal.tolist(),
         "aperture_x_axis_world": interaction.aperture_x_axis.tolist(),
         "aperture_y_axis_world": interaction.aperture_y_axis.tolist(),
@@ -383,13 +432,13 @@ def _scanner_mirror_report(
         "input_beam_state": before_mirror.to_dict(),
         "output_beam_state": interaction.output_beam.to_dict(),
         "assumptions": [
-            "Ideal static flat mirror pose를 사용합니다.",
-            "Scanner command angle, dynamic lag, jitter와 time sampling은 아직 적용하지 않습니다.",
+            "Ideal flat mirror에 static scanner command angle만 적용합니다.",
+            "Dynamic lag, jitter, waveform sampling과 scanner time path는 아직 적용하지 않습니다.",
             "Beam center가 mirror component origin과 aperture 중심을 지난다고 가정합니다.",
             "Diffraction, edge scattering, coating spectral curve와 polarization은 계산하지 않습니다.",
         ],
         "warnings": [
-            "Static pose reference입니다. Scanner command angle과 time dynamics는 이번 patch에서 제외합니다.",
+            "Static command-angle reference입니다. Time-dependent scanner motion은 아직 계산하지 않습니다.",
             "Rectangular aperture는 projected Gaussian power clipping만 계산합니다.",
         ],
     }
@@ -495,6 +544,7 @@ def propagate_transmitter_train(
 
         if component_type == "scanner_mirror":
             current, report = _scanner_mirror_report(
+                scenario=scenario,
                 optical_path_id=optical_path_id,
                 element_id=element_id,
                 component_ref=element.component_ref,
@@ -505,8 +555,9 @@ def propagate_transmitter_train(
             )
             component_reports.append(report)
             warnings.append(
-                f"{element_id}는 default static flat mirror pose로만 반사했습니다. "
-                "시간 구동 scanner motion은 Phase 3에서 적용합니다."
+                f"{element_id}는 static scanner command angle "
+                f"{report['scanner_command_angle_rad']:.6g} rad만 적용했습니다. "
+                "시간 구동 scanner motion은 아직 적용하지 않습니다."
             )
             states.append(
                 BeamPlane(

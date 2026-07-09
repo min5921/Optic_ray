@@ -605,7 +605,7 @@ receiver aperture = 10 mm, 25 mm, 50 mm
 
 ### UI Phase 1 — Scanner UI
 
-Phase 3 scanner command angle이 구현된 뒤 추가한다.
+Phase 3 scanner command angle이 구현된 뒤 추가한다. 현재는 첫 조각으로 `scanner.static_command_angle_rad`를 static pose에 적용하는 경로가 구현되었다.
 
 기능:
 
@@ -615,6 +615,19 @@ Phase 3 scanner command angle이 구현된 뒤 추가한다.
 - mechanical angle 대비 optical angle 약 2배 관계 검산
 - ±amplitude endpoint 표시
 - scan path preview
+
+현재 완료된 부분:
+
+- `scanner.static_command_angle_rad`가 mirror normal과 aperture axes에 적용된다.
+- Reflected ray, target hit, footprint와 receiver return이 static command angle에 따라 바뀐다.
+- `workspace`와 `dashboard`는 report 기반 mirror normal/reflected ray를 표시하므로 angle 변화가 자동 반영된다.
+
+아직 미구현:
+
+- waveform time sampling
+- frequency 기반 scan path
+- dynamic lag/jitter
+- ±amplitude endpoint batch 계산
 
 완료 조건:
 

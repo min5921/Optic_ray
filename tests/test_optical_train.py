@@ -157,6 +157,27 @@ def test_phase2_train_reflects_from_scanner_mirror_with_power_ledger(project_roo
     assert train.component_reports[1]["aperture_status"] == "pass"
 
 
+def test_scanner_static_command_angle_steers_reflected_ray(copied_project: Path) -> None:
+    scenario_path = copied_project.parent / "baseline_1550nm.yaml"
+    scenario = yaml.safe_load(scenario_path.read_text(encoding="utf-8"))
+    scenario["scanner"]["static_command_angle_rad"] = "5 deg"
+    scenario_path.write_text(yaml.safe_dump(scenario, sort_keys=False), encoding="utf-8")
+    project = load_project(copied_project)
+
+    train = propagate_transmitter_train(project)
+
+    expected = [math.cos(math.radians(10.0)), 0.0, -math.sin(math.radians(10.0))]
+    mirror_report = train.component_reports[1]
+    assert mirror_report["scanner_pose_model"] == "static_command_angle"
+    assert mirror_report["scanner_command_angle_rad"] == pytest.approx(math.radians(5.0))
+    assert train.final_state.state.direction == pytest.approx(expected, abs=1e-12)
+    assert mirror_report["reflected_direction"] == pytest.approx(expected, abs=1e-12)
+
+    report = build_phase2_optical_train_report(project)
+    assert report.summary["target_hit_count"] == 1
+    assert report.summary["estimated_received_power_w"] > 0.0
+
+
 def test_phase2_report_is_schema_valid(project_root: Path) -> None:
     project = load_project(project_root / "configs" / "project.yaml")
 

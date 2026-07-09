@@ -26,7 +26,7 @@
 
 Phase 0·0.1과 Phase 1 Gaussian Beam Engine이 완료되었다. `lidarsim validate`는 project/scenario/experiment/catalog YAML을 검사하고 단위, 물리 범위, wavelength validity와 참조·배치를 검증한다. `placement`, `inspect-mesh`, `inspect-measurement`, `report`, `view`, `review`로 배치와 입력 contract를 확인할 수 있다. `lidarsim beam`은 active source의 point·elliptical·line Gaussian을 NumPy/float64로 자유공간 전파하고 radius, divergence, q-parameter, second moment와 power-normalized irradiance를 YAML/PNG로 저장한다. Numerical check와 실제 장비 calibration을 구분해 confidence, provenance, paraxial validity와 hardware readiness를 함께 표시한다.
 
-Phase 2의 vertical slice로 `lidarsim optical-train`이 추가되었다. 이 명령은 source에서 ideal thin-lens collimator를 거쳐 scanner mirror에서 정지 반사되고, rectangle-plane target footprint와 첫 Lambertian receiver return까지 free-space propagation, ABCD thin-lens transform, centered circular aperture clipping, static flat-mirror reflection, mirror aperture clipping, catalog power transmission/reflectivity, target hit/footprint, receiver aperture power와 link budget을 계산한다. 현재 scanner mirror는 default static pose만 사용하며 scanner command angle, dynamic lag, jitter와 time sampling은 아직 적용하지 않는다. STL hit detection, visibility/occlusion, non-Lambertian BRDF/BSDF, detector noise, speckle와 coherent FMCW는 아직 구현되지 않았다. `lidarsim run`, `compare`와 time-sampled scan radiometry는 아직 구현되지 않았다.
+Phase 2의 vertical slice로 `lidarsim optical-train`이 추가되었다. 이 명령은 source에서 ideal thin-lens collimator를 거쳐 scanner mirror에서 정지 반사되고, rectangle-plane target footprint와 첫 Lambertian receiver return까지 free-space propagation, ABCD thin-lens transform, centered circular aperture clipping, static flat-mirror reflection, mirror aperture clipping, catalog power transmission/reflectivity, target hit/footprint, receiver aperture power와 link budget을 계산한다. 현재는 `scanner.static_command_angle_rad` 하나를 static pose로 적용해 mirror normal, reflected ray, target hit와 receiver return을 바꿀 수 있다. Dynamic lag, jitter, waveform time sampling과 scan path는 아직 적용하지 않는다. STL hit detection, visibility/occlusion, non-Lambertian BRDF/BSDF, detector noise, speckle와 coherent FMCW는 아직 구현되지 않았다. `lidarsim run`, `compare`와 time-sampled scan radiometry는 아직 구현되지 않았다.
 
 ## 3. 주요 파일 위치
 
@@ -427,6 +427,7 @@ scanner:
   element_id: scan_mirror
   type: one_axis_flat_mirror
   rotation_axis_world: [0.0, 1.0, 0.0]
+  static_command_angle_rad: 0 deg
   mechanical_amplitude_rad: 5 deg
   frequency_hz: 10 Hz
   waveform: triangle
@@ -437,12 +438,15 @@ scanner:
 
 - mirror/facet component reference
 - pivot와 rotation axis
+- static command angle
 - mechanical angle range
 - frequency
 - triangle/sinusoidal/raster/custom waveform
 - frame/line/pixel timing
 - calibration table
 - jitter/lag/facet error
+
+현재 구현된 `static_command_angle_rad`는 한 순간의 scanner command angle을 뜻한다. 이 값은 mirror normal과 aperture axes를 `rotation_axis_world` 기준으로 회전시켜 reflected ray와 target hit 위치를 바꾼다. Flat mirror에서는 mechanical angle 변화에 대해 reflected optical angle이 약 2배로 변한다. 다만 이 값은 시간 waveform을 sampling한 scan path가 아니며, dynamic lag, jitter와 frequency는 아직 계산하지 않는다.
 
 Degree 입력이 허용되는 UI가 생기더라도 effective config에는 radian으로 변환된 값을 저장한다.
 

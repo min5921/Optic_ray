@@ -57,6 +57,7 @@ scanner:
   element_id: scan_mirror
   type: one_axis_flat_mirror
   rotation_axis_world: [0.0, 1.0, 0.0]
+  static_command_angle_rad: 0 deg
   mechanical_amplitude_rad: 5 deg
   frequency_hz: 10 Hz
   waveform: triangle
