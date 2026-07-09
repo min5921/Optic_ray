@@ -40,7 +40,8 @@
 - 사용자 친화적인 로컬 simulation dashboard와 SolidWorks-like Optical Assembly Workspace 개발 방향은 `docs/UI_SIMULATION_DASHBOARD.md`에 분리해 정리했다.
 - UI MVP 0의 첫 vertical slice로 `ViewportScene` data contract, source/collimator/scanner mirror/target/receiver 표시 data, local frame, port axis, mirror normal, reflected ray, target plane, receiver FOV, beam path, target hit ray, footprint overlay와 headless Matplotlib 3D workspace PNG renderer가 구현되었다.
 - `lidarsim workspace configs/project.yaml --output results/ui_workspace.png --write-scene results/ui_workspace_scene.yaml`로 현재 Phase 2.3 static simulation을 optical assembly workspace용 PNG와 YAML scene으로 확인할 수 있다.
-- 다음 활성 목표는 UI MVP 0의 read-only dashboard 조각이다. Streamlit 또는 초기 UI layer에서 project config 선택, validate/workspace/optical-train 실행, summary metric, warning, PNG와 raw report를 보여준다. 그 다음 Phase 3 scanner command angle physics를 구현해 UI에 연결한다.
+- UI MVP 0의 read-only dashboard 조각으로 `lidarsim dashboard configs/project.yaml --output results/ui_dashboard.html` 명령이 구현되었다. 추가 dependency 없이 Phase 2 report YAML, `ViewportScene` YAML, workspace PNG, optical train PNG와 self-contained dashboard HTML을 생성한다.
+- 다음 활성 목표는 numeric placement editor 조각이다. 선택 component의 position/orientation 또는 port placement 값을 안전하게 수정해 variant config로 저장하고, validate/workspace/dashboard로 재현되게 만든다. 그 다음 Phase 3 scanner command angle physics를 구현해 UI에 연결한다.
 
 ## 유지할 결정 사항
 
@@ -57,7 +58,7 @@
 
 ## 가장 좋은 다음 작업
 
-UI MVP 0의 read-only dashboard 조각을 구현한다. 추천 범위는 optional `ui` dependency 정책 결정, Streamlit 또는 간단한 local UI entrypoint, project config 선택, validate/workspace/optical-train 실행 button, summary metric, warning list, workspace PNG와 raw report 표시다. UI가 숨겨진 source of truth가 되지 않도록 변경값은 아직 만들지 않고, 다음 단계에서 numeric placement editor와 variant config 저장을 추가한다.
+Numeric placement editor 조각을 구현한다. 추천 범위는 CLI 또는 UI helper로 선택 component의 translation/orientation/axial gap/transverse offset/angular misalignment를 수정해 baseline을 덮어쓰지 않는 variant config를 저장하고, 그 variant가 `lidarsim validate`, `lidarsim workspace`, `lidarsim dashboard`로 재현되는지 확인하는 것이다.
 
 ## 검증 기록
 
@@ -113,6 +114,11 @@ UI MVP 0의 read-only dashboard 조각을 구현한다. 추천 범위는 optiona
 - `lidarsim validate configs/project.yaml`: 통과. 기존 small-angle paraxial, virtual receiver, `scan_path` 미구현, analytical regression warning을 확인했다.
 - `lidarsim workspace configs/project.yaml --output results/ui_workspace.png --write-scene results/ui_workspace_scene.yaml --dpi 140`: 통과. Components 5개, ports 3개, guides 36개, rays 3개, footprints 1개를 생성했고 2패널 workspace PNG를 시각 검수했다.
 - `git diff --check`: 통과.
+- UI MVP 0 read-only dashboard 조각에서 `src/lidarsim/ui/dashboard.py`, `lidarsim dashboard` CLI와 dashboard CLI test를 추가했다.
+- `lidarsim dashboard configs/project.yaml --output results/ui_dashboard.html --dpi 140`: 통과. Dashboard HTML, Phase 2 report YAML, `ViewportScene` YAML, workspace PNG, optical train PNG를 생성했다.
+- `python -m pytest tests/test_cli.py tests/test_ui_workspace.py -q`: 20개 통과.
+- `python -m pytest -q`: 97개 통과.
+- `python -W error::DeprecationWarning -W error::UserWarning -m pytest -q`: 97개 통과.
 
 ## 세션 갱신 형식
 

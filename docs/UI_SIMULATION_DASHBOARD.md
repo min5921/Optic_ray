@@ -250,7 +250,7 @@ UI 기능은 이 명령들을 우회하지 않고 같은 loader, schema, physics
 
 ### 4.4 현재 구현된 UI MVP 0 slice
 
-이번 구현에서는 무거운 UI framework를 바로 추가하지 않고, optical assembly workspace의 공통 data contract와 headless viewer를 먼저 만들었다.
+이번 구현에서는 무거운 UI framework를 바로 추가하지 않고, optical assembly workspace의 공통 data contract, headless viewer와 self-contained read-only dashboard를 먼저 만들었다.
 
 구현된 범위:
 
@@ -275,22 +275,26 @@ UI 기능은 이 명령들을 우회하지 않고 같은 loader, schema, physics
 - `lidarsim workspace` CLI 명령
 - workspace PNG 생성
 - optional viewport scene YAML 저장
+- `lidarsim dashboard` CLI 명령
+- Phase 2 report YAML, `ViewportScene` YAML, workspace PNG, optical train PNG와 dashboard HTML 동시 생성
+- summary, warning, power ledger, target footprint, receiver return을 HTML에서 표시
 
 현재 실행 예:
 
 ```powershell
 lidarsim workspace configs/project.yaml --output results/ui_workspace.png --write-scene results/ui_workspace_scene.yaml
+lidarsim dashboard configs/project.yaml --output results/ui_dashboard.html
 ```
 
 중요한 한계:
 
-- 아직 Streamlit dashboard는 아니다.
+- 아직 Streamlit process나 interactive web app은 아니다.
 - 아직 component picking은 없다.
 - 아직 numeric placement editor는 없다.
 - 아직 snapping, mate, drag/rotate gizmo는 없다.
 - UI가 config를 수정하지 않는다.
 
-이번 slice의 의미는 “나중에 어떤 UI를 쓰든 같은 `ViewportScene`을 소비하게 만드는 것”이다. Streamlit, Plotly, Three.js, React frontend는 이 contract 위에 붙이면 된다.
+이번 slice의 의미는 “나중에 어떤 UI를 쓰든 같은 `ViewportScene`과 Phase 2 report를 소비하게 만드는 것”이다. Streamlit, Plotly, Three.js, React frontend는 이 contract 위에 붙이면 된다.
 
 ## 5. 현재 바로 시각화할 수 있는 simulation 결과
 
@@ -328,6 +332,8 @@ source
 - link loss dB
 - warnings와 limitations
 - optical train PNG
+- workspace PNG
+- self-contained dashboard HTML
 - placement PNG
 - report YAML
 
@@ -358,9 +364,16 @@ source
 - summary metric 표시
 - warning 표시
 - optical train PNG 표시
+- workspace PNG 표시
 - placement PNG 표시
 - report YAML 저장 위치 표시
 - raw report 일부 펼쳐보기
+
+현재 완료된 부분:
+
+- CLI 기반 `lidarsim dashboard`는 추가 dependency 없이 self-contained HTML을 생성한다.
+- HTML에는 Phase 2 summary, workspace PNG, optical train PNG, component report, power ledger, target footprint, receiver return, warning과 assumption이 표시된다.
+- 아직 browser 안에서 button을 눌러 실행하는 Streamlit UI는 아니다.
 
 이 단계는 읽기 중심이다. configuration 편집과 3D placement editing은 최소화한다.
 

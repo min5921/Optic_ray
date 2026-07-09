@@ -34,6 +34,7 @@ lidarsim review configs/project.yaml
 lidarsim beam configs/project.yaml
 lidarsim optical-train configs/project.yaml
 lidarsim workspace configs/project.yaml --output results/ui_workspace.png --write-scene results/ui_workspace_scene.yaml
+lidarsim dashboard configs/project.yaml --output results/ui_dashboard.html
 python -m pytest -q
 ```
 
@@ -46,6 +47,8 @@ python -m pytest -q
 `optical-train`은 Phase 2 조각으로 collimator 전후와 scanner mirror 반사 후의 `BeamState`, aperture clipping loss, component transmission, mirror reflectivity, rectangle-plane target footprint와 Lambertian receiver return을 계산한다. 결과는 `results/phase2/<timestamp>_<scenario>_<hash>/` 아래에 `optical_train_report.yaml`과 `optical_train.png`로 저장된다. 현재 scanner mirror는 default static pose로만 반사하며 시간 구동 scanner motion은 아직 적용하지 않는다. 같은 명령은 짧게 `lidarsim train configs/project.yaml`로도 실행할 수 있다.
 
 `workspace`는 현재 Phase 2.3 결과를 optical assembly workspace용 `ViewportScene`으로 변환하고, source/collimator/mirror/target/receiver, local frame, port axis, mirror normal, beam path, target hit, footprint와 receiver FOV를 하나의 3D PNG로 저장한다. `--write-scene`을 주면 향후 Streamlit/Three.js UI가 소비할 수 있는 YAML scene도 함께 저장한다. 이 명령은 아직 placement를 편집하지 않는 read-only viewer이며, UI가 숨겨진 source of truth가 되지 않도록 모든 값은 config와 report에서 나온다.
+
+`dashboard`는 Streamlit 같은 추가 dependency 없이 열 수 있는 self-contained HTML dashboard를 만든다. 같은 실행에서 Phase 2 report YAML, `ViewportScene` YAML, workspace PNG와 optical-train PNG를 함께 저장하고, HTML 안에 summary, warning, power ledger, target footprint와 receiver return을 표시한다. 이 역시 read-only viewer이며 component 선택·편집·snapping은 다음 UI 단계의 범위다.
 
 Phase 1 결과는 numerical check가 통과해도 실제 측정으로 calibration되지 않았다면 전체 상태를 `warning`, hardware readiness를 `analytical_only`로 표시한다. Fiber MFD의 정의와 catalog nominal override 여부도 configuration에 명시해야 한다.
 

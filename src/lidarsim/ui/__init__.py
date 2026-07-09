@@ -11,6 +11,7 @@ from .assembly import (
     ViewportScene,
     build_viewport_scene,
 )
+from .dashboard import write_workspace_dashboard_html
 
 __all__ = [
     "FootprintOverlay",
@@ -22,4 +23,5 @@ __all__ = [
     "ViewportPort",
     "ViewportScene",
     "build_viewport_scene",
+    "write_workspace_dashboard_html",
 ]

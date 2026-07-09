@@ -423,3 +423,41 @@ def test_workspace_command_writes_scene_and_plot(
     assert "Optical assembly workspace:" in output.out
     assert "Viewport scene:" in output.out
     assert "Source of truth: config/report driven" in output.out
+
+
+def test_dashboard_command_writes_self_contained_workspace_html(
+    project_root: Path,
+    tmp_path: Path,
+    capsys,
+) -> None:
+    html_path = tmp_path / "dashboard.html"
+
+    result = main(
+        [
+            "dashboard",
+            str(project_root / "configs" / "project.yaml"),
+            "--output",
+            str(html_path),
+            "--dpi",
+            "72",
+        ]
+    )
+    output = capsys.readouterr()
+
+    assert result == 0
+    document = html_path.read_text(encoding="utf-8")
+    assert "Optic Ray Workspace Dashboard" in document
+    assert "data:image/png;base64," in document
+    assert "Power ledger" in document
+    assert "Target footprint" in document
+    assert "Receiver return" in document
+    assert html_path.with_name("dashboard_phase2_report.yaml").is_file()
+    assert html_path.with_name("dashboard_viewport_scene.yaml").is_file()
+    assert html_path.with_name("dashboard_workspace.png").read_bytes().startswith(
+        b"\x89PNG\r\n\x1a\n"
+    )
+    assert html_path.with_name("dashboard_optical_train.png").read_bytes().startswith(
+        b"\x89PNG\r\n\x1a\n"
+    )
+    assert "Workspace dashboard:" in output.out
+    assert "P_rx=" in output.out

@@ -22,7 +22,7 @@ from lidarsim.results import (
     build_phase2_optical_train_report,
     write_review_html,
 )
-from lidarsim.ui import build_viewport_scene
+from lidarsim.ui import build_viewport_scene, write_workspace_dashboard_html
 from lidarsim.visualization import (
     render_beam_view,
     render_optical_train_view,
@@ -172,6 +172,38 @@ def _parser() -> argparse.ArgumentParser:
         help="optional serialized ViewportScene YAML path",
     )
     workspace.add_argument("--dpi", type=int, default=150)
+    dashboard = subparsers.add_parser(
+        "dashboard",
+        help="write a self-contained read-only optical workspace dashboard HTML",
+    )
+    dashboard.add_argument("project", nargs="?", default="configs/project.yaml")
+    dashboard.add_argument(
+        "--output",
+        type=Path,
+        default=Path("results/ui_dashboard.html"),
+        help="self-contained dashboard HTML path",
+    )
+    dashboard.add_argument(
+        "--report",
+        type=Path,
+        help="optional Phase 2 report YAML path; default is next to dashboard",
+    )
+    dashboard.add_argument(
+        "--write-scene",
+        type=Path,
+        help="optional ViewportScene YAML path; default is next to dashboard",
+    )
+    dashboard.add_argument(
+        "--workspace-plot",
+        type=Path,
+        help="optional workspace PNG path; default is next to dashboard",
+    )
+    dashboard.add_argument(
+        "--train-plot",
+        type=Path,
+        help="optional optical train PNG path; default is next to dashboard",
+    )
+    dashboard.add_argument("--dpi", type=int, default=150)
     return parser
 
 
@@ -596,6 +628,57 @@ def _workspace(args: argparse.Namespace) -> int:
     return 0
 
 
+def _dashboard(args: argparse.Namespace) -> int:
+    try:
+        project = load_project(args.project)
+        report = build_phase2_optical_train_report(project)
+        schemas = SchemaStore.load(project.project_path.parent.parent / "schemas")
+        schemas.validate(
+            report.to_dict(),
+            "phase2_optical_train_report.schema.json",
+            source="generated Phase 2 dashboard report",
+        )
+        scene = build_viewport_scene(project, report=report)
+        html_path = args.output.resolve()
+        report_target = args.report or html_path.with_name(f"{html_path.stem}_phase2_report.yaml")
+        scene_target = args.write_scene or html_path.with_name(f"{html_path.stem}_viewport_scene.yaml")
+        workspace_target = args.workspace_plot or html_path.with_name(
+            f"{html_path.stem}_workspace.png"
+        )
+        train_target = args.train_plot or html_path.with_name(f"{html_path.stem}_optical_train.png")
+        report_path = _write_yaml_report(report_target, report.to_dict())
+        scene_path = _write_yaml_report(scene_target, scene.to_dict())
+        workspace_path = render_viewport_scene(scene, workspace_target, dpi=args.dpi)
+        train_path = render_optical_train_view(report, train_target, dpi=args.dpi)
+        dashboard_path = write_workspace_dashboard_html(
+            project=project,
+            report=report,
+            scene=scene,
+            workspace_image=workspace_path,
+            optical_train_image=train_path,
+            output_path=html_path,
+            report_path=report_path,
+            scene_path=scene_path,
+        )
+    except (ConfigError, OSError, ValueError) as exc:
+        print(exc, file=sys.stderr)
+        return 2
+
+    print(f"Workspace dashboard: {dashboard_path}")
+    print(f"Phase 2 report: {report_path}")
+    print(f"Viewport scene: {scene_path}")
+    print(f"Workspace plot: {workspace_path}")
+    print(f"Optical train plot: {train_path}")
+    print(
+        f"Summary: status={report.summary['overall_status']}, "
+        f"P_rx={report.summary['estimated_received_power_w']:.9g} W, "
+        f"link_loss_db={report.summary['link_loss_db']}"
+    )
+    for warning in report.accuracy["warnings"]:
+        print(warning, file=sys.stderr)
+    return 0
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     """Run the requested CLI command."""
 
@@ -620,6 +703,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         return _optical_train(args)
     if args.command == "workspace":
         return _workspace(args)
+    if args.command == "dashboard":
+        return _dashboard(args)
     raise AssertionError(f"Unhandled command: {args.command}")
 
 

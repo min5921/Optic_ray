@@ -729,6 +729,9 @@ lidarsim beam configs/line_beam_project.example.yaml
 
 # Optical assembly workspace용 3D bench PNG와 scene YAML 생성
 lidarsim workspace configs/project.yaml --output results/ui_workspace.png --write-scene results/ui_workspace_scene.yaml
+
+# 추가 dependency 없이 열 수 있는 read-only workspace dashboard 생성
+lidarsim dashboard configs/project.yaml --output results/ui_dashboard.html
 ```
 
 `review` 그림의 scan limit, receiver FOV와 return path는 설정값 기반 기하학 가이드다. 실제 Phase 2.2/2.3 footprint와 received power 값은 `lidarsim optical-train` report에서 확인한다.
@@ -758,6 +761,16 @@ lidarsim train configs/project.yaml
 - target footprint overlay
 
 `--write-scene`으로 저장되는 YAML은 나중에 Streamlit, Plotly, Three.js 또는 React frontend가 소비할 data contract다. 아직 component 선택, placement edit, snapping, mate/constraint, drag/rotate gizmo는 구현하지 않았다. Placement를 바꾸는 UI가 생기더라도 변경값은 반드시 variant config로 저장되어 CLI에서 재현되어야 한다.
+
+`dashboard`는 현재 Phase 2.3 simulation을 한 HTML에서 검토하기 위한 read-only dashboard 명령이다. 기본 실행은 다음 파일을 함께 만든다.
+
+- `ui_dashboard.html`
+- `ui_dashboard_phase2_report.yaml`
+- `ui_dashboard_viewport_scene.yaml`
+- `ui_dashboard_workspace.png`
+- `ui_dashboard_optical_train.png`
+
+Dashboard HTML에는 workspace 그림, optical train radius/power 그림, summary, generated file path, component report, power ledger, target footprint, receiver return, warning, assumptions와 raw summary가 포함된다. 외부 server 없이 browser에서 열 수 있도록 PNG는 HTML 안에 base64로 포함한다. 이 기능은 Streamlit dashboard 전 단계의 안정적인 결과 viewer이며, 아직 parameter edit나 placement edit를 수행하지 않는다.
 
 다음 명령은 이후 Phase에서 구현할 계획이다.
 
