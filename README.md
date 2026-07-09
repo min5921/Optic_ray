@@ -35,6 +35,7 @@ lidarsim beam configs/project.yaml
 lidarsim optical-train configs/project.yaml
 lidarsim workspace configs/project.yaml --output results/ui_workspace.png --write-scene results/ui_workspace_scene.yaml
 lidarsim dashboard configs/project.yaml --output results/ui_dashboard.html
+lidarsim placement-variant configs/project.yaml --element scan_mirror --scenario-id mirror_shift --translation-m 0.1 0 0
 python -m pytest -q
 ```
 
@@ -49,6 +50,8 @@ python -m pytest -q
 `workspace`는 현재 Phase 2.3 결과를 optical assembly workspace용 `ViewportScene`으로 변환하고, source/collimator/mirror/target/receiver, local frame, port axis, mirror normal, beam path, target hit, footprint와 receiver FOV를 하나의 3D PNG로 저장한다. `--write-scene`을 주면 향후 Streamlit/Three.js UI가 소비할 수 있는 YAML scene도 함께 저장한다. 이 명령은 아직 placement를 편집하지 않는 read-only viewer이며, UI가 숨겨진 source of truth가 되지 않도록 모든 값은 config와 report에서 나온다.
 
 `dashboard`는 Streamlit 같은 추가 dependency 없이 열 수 있는 self-contained HTML dashboard를 만든다. 같은 실행에서 Phase 2 report YAML, `ViewportScene` YAML, workspace PNG와 optical-train PNG를 함께 저장하고, HTML 안에 summary, warning, power ledger, target footprint와 receiver return을 표시한다. 이 역시 read-only viewer이며 component 선택·편집·snapping은 다음 UI 단계의 범위다.
+
+`placement-variant`는 baseline scenario를 직접 덮어쓰지 않고, 숫자로 지정한 placement 변경을 별도 scenario/project YAML로 저장한다. Absolute placement element에는 `--translation-m`, `--quaternion-wxyz`를 사용할 수 있고, port placement element에는 `--axial-gap-m`, `--transverse-offset-m`, `--clocking-rad`, `--angular-misalignment-rad`를 사용할 수 있다. 생성된 variant project는 다시 `validate`, `workspace`, `dashboard` 명령으로 실행한다. 현재 variant project는 loader 규칙상 `configs/` 같은 directory 아래에 저장해야 한다.
 
 Phase 1 결과는 numerical check가 통과해도 실제 측정으로 calibration되지 않았다면 전체 상태를 `warning`, hardware readiness를 `analytical_only`로 표시한다. Fiber MFD의 정의와 catalog nominal override 여부도 configuration에 명시해야 한다.
 

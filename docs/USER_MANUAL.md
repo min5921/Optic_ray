@@ -732,6 +732,12 @@ lidarsim workspace configs/project.yaml --output results/ui_workspace.png --writ
 
 # 추가 dependency 없이 열 수 있는 read-only workspace dashboard 생성
 lidarsim dashboard configs/project.yaml --output results/ui_dashboard.html
+
+# Baseline을 덮어쓰지 않고 scanner mirror 위치 variant 생성
+lidarsim placement-variant configs/project.yaml --element scan_mirror --scenario-id mirror_shift --translation-m 0.1 0 0
+
+# Port-to-port collimator gap variant 생성
+lidarsim placement-variant configs/project.yaml --element collimator --scenario-id collimator_gap_25mm --axial-gap-m "25 mm"
 ```
 
 `review` 그림의 scan limit, receiver FOV와 return path는 설정값 기반 기하학 가이드다. 실제 Phase 2.2/2.3 footprint와 received power 값은 `lidarsim optical-train` report에서 확인한다.
@@ -771,6 +777,27 @@ lidarsim train configs/project.yaml
 - `ui_dashboard_optical_train.png`
 
 Dashboard HTML에는 workspace 그림, optical train radius/power 그림, summary, generated file path, component report, power ledger, target footprint, receiver return, warning, assumptions와 raw summary가 포함된다. 외부 server 없이 browser에서 열 수 있도록 PNG는 HTML 안에 base64로 포함한다. 이 기능은 Streamlit dashboard 전 단계의 안정적인 결과 viewer이며, 아직 parameter edit나 placement edit를 수행하지 않는다.
+
+`placement-variant`는 numeric placement editor의 첫 CLI helper다. 원본 baseline scenario를 직접 수정하지 않고, active scenario를 복사한 뒤 지정한 element placement만 바꾼 variant scenario와 variant project를 저장한다.
+
+Absolute placement element에서 바꿀 수 있는 값:
+
+- `--translation-m X Y Z`
+- `--quaternion-wxyz W X Y Z`
+
+Port placement element에서 바꿀 수 있는 값:
+
+- `--axial-gap-m "25 mm"`
+- `--transverse-offset-m "1 mm" "0 mm"`
+- `--clocking-rad "2 deg"`
+- `--angular-misalignment-rad "0.5 deg" "0 deg"`
+
+주의할 점:
+
+- Absolute placement field와 port placement field를 섞으면 error가 발생한다.
+- 생성된 variant project는 `lidarsim validate`, `lidarsim workspace`, `lidarsim dashboard`로 다시 실행할 수 있어야 한다.
+- 현재 loader는 project file 위치를 기준으로 `schemas/`, `catalog/`, `assets/`를 찾으므로 variant project는 `configs/` 같은 directory 아래에 저장해야 한다.
+- UI가 생기더라도 baseline을 조용히 덮어쓰지 않고 이 variant 생성 흐름을 사용해야 한다.
 
 다음 명령은 이후 Phase에서 구현할 계획이다.
 

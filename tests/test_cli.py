@@ -461,3 +461,42 @@ def test_dashboard_command_writes_self_contained_workspace_html(
     )
     assert "Workspace dashboard:" in output.out
     assert "P_rx=" in output.out
+
+
+def test_placement_variant_command_writes_valid_variant_project(
+    copied_project: Path,
+    capsys,
+) -> None:
+    scenario_path = copied_project.parent / "mirror_shift.yaml"
+    project_path = copied_project.parent / "mirror_shift_project.yaml"
+
+    result = main(
+        [
+            "placement-variant",
+            str(copied_project),
+            "--element",
+            "scan_mirror",
+            "--scenario-id",
+            "mirror_shift",
+            "--scenario-output",
+            str(scenario_path),
+            "--project-output",
+            str(project_path),
+            "--translation-m",
+            "0.1",
+            "0.0",
+            "0.0",
+        ]
+    )
+    output = capsys.readouterr()
+
+    assert result == 0
+    assert scenario_path.is_file()
+    assert project_path.is_file()
+    scenario = yaml.safe_load(scenario_path.read_text(encoding="utf-8"))
+    assert scenario["scenario_id"] == "mirror_shift"
+    assert scenario["optical_assembly"]["elements"][2]["placement"]["translation_m"] == pytest.approx(
+        [0.1, 0.0, 0.0]
+    )
+    assert "Placement variant project:" in output.out
+    assert "Variant config valid:" in output.out

@@ -12,6 +12,7 @@ from .assembly import (
     build_viewport_scene,
 )
 from .dashboard import write_workspace_dashboard_html
+from .placement_editor import PlacementVariantResult, create_placement_variant
 
 __all__ = [
     "FootprintOverlay",
@@ -22,6 +23,8 @@ __all__ = [
     "ViewportComponent",
     "ViewportPort",
     "ViewportScene",
+    "PlacementVariantResult",
     "build_viewport_scene",
+    "create_placement_variant",
     "write_workspace_dashboard_html",
 ]

@@ -22,7 +22,7 @@ from lidarsim.results import (
     build_phase2_optical_train_report,
     write_review_html,
 )
-from lidarsim.ui import build_viewport_scene, write_workspace_dashboard_html
+from lidarsim.ui import build_viewport_scene, create_placement_variant, write_workspace_dashboard_html
 from lidarsim.visualization import (
     render_beam_view,
     render_optical_train_view,
@@ -204,6 +204,62 @@ def _parser() -> argparse.ArgumentParser:
         help="optional optical train PNG path; default is next to dashboard",
     )
     dashboard.add_argument("--dpi", type=int, default=150)
+    placement_variant = subparsers.add_parser(
+        "placement-variant",
+        help="write a variant scenario/project with numeric placement edits",
+    )
+    placement_variant.add_argument("project", nargs="?", default="configs/project.yaml")
+    placement_variant.add_argument("--element", required=True, help="element id to edit")
+    placement_variant.add_argument("--scenario-id", help="new variant scenario id")
+    placement_variant.add_argument(
+        "--scenario-output",
+        type=Path,
+        help="variant scenario YAML path; default is next to source project",
+    )
+    placement_variant.add_argument(
+        "--project-output",
+        type=Path,
+        help="variant project YAML path; default is next to source project",
+    )
+    placement_variant.add_argument(
+        "--translation-m",
+        type=float,
+        nargs=3,
+        metavar=("X", "Y", "Z"),
+        help="absolute placement translation in meters",
+    )
+    placement_variant.add_argument(
+        "--quaternion-wxyz",
+        type=float,
+        nargs=4,
+        metavar=("W", "X", "Y", "Z"),
+        help="absolute placement quaternion",
+    )
+    placement_variant.add_argument(
+        "--axial-gap-m",
+        help='port placement axial gap; unit string such as "25 mm" is allowed',
+    )
+    placement_variant.add_argument(
+        "--transverse-offset-m",
+        nargs=2,
+        metavar=("U", "V"),
+        help='port placement transverse offset; unit strings such as "1 mm" are allowed',
+    )
+    placement_variant.add_argument(
+        "--clocking-rad",
+        help='port placement clocking angle; unit string such as "2 deg" is allowed',
+    )
+    placement_variant.add_argument(
+        "--angular-misalignment-rad",
+        nargs=2,
+        metavar=("RX", "RY"),
+        help='port placement angular misalignment; unit strings such as "1 deg" are allowed',
+    )
+    placement_variant.add_argument(
+        "--overwrite",
+        action="store_true",
+        help="allow overwriting existing variant files",
+    )
     return parser
 
 
@@ -679,6 +735,53 @@ def _dashboard(args: argparse.Namespace) -> int:
     return 0
 
 
+def _placement_variant(args: argparse.Namespace) -> int:
+    try:
+        result = create_placement_variant(
+            project_path=args.project,
+            element_id=args.element,
+            scenario_id=args.scenario_id,
+            scenario_output=args.scenario_output,
+            project_output=args.project_output,
+            translation_m=None if args.translation_m is None else tuple(args.translation_m),
+            quaternion_wxyz=(
+                None if args.quaternion_wxyz is None else tuple(args.quaternion_wxyz)
+            ),
+            axial_gap_m=args.axial_gap_m,
+            transverse_offset_m=(
+                None
+                if args.transverse_offset_m is None
+                else tuple(args.transverse_offset_m)
+            ),
+            clocking_rad=args.clocking_rad,
+            angular_misalignment_rad=(
+                None
+                if args.angular_misalignment_rad is None
+                else tuple(args.angular_misalignment_rad)
+            ),
+            overwrite=bool(args.overwrite),
+        )
+        project = load_project(result.project_path)
+    except (ConfigError, OSError, ValueError) as exc:
+        print(exc, file=sys.stderr)
+        return 2
+
+    print(f"Placement variant scenario: {result.scenario_path}")
+    print(f"Placement variant project: {result.project_path}")
+    print(f"Scenario ID: {result.scenario_id}")
+    print(f"Edited element: {result.element_id}")
+    print(f"Changed fields: {', '.join(result.changed_fields)}")
+    print(f"Variant config valid: {project.project['project_id']}")
+    print(
+        "Next: "
+        f"lidarsim dashboard {result.project_path} "
+        f"--output {result.project_path.with_suffix('').with_name(result.project_path.stem + '_dashboard.html')}"
+    )
+    for warning in project.warnings:
+        print(warning.format(), file=sys.stderr)
+    return 0
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     """Run the requested CLI command."""
 
@@ -705,6 +808,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         return _workspace(args)
     if args.command == "dashboard":
         return _dashboard(args)
+    if args.command == "placement-variant":
+        return _placement_variant(args)
     raise AssertionError(f"Unhandled command: {args.command}")
 
 

@@ -278,21 +278,24 @@ UI 기능은 이 명령들을 우회하지 않고 같은 loader, schema, physics
 - `lidarsim dashboard` CLI 명령
 - Phase 2 report YAML, `ViewportScene` YAML, workspace PNG, optical train PNG와 dashboard HTML 동시 생성
 - summary, warning, power ledger, target footprint, receiver return을 HTML에서 표시
+- `lidarsim placement-variant` CLI 명령
+- absolute placement와 port placement의 numeric edit를 variant scenario/project로 저장
 
 현재 실행 예:
 
 ```powershell
 lidarsim workspace configs/project.yaml --output results/ui_workspace.png --write-scene results/ui_workspace_scene.yaml
 lidarsim dashboard configs/project.yaml --output results/ui_dashboard.html
+lidarsim placement-variant configs/project.yaml --element scan_mirror --scenario-id mirror_shift --translation-m 0.1 0 0
 ```
 
 중요한 한계:
 
 - 아직 Streamlit process나 interactive web app은 아니다.
 - 아직 component picking은 없다.
-- 아직 numeric placement editor는 없다.
+- 아직 browser UI 형태의 numeric placement editor는 없다.
 - 아직 snapping, mate, drag/rotate gizmo는 없다.
-- UI가 config를 수정하지 않는다.
+- `placement-variant`는 baseline을 덮어쓰지 않고 variant config를 생성한다.
 
 이번 slice의 의미는 “나중에 어떤 UI를 쓰든 같은 `ViewportScene`과 Phase 2 report를 소비하게 만드는 것”이다. Streamlit, Plotly, Three.js, React frontend는 이 contract 위에 붙이면 된다.
 
@@ -446,6 +449,15 @@ source
 - 수정 전후 placement diff 표시
 
 이 단계는 drag/rotate gizmo 이전의 안전한 편집기다. 3D 조작보다 먼저 numeric editor를 넣으면 config serialization과 validation이 안정된다.
+
+현재 완료된 부분:
+
+- CLI 기반 `lidarsim placement-variant`가 구현되었다.
+- Absolute placement element는 `translation_m`, `quaternion_wxyz`를 수정할 수 있다.
+- Port placement element는 `axial_gap_m`, `transverse_offset_m`, `clocking_rad`, `angular_misalignment_rad`를 수정할 수 있다.
+- 원본 baseline을 덮어쓰지 않고 variant scenario/project YAML을 만든다.
+- 생성된 variant project는 `validate`, `workspace`, `dashboard`로 다시 실행할 수 있다.
+- 아직 browser 안에서 component를 선택하고 form으로 수정하는 UI는 아니다.
 
 완료 조건:
 
