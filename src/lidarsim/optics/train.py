@@ -10,8 +10,10 @@ import numpy as np
 
 from lidarsim.beam import BeamState, build_source_beam
 from lidarsim.geometry import AssemblyPlacement, resolve_assembly
+from lidarsim.geometry.transform import normalize_vector
 from lidarsim.optics.abcd import ABCDMatrix, apply_abcd_to_beam
 from lidarsim.optics.aperture import ApertureClipResult, circular_aperture_clip
+from lidarsim.optics.mirror import interact_flat_mirror
 
 
 def _loss_db(input_power_w: float, output_power_w: float) -> float | None:
@@ -274,6 +276,126 @@ def _collimator_report(
     return after_lens, report
 
 
+def _mirror_aperture_axes(element: Any, component: Any) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Scanner mirror catalog의 local normal/axis를 world aperture axes로 변환한다."""
+
+    mechanical = component["mechanical"]
+    rotation = element.T_world_from_component.rotation
+    normal = normalize_vector(
+        rotation @ np.asarray(mechanical["surface_normal_local"], dtype=np.float64),
+        name="mirror surface normal",
+    )
+    rotation_axis = normalize_vector(
+        rotation @ np.asarray(mechanical["default_rotation_axis_local"], dtype=np.float64),
+        name="mirror rotation axis",
+    )
+    aperture_y = normalize_vector(
+        rotation_axis - float(np.dot(rotation_axis, normal)) * normal,
+        name="mirror aperture y axis",
+    )
+    aperture_x = normalize_vector(np.cross(aperture_y, normal), name="mirror aperture x axis")
+    return normal, aperture_x, aperture_y
+
+
+def _scanner_mirror_report(
+    *,
+    optical_path_id: str,
+    element_id: str,
+    component_ref: str,
+    component: Any,
+    element: Any,
+    before_mirror: BeamState,
+    ledger: list[PowerLedgerEntry],
+) -> tuple[BeamState, dict[str, Any]]:
+    optical = component["optical"]
+    surface_model = str(optical["surface_model"])
+    if surface_model != "flat_mirror":
+        raise ValueError(f"지원하지 않는 scanner_mirror surface_model입니다: {surface_model!r}")
+
+    normal, aperture_x, aperture_y = _mirror_aperture_axes(element, component)
+    interaction = interact_flat_mirror(
+        before_mirror,
+        surface_origin_m=element.T_world_from_component.translation_m,
+        surface_normal=normal,
+        aperture_x_axis=aperture_x,
+        aperture_y_axis=aperture_y,
+        clear_width_m=float(optical["clear_width_m"]),
+        clear_height_m=float(optical["clear_height_m"]),
+        power_reflectivity=float(optical["power_reflectivity"]),
+    )
+    clip = interaction.aperture_clip
+    after_clip_power = clip.output_power_w
+    ledger.append(
+        PowerLedgerEntry(
+            optical_path_id=optical_path_id,
+            element_id=element_id,
+            component_ref=component_ref,
+            mechanism="mirror_rectangular_aperture",
+            input_power_w=clip.input_power_w,
+            output_power_w=after_clip_power,
+            loss_w=clip.loss_w,
+            loss_db=clip.loss_db,
+            transmission_fraction=clip.transmission_fraction,
+            model_source=clip.method,
+            warning=(
+                "Mirror aperture는 surface-projected Gaussian power만 적분합니다. "
+                "Diffraction과 edge scattering은 아직 계산하지 않습니다."
+            ),
+        )
+    )
+    reflectivity = float(optical["power_reflectivity"])
+    after_reflection_power = after_clip_power * reflectivity
+    ledger.append(
+        PowerLedgerEntry(
+            optical_path_id=optical_path_id,
+            element_id=element_id,
+            component_ref=component_ref,
+            mechanism="mirror_reflectivity",
+            input_power_w=after_clip_power,
+            output_power_w=after_reflection_power,
+            loss_w=after_clip_power - after_reflection_power,
+            loss_db=_loss_db(after_clip_power, after_reflection_power),
+            transmission_fraction=reflectivity,
+            model_source="catalog optical.power_reflectivity",
+        )
+    )
+    report = {
+        "element_id": element_id,
+        "component_ref": component_ref,
+        "component_type": str(component["component_type"]),
+        "model": surface_model,
+        "surface_model": surface_model,
+        "model_level": str(component["model_level"]),
+        "incident_direction": before_mirror.direction.tolist(),
+        "surface_normal_world": interaction.surface_normal.tolist(),
+        "aperture_x_axis_world": interaction.aperture_x_axis.tolist(),
+        "aperture_y_axis_world": interaction.aperture_y_axis.tolist(),
+        "reflected_direction": interaction.reflected_direction.tolist(),
+        "reflected_direction_world": interaction.reflected_direction.tolist(),
+        "incidence_angle_rad": clip.incidence_angle_rad,
+        "incidence_angle_convention": "angle_from_surface_normal_radians",
+        "clear_width_m": float(optical["clear_width_m"]),
+        "clear_height_m": float(optical["clear_height_m"]),
+        "aperture_status": clip.status,
+        "aperture_transmission_fraction": clip.transmission_fraction,
+        "aperture_clip": clip.to_dict(),
+        "power_reflectivity": reflectivity,
+        "input_beam_state": before_mirror.to_dict(),
+        "output_beam_state": interaction.output_beam.to_dict(),
+        "assumptions": [
+            "Ideal static flat mirror pose를 사용합니다.",
+            "Scanner command angle, dynamic lag, jitter와 time sampling은 아직 적용하지 않습니다.",
+            "Beam center가 mirror component origin과 aperture 중심을 지난다고 가정합니다.",
+            "Diffraction, edge scattering, coating spectral curve와 polarization은 계산하지 않습니다.",
+        ],
+        "warnings": [
+            "Static pose reference입니다. Scanner command angle과 time dynamics는 이번 patch에서 제외합니다.",
+            "Rectangular aperture는 projected Gaussian power clipping만 계산합니다.",
+        ],
+    }
+    return interaction.output_beam, report
+
+
 def propagate_transmitter_train(
     project: Any,
     assembly: AssemblyPlacement | None = None,
@@ -364,6 +486,34 @@ def propagate_transmitter_train(
                     element_id=element_id,
                     component_ref=element.component_ref,
                     port_id=output_port,
+                    plane_role="element_output",
+                    distance_along_path_m=current.optical_path_length_m,
+                    state=current,
+                )
+            )
+            continue
+
+        if component_type == "scanner_mirror":
+            current, report = _scanner_mirror_report(
+                optical_path_id=optical_path_id,
+                element_id=element_id,
+                component_ref=element.component_ref,
+                component=component,
+                element=element,
+                before_mirror=current,
+                ledger=ledger,
+            )
+            component_reports.append(report)
+            warnings.append(
+                f"{element_id}는 default static flat mirror pose로만 반사했습니다. "
+                "시간 구동 scanner motion은 Phase 3에서 적용합니다."
+            )
+            states.append(
+                BeamPlane(
+                    label=f"{element_id}.reflected",
+                    element_id=element_id,
+                    component_ref=element.component_ref,
+                    port_id=None,
                     plane_role="element_output",
                     distance_along_path_m=current.optical_path_length_m,
                     state=current,

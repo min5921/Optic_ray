@@ -389,4 +389,4 @@ def test_optical_train_command_writes_schema_validated_report_and_plot(
     assert report["summary"]["aperture_status"] == "pass"
     assert plot_path.read_bytes().startswith(b"\x89PNG\r\n\x1a\n")
     assert "Phase 2 optical train report:" in output.out
-    assert "unsupported=1" in output.out
+    assert "unsupported=0" in output.out

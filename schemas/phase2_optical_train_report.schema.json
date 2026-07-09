@@ -4,7 +4,7 @@
   "title": "Optic Ray Phase 2 Optical Train Report",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schema_version", "report_type", "manifest", "summary", "accuracy", "model", "optical_train", "analytical_checks"],
+  "required": ["schema_version", "report_type", "manifest", "summary", "accuracy", "model", "optical_train", "target_footprints", "receiver_return", "analytical_checks"],
   "properties": {
     "schema_version": { "const": 1 },
     "report_type": { "const": "phase2_optical_train" },
@@ -25,7 +25,7 @@
     "summary": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["overall_status", "optical_path_id", "final_plane", "final_radius_x_m", "final_radius_y_m", "final_power_w", "total_transmission", "total_loss_w", "total_loss_db", "processed_component_count", "unsupported_element_count", "q_parameter_status", "energy_ledger_status", "aperture_status"],
+      "required": ["overall_status", "optical_path_id", "final_plane", "final_radius_x_m", "final_radius_y_m", "final_power_w", "total_transmission", "total_loss_w", "total_loss_db", "processed_component_count", "unsupported_element_count", "target_hit_count", "estimated_power_on_target_w", "estimated_received_power_w", "link_loss_db", "q_parameter_status", "energy_ledger_status", "aperture_status", "target_footprint_status", "receiver_return_status"],
       "properties": {
         "overall_status": { "enum": ["pass", "warning", "fail"] },
         "optical_path_id": { "type": "string" },
@@ -38,9 +38,15 @@
         "total_loss_db": { "type": ["number", "null"], "minimum": 0.0 },
         "processed_component_count": { "type": "integer", "minimum": 0 },
         "unsupported_element_count": { "type": "integer", "minimum": 0 },
+        "target_hit_count": { "type": "integer", "minimum": 0 },
+        "estimated_power_on_target_w": { "type": "number", "minimum": 0.0 },
+        "estimated_received_power_w": { "type": "number", "minimum": 0.0 },
+        "link_loss_db": { "type": ["number", "null"], "minimum": 0.0 },
         "q_parameter_status": { "enum": ["pass", "fail"] },
         "energy_ledger_status": { "enum": ["pass", "fail"] },
-        "aperture_status": { "enum": ["pass", "fail"] }
+        "aperture_status": { "enum": ["pass", "fail"] },
+        "target_footprint_status": { "enum": ["pass", "warning", "fail"] },
+        "receiver_return_status": { "enum": ["pass", "warning", "fail"] }
       }
     },
     "accuracy": {
@@ -53,7 +59,7 @@
         "hardware_readiness": { "enum": ["analytical_only", "bench_template", "calibrated"] },
         "confidence_level": { "enum": ["comparative", "engineering_estimate", "calibrated"] },
         "calibration_status": { "enum": ["uncalibrated", "calibrated"] },
-        "scope": { "const": "source_to_ideal_thin_lens_collimator_and_scanner_input" },
+        "scope": { "const": "source_to_static_mirror_rectangle_target_lambertian_receiver" },
         "assumptions": { "type": "array", "items": { "type": "string" } },
         "warnings": { "type": "array", "items": { "type": "string" } }
       }
@@ -63,7 +69,7 @@
       "additionalProperties": false,
       "required": ["propagation_model", "radius_definition", "validity", "limitations"],
       "properties": {
-        "propagation_model": { "const": "gaussian_q_abcd" },
+        "propagation_model": { "const": "gaussian_q_abcd_plus_analytical_radiometry" },
         "radius_definition": { "const": "1/e^2 irradiance radius" },
         "validity": { "type": "string" },
         "limitations": { "type": "array", "items": { "type": "string" } }
@@ -120,15 +126,64 @@
         "warnings": { "type": "array", "items": { "type": "string" } }
       }
     },
+    "target_footprints": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": ["target_id", "material_ref", "hit", "estimated_power_on_target_w", "assumptions", "warnings"],
+        "properties": {
+          "target_id": { "type": "string" },
+          "material_ref": { "type": "string" },
+          "hit": { "type": "boolean" },
+          "estimated_power_on_target_w": { "type": "number", "minimum": 0.0 },
+          "assumptions": { "type": "array", "items": { "type": "string" } },
+          "warnings": { "type": "array", "items": { "type": "string" } }
+        }
+      }
+    },
+    "receiver_return": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["model", "returns", "total_estimated_received_power_w", "total_estimated_power_on_target_w", "total_link_loss_db", "assumptions"],
+      "properties": {
+        "model": { "const": "lambertian_small_footprint_receiver_aperture" },
+        "returns": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": true,
+            "required": ["target_id", "material_ref", "material_model", "receiver_fov_status", "estimated_power_on_target_w", "estimated_received_power_w", "status", "assumptions", "warnings"],
+            "properties": {
+              "target_id": { "type": "string" },
+              "material_ref": { "type": "string" },
+              "material_model": { "type": "string" },
+              "receiver_fov_status": { "type": "string" },
+              "estimated_power_on_target_w": { "type": "number", "minimum": 0.0 },
+              "estimated_received_power_w": { "type": "number", "minimum": 0.0 },
+              "status": { "type": "string" },
+              "assumptions": { "type": "array", "items": { "type": "string" } },
+              "warnings": { "type": "array", "items": { "type": "string" } }
+            }
+          }
+        },
+        "total_estimated_received_power_w": { "type": "number", "minimum": 0.0 },
+        "total_estimated_power_on_target_w": { "type": "number", "minimum": 0.0 },
+        "total_link_loss_db": { "type": ["number", "null"], "minimum": 0.0 },
+        "assumptions": { "type": "array", "items": { "type": "string" } }
+      }
+    },
     "analytical_checks": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["check_scope", "q_parameter", "energy_ledger", "aperture_fraction", "external_validation_status"],
+      "required": ["check_scope", "q_parameter", "energy_ledger", "aperture_fraction", "target_footprint", "receiver_return", "external_validation_status"],
       "properties": {
         "check_scope": { "const": "internal_consistency_only" },
         "q_parameter": { "$ref": "#/$defs/statusCheck" },
         "energy_ledger": { "$ref": "#/$defs/statusCheck" },
         "aperture_fraction": { "$ref": "#/$defs/statusCheck" },
+        "target_footprint": { "$ref": "#/$defs/statusCheck" },
+        "receiver_return": { "$ref": "#/$defs/statusCheck" },
         "external_validation_status": { "const": "not_evaluated" }
       }
     }
@@ -139,7 +194,7 @@
       "additionalProperties": true,
       "required": ["status", "message"],
       "properties": {
-        "status": { "enum": ["pass", "fail"] },
+        "status": { "enum": ["pass", "warning", "fail"] },
         "message": { "type": "string" }
       }
     }

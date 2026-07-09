@@ -58,9 +58,11 @@ def render_optical_train_view(
 
     summary = data["summary"]
     accuracy = data["accuracy"]
+    receiver_power = float(summary.get("estimated_received_power_w", 0.0))
     title = (
         f"Phase 2 optical train | {summary['overall_status'].upper()} | "
-        f"readiness={accuracy['hardware_readiness']} | final={summary['final_plane']}"
+        f"readiness={accuracy['hardware_readiness']} | final={summary['final_plane']} | "
+        f"P_rx={receiver_power:.3e} W"
     )
     fig.suptitle(title)
     fig.tight_layout()

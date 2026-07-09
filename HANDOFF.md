@@ -1,6 +1,6 @@
 # 프로젝트 인계 문서
 
-마지막 갱신: 2026-07-08 (Asia/Seoul)
+마지막 갱신: 2026-07-09 (Asia/Seoul)
 
 ## 현재 상태
 
@@ -9,7 +9,7 @@
 - 여러 컴퓨터에서 사용할 Git·Codex·line ending·secret·생성 output 규칙이 설정되어 있다.
 - GitHub remote `origin`은 `https://github.com/min5921/Optic_ray.git`에 연결되어 있으며 `main`이 동기화되어 있다.
 - Phase 0·0.1과 Phase 1이 완료되어 configuration, coordinate, placement, asset, 검토용 viewer/HTML와 Gaussian Beam Engine이 `src/lidarsim/`에 구현되어 있다.
-- Phase 2 first vertical slice가 시작되어 source→ideal thin-lens collimator→scanner component origin까지의 ABCD optical train, aperture clipping, component transmission, power ledger와 PNG 시각화가 구현되어 있다.
+- Phase 2.1~2.3 vertical slice가 진행되어 source→ideal thin-lens collimator→static scanner mirror reflection→rectangle-plane target footprint→Lambertian virtual receiver return까지의 ABCD optical train, aperture clipping, component transmission/reflectivity, power ledger, target footprint, link budget와 PNG 시각화가 구현되어 있다.
 - 프로젝트의 중심 범위는 catalog 기반 또는 사용자 정의 광학 부품의 3D 배치, 포인트·라인·면적 빔, collimator 광학계, 사용자 정의 scanner, target interaction과 receiver return 분석이다.
 - Draft v0.2에는 model fidelity contract, commercial component catalog, optical/CAD import, coordinate frame, rigid transform, optical port, placement constraint, structured result, visualization과 tolerance analysis가 포함된다.
 - Phase 0~5의 임시 초기값은 `docs/specs/INITIAL_BASELINE.md`에 정리되어 있으며 모든 값은 configuration으로 교체할 수 있다.
@@ -30,14 +30,14 @@
 - `lidarsim view`는 component origin, port axis, optical path, mirror normal, declared scan limit, target plane, receiver FOV, return guide와 STL bounds를 full 3D scene 및 X-Z detail PNG로 렌더링한다.
 - `lidarsim review`는 placement PNG, hardware readiness, component/port, output 지원 상태, convergence와 경고를 self-contained HTML로 생성한다.
 - `lidarsim beam`은 active source를 불변 `BeamState`로 만들고 circular·elliptical·line Gaussian의 M² 기반 자유공간 radius, q-parameter, second moment와 power-normalized irradiance를 full report·compact summary·PNG로 생성한다.
-- `lidarsim optical-train` 또는 `lidarsim train`은 active source에서 ideal thin-lens collimator를 지나 scanner component origin까지의 element별 `BeamState`, circular aperture clipping, catalog power transmission, power ledger, ABCD 내부 일관성 check와 radius/power PNG를 생성한다.
+- `lidarsim optical-train` 또는 `lidarsim train`은 active source에서 ideal thin-lens collimator를 지나 scanner mirror default pose에서 정지 반사되고, rectangle-plane target과 Lambertian virtual receiver까지의 element별 `BeamState`, aperture clipping, catalog transmission/reflectivity, power ledger, target footprint, receiver return, link budget, 내부 일관성 check와 radius/power PNG를 생성한다.
 - Fiber MFD definition과 Gaussian approximation, catalog nominal match/explicit override, small-angle paraxial proxy, confidence·calibration·provenance를 검증·보고한다.
 - Power audit은 analytical tail truncation, base/refined grid quadrature와 grid convergence를 분리하며 second-moment 비교는 internal consistency로만 표시한다.
 - CLI distance는 `20 mm` 같은 단위 포함 값을 받고 기본 결과는 timestamp run directory에 저장해 덮어쓰지 않는다.
 - `configs/line_beam_project.example.yaml`은 3.0 mm × 0.25 mm numerical elliptical-Gaussian line preset을 제공하며 Powell lens나 상용 제품 model이 아니다.
 - Resolved project state는 재귀적으로 변경 불가능하며 안정적인 물리 configuration SHA-256을 갖는다. 표시 단위와 UI preference는 이 hash를 바꾸지 않는다.
-- Local `.venv`는 `pyproject.toml`에서 설치했으며, deprecation·user warning을 error로 처리해도 자동 test 73개가 통과한다.
-- 다음 활성 목표는 Phase 2 Optical Components, Catalog와 Assembly의 다음 slice인 ideal flat mirror reflection과 scanner mirror aperture/reflectivity ledger이다.
+- Local `.venv`는 `pyproject.toml`에서 설치했으며, deprecation·user warning을 error로 처리해도 자동 test 91개가 통과한다.
+- 다음 활성 목표는 Phase 3 User-defined Scanner의 첫 slice인 static/one-axis scanner state와 command angle 기반 mirror pose 계산이다.
 
 ## 유지할 결정 사항
 
@@ -54,7 +54,7 @@
 
 ## 가장 좋은 다음 작업
 
-Phase 2의 다음 vertical slice로 ideal flat mirror reflection을 구현하고 scanner mirror component에 optical interaction report를 연결한다. 시간 구동 scanner motion은 Phase 3으로 남기되, 정지 mirror의 입사/반사 방향, mirror aperture clipping, reflectivity loss와 element별 power ledger를 먼저 검증한다.
+Phase 3의 첫 vertical slice로 scanner command angle에서 mirror rigid transform과 reflected beam direction을 계산한다. 먼저 static angle과 ±mechanical amplitude endpoint를 검증하고, 그 다음 triangle waveform time samples를 붙인다.
 
 ## 검증 기록
 
@@ -89,7 +89,17 @@ Phase 2의 다음 vertical slice로 ideal flat mirror reflection을 구현하고
 - `python -W error::DeprecationWarning -W error::UserWarning -m pytest -q`: 80개 통과.
 - `lidarsim validate configs/project.yaml`: 통과. 기존 small-angle paraxial, virtual receiver, unsupported downstream output, analytical regression warning을 확인했다.
 - `lidarsim optical-train configs/project.yaml --output results/phase2_optical_train_report.yaml --plot results/phase2_optical_train.png --dpi 140`: 통과. Scanner origin에서 radius `1.9735783 mm × 1.9735783 mm`, final power `9.99997341 mW`, total transmission `0.999997341`, clipping loss `2.6589e-08 W`, q/energy/aperture check `pass`, overall `warning`.
-- Phase 2 first slice의 한계: ideal centered thin lens와 circular aperture만 지원한다. Aperture 뒤 diffraction/truncated profile shape, aberration, decenter/tilt tolerance, vendor black-box execution, mirror reflection, scanner motion, target footprint와 receiver return은 아직 계산하지 않는다. x/y waist 위치가 분리되는 astigmatic post-lens beam은 현재 `BeamState` contract로 정확히 표현할 수 없어 명시적으로 거부한다.
+- Phase 2 first slice checkpoint 당시에는 ideal centered thin lens와 circular aperture만 지원했고 mirror reflection은 아직 계산하지 않았다. x/y waist 위치가 분리되는 astigmatic post-lens beam은 현재 `BeamState` contract로 정확히 표현할 수 없어 명시적으로 거부한다.
+- Phase 2 checkpoint commit `ff32a6d` (`Implement Phase 2 optical train slice`)를 `origin/main`에 push했다.
+- Phase 2 mirror slice에서 ideal flat mirror reflection, rectangular mirror aperture clipping, mirror reflectivity ledger와 static mirror report를 추가했다.
+- `python -W error::DeprecationWarning -W error::UserWarning -m pytest -q`: 81개 통과.
+- `lidarsim optical-train configs/project.yaml --output results/phase2_optical_train_report.yaml --plot results/phase2_optical_train.png --dpi 140`: 통과. Final plane은 `scan_mirror.reflected`, reflected direction은 거의 `+x`, scanner mirror incidence angle은 `45 deg`, mirror aperture transmission은 `0.9999999999992263`, q/energy/aperture check `pass`, unsupported downstream element `0`.
+- Phase 2.1~2.3 extension에서 `src/lidarsim/scene/`과 `src/lidarsim/receiver/`를 추가해 rectangle-plane target intersection, projected Gaussian footprint, target power estimate, Lambertian small-footprint receiver aperture power와 link budget을 통합했다.
+- `python -m pytest -q`: 91개 통과.
+- `python -W error::DeprecationWarning -W error::UserWarning -m pytest -q`: 91개 통과.
+- `lidarsim validate configs/project.yaml`: 통과. 현재 output warning은 scanner time dynamics가 아직 없는 `scan_path`만 남는다.
+- `lidarsim optical-train configs/project.yaml`: 통과. Final plane은 `scan_mirror.reflected`, target hit count `1`, target power `0.00999997341 W`, receiver power `2.49999335e-09 W`, link loss `66.02059991327963 dB`, q/energy/aperture/target/receiver check `pass`, unsupported downstream element `0`.
+- 현재 Phase 2 한계: aperture 뒤 diffraction/truncated profile shape, mirror edge scattering, polarization, Fresnel/coating/dispersion, aberration, decenter/tilt tolerance, vendor black-box execution, STL hit detection, visibility/occlusion, non-Lambertian BRDF/BSDF, detector noise, coherent FMCW와 time-dependent scanner motion은 아직 계산하지 않는다.
 
 ## 세션 갱신 형식
 

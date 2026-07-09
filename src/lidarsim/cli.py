@@ -524,8 +524,16 @@ def _optical_train(args: argparse.Namespace) -> int:
         f"loss={summary['total_loss_w']:.3e} W"
     )
     print(
+        f"Target/receiver: hits={summary['target_hit_count']}, "
+        f"P_target={summary['estimated_power_on_target_w']:.9g} W, "
+        f"P_rx={summary['estimated_received_power_w']:.9g} W, "
+        f"link_loss_db={summary['link_loss_db']}"
+    )
+    print(
         f"Checks: q={summary['q_parameter_status']}, "
-        f"energy={summary['energy_ledger_status']}, aperture={summary['aperture_status']}"
+        f"energy={summary['energy_ledger_status']}, aperture={summary['aperture_status']}, "
+        f"target={summary['target_footprint_status']}, "
+        f"receiver={summary['receiver_return_status']}"
     )
     print(
         f"Overall: {summary['overall_status']} | "

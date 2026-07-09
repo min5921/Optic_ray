@@ -26,7 +26,7 @@
 
 Phase 0·0.1과 Phase 1 Gaussian Beam Engine이 완료되었다. `lidarsim validate`는 project/scenario/experiment/catalog YAML을 검사하고 단위, 물리 범위, wavelength validity와 참조·배치를 검증한다. `placement`, `inspect-mesh`, `inspect-measurement`, `report`, `view`, `review`로 배치와 입력 contract를 확인할 수 있다. `lidarsim beam`은 active source의 point·elliptical·line Gaussian을 NumPy/float64로 자유공간 전파하고 radius, divergence, q-parameter, second moment와 power-normalized irradiance를 YAML/PNG로 저장한다. Numerical check와 실제 장비 calibration을 구분해 confidence, provenance, paraxial validity와 hardware readiness를 함께 표시한다.
 
-Phase 2의 첫 vertical slice로 `lidarsim optical-train`이 추가되었다. 이 명령은 source에서 ideal thin-lens collimator를 거쳐 scanner component origin까지 free-space propagation, ABCD thin-lens transform, centered circular aperture clipping, catalog power transmission과 element별 power ledger를 계산한다. 현재는 ideal centered thin lens만 지원하며, scanner mirror는 아직 반사/스캔하지 않고 downstream unsupported element로 기록한다. Scanner motion은 Phase 3, target footprint는 Phase 4, receiver return은 Phase 5에서 연결한다. `lidarsim run`, `compare`와 end-to-end radiometry는 아직 구현되지 않았다.
+Phase 2의 vertical slice로 `lidarsim optical-train`이 추가되었다. 이 명령은 source에서 ideal thin-lens collimator를 거쳐 scanner mirror에서 정지 반사되고, rectangle-plane target footprint와 첫 Lambertian receiver return까지 free-space propagation, ABCD thin-lens transform, centered circular aperture clipping, static flat-mirror reflection, mirror aperture clipping, catalog power transmission/reflectivity, target hit/footprint, receiver aperture power와 link budget을 계산한다. 현재 scanner mirror는 default static pose만 사용하며 scanner command angle, dynamic lag, jitter와 time sampling은 아직 적용하지 않는다. STL hit detection, visibility/occlusion, non-Lambertian BRDF/BSDF, detector noise, speckle와 coherent FMCW는 아직 구현되지 않았다. `lidarsim run`, `compare`와 time-sampled scan radiometry는 아직 구현되지 않았다.
 
 ## 3. 주요 파일 위치
 
@@ -560,7 +560,7 @@ receiver:
 
 `virtual_monostatic/virtual_aperture`는 실제 beamsplitter, scanner 역경로, receive lens와 detector를 생략한 분석용 aperture다. 실제 장비 배치를 주장하려면 해당 부품과 reverse optical path를 assembly에 추가하고 `model_level`을 구현된 수준에 맞춰 변경해야 한다.
 
-Phase 5에서 구현할 radiometric receiver의 첫 결과 목표는 receiver aperture에 도달한 optical power다. Phase 0.1은 아직 이 값을 계산하지 않는다.
+현재 `lidarsim optical-train`은 rectangle-plane target hit가 있을 때 `virtual_monostatic/virtual_aperture` receiver에 대한 첫 Lambertian analytical return을 계산한다. 결과는 receiver aperture에 도달하는 optical power와 link loss이며, 실제 beamsplitter·reverse scanner·receive lens·detector를 통과한 calibrated hardware prediction은 아니다.
 
 향후 변경 가능한 항목:
 
@@ -727,19 +727,19 @@ lidarsim beam configs/project.yaml --z-max-m "100 mm" --profile-distance-m "50 m
 lidarsim beam configs/line_beam_project.example.yaml
 ```
 
-`review` 그림의 scan limit, receiver FOV와 return path는 설정값 기반 기하학 가이드다. 실제 beam envelope, footprint 또는 received power로 해석하지 않는다.
+`review` 그림의 scan limit, receiver FOV와 return path는 설정값 기반 기하학 가이드다. 실제 Phase 2.2/2.3 footprint와 received power 값은 `lidarsim optical-train` report에서 확인한다.
 
 `beam` 결과의 radius는 1/e² irradiance radius다. 기본 실행은 `results/phase1/<timestamp>_<scenario>_<hash>/` 아래에 `beam_report.yaml`, `beam_summary.yaml`, `beam.png`를 생성하므로 이전 결과를 덮어쓰지 않는다. YAML report의 첫 `summary`와 `accuracy`에서 전체 상태·신뢰도·보정 여부를 먼저 확인한다. `profile_audit`은 Gaussian tail truncation, base/refined grid quadrature와 grid convergence를 분리한다. `analytical_checks`는 내부 일관성 검사이며 실제 측정 validation이 아니다. 이 명령은 downstream optical component를 적용하지 않는다.
 
 ```powershell
-# Phase 2 source→collimator→scanner origin optical train 계산
+# Phase 2 source→collimator→static mirror reflection optical train 계산
 lidarsim optical-train configs/project.yaml
 
 # 짧은 alias
 lidarsim train configs/project.yaml
 ```
 
-`optical-train` 결과의 `optical_train.states`에는 source output, collimator input/output, scanner origin의 `BeamState`가 저장된다. `power_ledger`는 free-space, aperture clipping, component transmission을 순서대로 기록한다. `component_reports[].aperture_clip`에서 clear aperture 대비 clipping fraction을 확인하고, `summary.total_transmission`과 `summary.total_loss_w`로 optical train 손실을 빠르게 본다. 현재 centered circular aperture를 지난 뒤의 diffraction/truncated profile shape는 계산하지 않고 Gaussian power loss로만 반영한다.
+`optical-train` 결과의 `optical_train.states`에는 source output, collimator input/output, scanner mirror origin과 reflected output의 `BeamState`가 저장된다. `power_ledger`는 free-space, collimator aperture clipping, component transmission, mirror rectangular aperture와 mirror reflectivity를 순서대로 기록한다. `component_reports[].aperture_clip`에서 clear aperture 대비 clipping fraction을 확인하고, `summary.total_transmission`과 `summary.total_loss_w`로 optical train 손실을 빠르게 본다. `target_footprints[]`에는 rectangle-plane hit, incidence angle, projected Gaussian footprint, target에 걸린 power와 clipping 여부가 저장된다. `receiver_return`에는 Lambertian reflectivity, receiver aperture/FOV 판정, estimated received aperture power와 link loss가 저장된다. 현재 aperture를 지난 뒤의 diffraction/truncated profile shape, mirror edge scattering, polarization, STL visibility, non-Lambertian BRDF, detector noise와 coherent field sum은 계산하지 않는다.
 
 다음 명령은 이후 Phase에서 구현할 계획이다.
 

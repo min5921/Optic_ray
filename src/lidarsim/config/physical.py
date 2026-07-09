@@ -19,6 +19,9 @@ IMPLEMENTED_OUTPUTS = {
     "convergence_report",
     "layout_3d",
     "beam_envelope",
+    "target_footprint",
+    "received_aperture_power",
+    "link_budget",
 }
 
 PARAXIAL_PROXY_TOLERANCE = 1e-3

@@ -26,4 +26,4 @@
 
 `phase1_beam_report.schema.json`은 Gaussian source state, confidence·calibration·provenance, free-space radius sample, profile power 적분·grid convergence와 internal-consistency check를 검증한다. `phase1_beam_summary.schema.json`은 사람이 먼저 확인할 compact 결과를 검증한다.
 
-`phase2_optical_train_report.schema.json`은 source→ideal thin-lens collimator→scanner origin까지의 element별 BeamState, circular aperture clipping, catalog transmission, power ledger와 ABCD 내부 일관성 check를 검증한다. Scanner motion, target footprint와 receiver return은 아직 이 schema의 계산 범위가 아니다.
+`phase2_optical_train_report.schema.json`은 source→ideal thin-lens collimator→static scanner mirror reflection→rectangle-plane target footprint→Lambertian virtual receiver return까지의 element별 BeamState, aperture clipping, catalog transmission/reflectivity, power ledger, target footprint, receiver link budget와 내부 일관성 check를 검증한다. Time-dependent scanner motion, STL hit detection, non-Lambertian BRDF/BSDF, detector noise와 coherent FMCW는 아직 이 schema의 계산 범위가 아니다.
