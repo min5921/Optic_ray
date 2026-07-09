@@ -390,3 +390,36 @@ def test_optical_train_command_writes_schema_validated_report_and_plot(
     assert plot_path.read_bytes().startswith(b"\x89PNG\r\n\x1a\n")
     assert "Phase 2 optical train report:" in output.out
     assert "unsupported=0" in output.out
+
+
+def test_workspace_command_writes_scene_and_plot(
+    project_root: Path,
+    tmp_path: Path,
+    capsys,
+) -> None:
+    plot_path = tmp_path / "workspace.png"
+    scene_path = tmp_path / "viewport_scene.yaml"
+
+    result = main(
+        [
+            "workspace",
+            str(project_root / "configs" / "project.yaml"),
+            "--output",
+            str(plot_path),
+            "--write-scene",
+            str(scene_path),
+            "--dpi",
+            "72",
+        ]
+    )
+    output = capsys.readouterr()
+
+    assert result == 0
+    assert plot_path.read_bytes().startswith(b"\x89PNG\r\n\x1a\n")
+    scene = yaml.safe_load(scene_path.read_text(encoding="utf-8"))
+    assert scene["project_id"] == "optic_ray_default"
+    assert any(ray["status"] == "target_hit" for ray in scene["rays"])
+    assert len(scene["footprints"]) == 1
+    assert "Optical assembly workspace:" in output.out
+    assert "Viewport scene:" in output.out
+    assert "Source of truth: config/report driven" in output.out

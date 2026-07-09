@@ -22,10 +22,12 @@ from lidarsim.results import (
     build_phase2_optical_train_report,
     write_review_html,
 )
+from lidarsim.ui import build_viewport_scene
 from lidarsim.visualization import (
     render_beam_view,
     render_optical_train_view,
     render_placement_view,
+    render_viewport_scene,
 )
 
 
@@ -153,6 +155,23 @@ def _parser() -> argparse.ArgumentParser:
         help="PNG path; default uses the run directory",
     )
     optical_train.add_argument("--dpi", type=int, default=150)
+    workspace = subparsers.add_parser(
+        "workspace",
+        help="render the UI MVP 0 optical assembly workspace PNG",
+    )
+    workspace.add_argument("project", nargs="?", default="configs/project.yaml")
+    workspace.add_argument(
+        "--output",
+        type=Path,
+        default=Path("results/ui_workspace.png"),
+        help="PNG workspace image path",
+    )
+    workspace.add_argument(
+        "--write-scene",
+        type=Path,
+        help="optional serialized ViewportScene YAML path",
+    )
+    workspace.add_argument("--dpi", type=int, default=150)
     return parser
 
 
@@ -545,6 +564,38 @@ def _optical_train(args: argparse.Namespace) -> int:
     return 0
 
 
+def _workspace(args: argparse.Namespace) -> int:
+    try:
+        project = load_project(args.project)
+        report = build_phase2_optical_train_report(project)
+        scene = build_viewport_scene(project, report=report)
+        scene_data = scene.to_dict()
+        if args.write_scene is not None:
+            scene_path = _write_yaml_report(args.write_scene, scene_data)
+        else:
+            scene_path = None
+        plot_path = render_viewport_scene(scene, args.output, dpi=args.dpi)
+    except (ConfigError, OSError, ValueError) as exc:
+        print(exc, file=sys.stderr)
+        return 2
+
+    print(f"Optical assembly workspace: {plot_path}")
+    if scene_path is not None:
+        print(f"Viewport scene: {scene_path}")
+    print(
+        f"Scene: components={len(scene.components)}, ports={len(scene.ports)}, "
+        f"guides={len(scene.guides)}, rays={len(scene.rays)}, "
+        f"footprints={len(scene.footprints)}"
+    )
+    print(
+        "Source of truth: config/report driven; UI placement edits must be saved "
+        "back to config variants."
+    )
+    for warning in scene.warnings:
+        print(warning, file=sys.stderr)
+    return 0
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     """Run the requested CLI command."""
 
@@ -567,6 +618,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         return _beam(args)
     if args.command in {"optical-train", "train"}:
         return _optical_train(args)
+    if args.command == "workspace":
+        return _workspace(args)
     raise AssertionError(f"Unhandled command: {args.command}")
 
 

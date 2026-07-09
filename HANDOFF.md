@@ -37,7 +37,10 @@
 - `configs/line_beam_project.example.yaml`은 3.0 mm × 0.25 mm numerical elliptical-Gaussian line preset을 제공하며 Powell lens나 상용 제품 model이 아니다.
 - Resolved project state는 재귀적으로 변경 불가능하며 안정적인 물리 configuration SHA-256을 갖는다. 표시 단위와 UI preference는 이 hash를 바꾸지 않는다.
 - Local `.venv`는 `pyproject.toml`에서 설치했으며, deprecation·user warning을 error로 처리해도 자동 test 91개가 통과한다.
-- 다음 활성 목표는 Phase 3 User-defined Scanner의 첫 slice인 static/one-axis scanner state와 command angle 기반 mirror pose 계산이다.
+- 사용자 친화적인 로컬 simulation dashboard와 SolidWorks-like Optical Assembly Workspace 개발 방향은 `docs/UI_SIMULATION_DASHBOARD.md`에 분리해 정리했다.
+- UI MVP 0의 첫 vertical slice로 `ViewportScene` data contract, source/collimator/scanner mirror/target/receiver 표시 data, local frame, port axis, mirror normal, reflected ray, target plane, receiver FOV, beam path, target hit ray, footprint overlay와 headless Matplotlib 3D workspace PNG renderer가 구현되었다.
+- `lidarsim workspace configs/project.yaml --output results/ui_workspace.png --write-scene results/ui_workspace_scene.yaml`로 현재 Phase 2.3 static simulation을 optical assembly workspace용 PNG와 YAML scene으로 확인할 수 있다.
+- 다음 활성 목표는 UI MVP 0의 read-only dashboard 조각이다. Streamlit 또는 초기 UI layer에서 project config 선택, validate/workspace/optical-train 실행, summary metric, warning, PNG와 raw report를 보여준다. 그 다음 Phase 3 scanner command angle physics를 구현해 UI에 연결한다.
 
 ## 유지할 결정 사항
 
@@ -54,7 +57,7 @@
 
 ## 가장 좋은 다음 작업
 
-Phase 3의 첫 vertical slice로 scanner command angle에서 mirror rigid transform과 reflected beam direction을 계산한다. 먼저 static angle과 ±mechanical amplitude endpoint를 검증하고, 그 다음 triangle waveform time samples를 붙인다.
+UI MVP 0의 read-only dashboard 조각을 구현한다. 추천 범위는 optional `ui` dependency 정책 결정, Streamlit 또는 간단한 local UI entrypoint, project config 선택, validate/workspace/optical-train 실행 button, summary metric, warning list, workspace PNG와 raw report 표시다. UI가 숨겨진 source of truth가 되지 않도록 변경값은 아직 만들지 않고, 다음 단계에서 numeric placement editor와 variant config 저장을 추가한다.
 
 ## 검증 기록
 
@@ -100,6 +103,16 @@ Phase 3의 첫 vertical slice로 scanner command angle에서 mirror rigid transf
 - `lidarsim validate configs/project.yaml`: 통과. 현재 output warning은 scanner time dynamics가 아직 없는 `scan_path`만 남는다.
 - `lidarsim optical-train configs/project.yaml`: 통과. Final plane은 `scan_mirror.reflected`, target hit count `1`, target power `0.00999997341 W`, receiver power `2.49999335e-09 W`, link loss `66.02059991327963 dB`, q/energy/aperture/target/receiver check `pass`, unsupported downstream element `0`.
 - 현재 Phase 2 한계: aperture 뒤 diffraction/truncated profile shape, mirror edge scattering, polarization, Fresnel/coating/dispersion, aberration, decenter/tilt tolerance, vendor black-box execution, STL hit detection, visibility/occlusion, non-Lambertian BRDF/BSDF, detector noise, coherent FMCW와 time-dependent scanner motion은 아직 계산하지 않는다.
+- `docs/UI_SIMULATION_DASHBOARD.md`를 추가해 UI 최종 목표를 단순 dashboard가 아닌 SolidWorks-like Optical Assembly Workspace로 정리했다. 진행 규칙은 얇은 workspace UI 골격을 먼저 만들고, 이후 물리 기능을 하나씩 추가할 때마다 UI에 연결하는 방식이다.
+- 문서 전용 변경이므로 자동 test는 실행하지 않았고 `git diff --check`로 형식만 확인한다.
+- UI MVP 0 첫 vertical slice에서 `src/lidarsim/ui/assembly/viewport_data.py`, `src/lidarsim/visualization/workspace.py`, `lidarsim workspace` CLI, viewport scene YAML 저장, 2패널 workspace PNG renderer와 UI workspace test를 추가했다.
+- 추가 검수에서 target/receiver component local frame이 물리 direction과 맞도록 정렬하고 right-handed frame test를 추가했다.
+- `python -m pytest tests/test_ui_workspace.py tests/test_cli.py -q`: 19개 통과.
+- `python -m pytest -q`: 96개 통과.
+- `python -W error::DeprecationWarning -W error::UserWarning -m pytest -q`: 96개 통과.
+- `lidarsim validate configs/project.yaml`: 통과. 기존 small-angle paraxial, virtual receiver, `scan_path` 미구현, analytical regression warning을 확인했다.
+- `lidarsim workspace configs/project.yaml --output results/ui_workspace.png --write-scene results/ui_workspace_scene.yaml --dpi 140`: 통과. Components 5개, ports 3개, guides 36개, rays 3개, footprints 1개를 생성했고 2패널 workspace PNG를 시각 검수했다.
+- `git diff --check`: 통과.
 
 ## 세션 갱신 형식
 

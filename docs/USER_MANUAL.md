@@ -65,6 +65,7 @@ Optic_ray_project/
 - [설정·부품 교체·실험 규칙](specs/CONFIGURATION_AND_EXPERIMENTS.md)
 - [정확도·보정 규칙](specs/ACCURACY_AND_CALIBRATION.md)
 - [UX workflow](specs/UX_WORKFLOW.md)
+- [시뮬레이션 UI 개발 계획](UI_SIMULATION_DASHBOARD.md)
 - [에너지·수렴성 규칙](specs/ENERGY_AND_CONVERGENCE.md)
 - [측정 데이터 규칙](specs/MEASUREMENT_DATA.md)
 - [프로젝트 설정 파일](../configs/project.yaml)
@@ -725,6 +726,9 @@ lidarsim beam configs/project.yaml --z-max-m "100 mm" --profile-distance-m "50 m
 
 # Numerical elliptical-Gaussian line-beam 예제
 lidarsim beam configs/line_beam_project.example.yaml
+
+# Optical assembly workspace용 3D bench PNG와 scene YAML 생성
+lidarsim workspace configs/project.yaml --output results/ui_workspace.png --write-scene results/ui_workspace_scene.yaml
 ```
 
 `review` 그림의 scan limit, receiver FOV와 return path는 설정값 기반 기하학 가이드다. 실제 Phase 2.2/2.3 footprint와 received power 값은 `lidarsim optical-train` report에서 확인한다.
@@ -740,6 +744,20 @@ lidarsim train configs/project.yaml
 ```
 
 `optical-train` 결과의 `optical_train.states`에는 source output, collimator input/output, scanner mirror origin과 reflected output의 `BeamState`가 저장된다. `power_ledger`는 free-space, collimator aperture clipping, component transmission, mirror rectangular aperture와 mirror reflectivity를 순서대로 기록한다. `component_reports[].aperture_clip`에서 clear aperture 대비 clipping fraction을 확인하고, `summary.total_transmission`과 `summary.total_loss_w`로 optical train 손실을 빠르게 본다. `target_footprints[]`에는 rectangle-plane hit, incidence angle, projected Gaussian footprint, target에 걸린 power와 clipping 여부가 저장된다. `receiver_return`에는 Lambertian reflectivity, receiver aperture/FOV 판정, estimated received aperture power와 link loss가 저장된다. 현재 aperture를 지난 뒤의 diffraction/truncated profile shape, mirror edge scattering, polarization, STL visibility, non-Lambertian BRDF, detector noise와 coherent field sum은 계산하지 않는다.
+
+`workspace`는 optical assembly workspace의 초기 viewer 명령이다. 현재 configuration과 Phase 2.3 report를 읽어 `ViewportScene`을 만들고, 다음 요소를 3D PNG로 그린다.
+
+- source, collimator, scanner mirror, target, receiver
+- component local frame
+- input/output port axis
+- mirror normal
+- reflected ray
+- target plane edge
+- receiver FOV guide
+- beam path와 target hit ray
+- target footprint overlay
+
+`--write-scene`으로 저장되는 YAML은 나중에 Streamlit, Plotly, Three.js 또는 React frontend가 소비할 data contract다. 아직 component 선택, placement edit, snapping, mate/constraint, drag/rotate gizmo는 구현하지 않았다. Placement를 바꾸는 UI가 생기더라도 변경값은 반드시 variant config로 저장되어 CLI에서 재현되어야 한다.
 
 다음 명령은 이후 Phase에서 구현할 계획이다.
 
