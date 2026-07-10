@@ -21,7 +21,8 @@ dev = [
   "pytest>=8,<9",
 ]
 ui = [
-  "streamlit>=1.43,<2",
+  "plotly>=6,<7",
+  "streamlit>=1.59,<2",
 ]
 
 [project.scripts]

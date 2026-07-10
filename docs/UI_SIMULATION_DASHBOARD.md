@@ -3,7 +3,7 @@
 - 문서 상태: Draft
 - 마지막 갱신: 2026-07-10
 - 대상: Optic Ray simulation을 사용자가 쉽게 배치·정렬·실행·분석하기 위한 로컬 UI
-- 기준 구현 상태: Phase 2.3 optical train/return, Phase 3 ideal scanner path, UI Phase 0.2/B Streamlit numeric workspace
+- 기준 구현 상태: Phase 2.3 optical train/return, Phase 3 ideal scanner path, UI Phase A/B/C 첫 interactive Streamlit workspace
 
 ## 1. 최상위 목표 — Optical Assembly Workspace
 
@@ -287,8 +287,10 @@ UI 기능은 이 명령들을 우회하지 않고 같은 loader, schema, physics
 - `lidarsim dashboard --include-scanner-path` 옵션
 - read-only dashboard에 scanner path plot과 sample table을 선택적으로 embedding
 - `lidarsim ui` Streamlit browser workspace
-- wavelength/source/scanner/target/receiver parameter form
-- compatible component reference 선택과 absolute/port numeric placement form
+- Plotly 기반 interactive 3D optical bench와 component marker 선택
+- orbit/zoom, guide toggle, beam/reflected ray, target hit·footprint와 receiver FOV overlay
+- 선택한 객체만 표시하는 parameter·numeric placement inspector
+- `MirrorTargetMate` target-center pose preview, angle residual과 명시적 적용
 - `configs/ui_runs/` variant 저장, validation rollback과 `results/ui_runs/` simulation bundle
 
 현재 실행 예:
@@ -305,14 +307,15 @@ lidarsim ui configs/project.yaml
 
 중요한 한계:
 
-- Streamlit browser form과 numeric placement editor는 구현되었다.
-- 3D 그림은 simulation 실행 후 갱신되지만 viewport 안에서 component를 직접 picking하지는 않는다.
-- 아직 snapping, mate, drag/rotate gizmo는 없다.
+- Streamlit interactive 3D viewer와 numeric placement editor는 구현되었다.
+- Plotly component marker point selection을 지원하지만 geometry face picking이나 drag handle은 아니다.
+- 첫 snap helper는 absolute-placement scanner mirror의 `MirrorTargetMate` preview·적용만 지원한다.
+- 아직 port/coaxial snap, receiver `LookAtMate`, persistent constraint list, drag/rotate gizmo와 undo/redo는 없다.
 - `placement-variant`는 baseline을 덮어쓰지 않고 variant config를 생성한다.
 - `scanner-sweep`은 static angle 비교 helper이며 scanner time waveform은 아직 아니다.
 - `scanner-path`는 ideal forward-line command path이며 motor dynamics나 calibration table은 아직 아니다.
 
-이번 slice의 의미는 “나중에 어떤 UI를 쓰든 같은 `ViewportScene`과 Phase 2 report를 소비하게 만드는 것”이다. Streamlit, Plotly, Three.js, React frontend는 이 contract 위에 붙이면 된다.
+이번 slice는 같은 `ViewportScene`과 Phase 2 report를 실제 Plotly 3D workspace에서 소비한다. 장기 Three.js/React viewport로 바꾸더라도 config·report·mate 계산 contract는 그대로 재사용한다.
 
 ## 5. 현재 바로 시각화할 수 있는 simulation 결과
 
@@ -399,8 +402,8 @@ source
 
 중요한 한계:
 
-- 이 phase는 SolidWorks-like placement editor가 아니다.
-- component picking, snapping, constraints, interactive 3D viewport는 아직 없다.
+- 이 read-only dashboard phase 자체는 SolidWorks-like placement editor가 아니다.
+- 별도 `lidarsim ui`에는 interactive Plotly viewport가 있지만 dashboard HTML은 계속 결과 검토용이다.
 - 사용자가 현재 simulation 결과를 쉽게 확인하는 용도다.
 
 완료 조건:
@@ -441,7 +444,9 @@ source
 
 - Matplotlib 3D 기반 headless viewer가 `lidarsim workspace`로 구현되었다.
 - 현재 config와 Phase 2.3 report에서 optical bench PNG와 YAML scene을 생성한다.
-- 향후 Streamlit/Plotly/Three.js viewer는 같은 `ViewportScene`을 재사용한다.
+- Streamlit `lidarsim ui`가 같은 `ViewportScene`을 Plotly 3D로 렌더링한다.
+- Browser에서 orbit·zoom, component marker selection, hover와 guide toggle을 지원한다.
+- Three.js viewer로 확장해도 같은 `ViewportScene`을 재사용한다.
 
 완료 조건:
 
@@ -503,6 +508,21 @@ source
 - align receiver to target hit point
 
 Guideline과 snap은 자동으로 config를 덮어쓰면 안 된다. 사용자에게 preview를 보여주고 적용 여부를 명확히 해야 한다.
+
+현재 완료된 첫 vertical slice:
+
+- `MirrorTargetMate`가 현재 Phase 2 mirror incident direction과 target center에서 ideal required normal을 계산한다.
+- Scanner static command angle을 유지하도록 base component pose와 local mechanical axis에 일관된 world rotation axis를 함께 역산한다.
+- 현재 reflected ray의 target-center angle residual과 필요한 pose 회전량을 표시한다.
+- Current ray, 추천 target-center ray와 추천 mirror normal을 같은 3D viewport에 overlay한다.
+- 사용자가 `추천 pose를 편집값에 적용`을 누른 뒤 variant를 저장할 때만 absolute placement quaternion과 `scanner.rotation_axis_world`에 기록한다.
+- 저장된 variant는 기존 schema/physical/placement validation과 Phase 2 simulation을 그대로 통과한다.
+
+현재 한계:
+
+- `MirrorTargetMate`는 center-ray와 ideal flat mirror 기준이며 footprint 전체 최적화가 아니다.
+- Absolute placement mirror만 저장 적용을 지원한다.
+- Receiver `LookAtMate`, port/coaxial snap, focal-distance snap과 ruler는 아직 없다.
 
 완료 조건:
 
@@ -806,7 +826,9 @@ src/lidarsim/ui/
 ├─ placement_editor.py    # placement-only CLI helper
 ├─ dashboard.py           # self-contained read-only HTML
 └─ assembly/
-   └─ viewport_data.py    # ViewportScene contract
+   ├─ viewport_data.py    # ViewportScene contract
+   ├─ plotly_viewport.py  # interactive Plotly optical bench renderer
+   └─ snapping.py         # MirrorTargetMate pose preview
 ```
 
 Optical assembly workspace layer:
@@ -1133,6 +1155,8 @@ UI MVP 0 — 3D bench viewer + read-only simulation dashboard
 - [x] Streamlit은 optional dependency `ui`로 둔다.
 - [x] `lidarsim ui` 명령이 Streamlit process를 직접 실행한다.
 - [x] 초기 3D viewer는 기존 Matplotlib `ViewportScene` renderer를 재사용한다.
+- [x] Streamlit workspace는 같은 `ViewportScene`을 Plotly interactive 3D로 렌더링한다.
+- [x] `MirrorTargetMate`는 preview 후 명시적으로 적용하고 variant transform으로 저장한다.
 - [x] UI variant는 `configs/ui_runs/`, result bundle은 `results/ui_runs/`에 저장한다.
 - [x] UI variant는 schema/unit/physical/placement validation을 통과해야 저장 완료로 취급한다.
 - custom Three.js viewport를 언제 시작할지
@@ -1143,12 +1167,12 @@ UI MVP 0 — 3D bench viewer + read-only simulation dashboard
 
 ## 14. 추천 다음 작업
 
-1. UI Phase C guideline/snapping의 첫 vertical slice
-   - mirror를 target center로 회전하는 preview
-   - receiver를 target hit point로 정렬하는 preview
-   - preview를 적용하면 variant config에 explicit transform을 저장
+1. UI Phase C의 다음 vertical slice
+   - receiver를 target hit point로 정렬하는 `LookAtMate` preview
+   - distance/angle ruler와 port/coaxial guide
+   - preview 적용 전후 residual과 receiver FOV 상태 비교
 2. UI Phase 0.3 comparison
    - target distance와 receiver aperture sweep
    - baseline 대비 received power/link loss 비교
 
-현재 viewer, numeric editor와 ideal scanner reference가 연결되었으므로 다음 단계부터는 자동 정렬 preview와 조건 비교를 작은 vertical slice로 추가한다.
+현재 interactive viewer, numeric editor와 첫 mirror 자동 정렬 preview가 연결되었다. 다음 단계는 receiver 정렬과 guide/ruler를 같은 preview→apply→variant 규칙으로 추가한다.

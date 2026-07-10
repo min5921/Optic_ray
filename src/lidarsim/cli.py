@@ -373,7 +373,7 @@ def _parser() -> argparse.ArgumentParser:
     )
     ui = subparsers.add_parser(
         "ui",
-        help="launch the Streamlit parameter and numeric-placement workspace",
+        help="launch the interactive 3D optical-bench and numeric-placement workspace",
     )
     ui.add_argument("project", nargs="?", default="configs/project.yaml")
     ui.add_argument("--port", type=int, default=8501, help="Streamlit server port")
@@ -1059,6 +1059,7 @@ def _ui(args: argparse.Namespace) -> int:
         str(app_path),
         f"--server.port={int(args.port)}",
         f"--server.headless={'true' if args.headless else 'false'}",
+        "--browser.gatherUsageStats=false",
         "--",
         str(project_path),
     ]

@@ -30,7 +30,7 @@ def test_streamlit_app_loads_and_runs_variant(
     _widget_by_label(app.number_input, "Static command angle (deg)").set_value(1.0)
     _widget_by_label(app.number_input, "Samples per line").set_value(5)
     _widget_by_label(app.checkbox, "Ideal scanner path도 계산").uncheck()
-    app.button[0].click().run()
+    _widget_by_label(app.button, "Variant 저장 · 검증 · 시뮬레이션").click().run()
 
     assert not app.exception
     assert any("완료" in item.value for item in app.success)

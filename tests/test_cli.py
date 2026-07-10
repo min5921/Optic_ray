@@ -654,6 +654,7 @@ def test_ui_command_launches_streamlit_with_project_argument(
     assert captured["command"][1:4] == ["-m", "streamlit", "run"]
     assert "--server.port=8765" in captured["command"]
     assert "--server.headless=true" in captured["command"]
+    assert "--browser.gatherUsageStats=false" in captured["command"]
     assert captured["command"][-1] == str(project_path.resolve())
     assert captured["env"]["LIDARSIM_UI_PROJECT"] == str(project_path.resolve())
     assert captured["check"] is False

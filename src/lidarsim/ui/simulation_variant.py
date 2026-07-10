@@ -34,6 +34,7 @@ class SimulationParameterEdits:
     wavelength_m: QuantityInput | None = None
     optical_power_w: QuantityInput | None = None
     scanner_static_command_angle_rad: QuantityInput | None = None
+    scanner_rotation_axis_world: tuple[float, float, float] | None = None
     scanner_mechanical_amplitude_rad: QuantityInput | None = None
     scanner_frequency_hz: QuantityInput | None = None
     scanner_waveform: str | None = None
@@ -161,6 +162,15 @@ def _apply_parameter_edits(
             path=path,
             changed=changed,
         )
+    _set_if_changed(
+        scanner,
+        "rotation_axis_world",
+        None
+        if edits.scanner_rotation_axis_world is None
+        else [float(value) for value in edits.scanner_rotation_axis_world],
+        path="scanner.rotation_axis_world",
+        changed=changed,
+    )
     _set_if_changed(
         scanner,
         "waveform",

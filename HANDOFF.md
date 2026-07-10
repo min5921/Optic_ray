@@ -50,7 +50,9 @@
 - Phase 3 scanner reference reports에 JSON Schema contract가 추가되었다. `scanner-sweep`, `scanner-path`, `dashboard --include-scanner-path`는 생성한 scanner report를 YAML로 쓰기 전에 schema validation을 통과해야 한다.
 - UI Phase 0.2/B의 첫 Streamlit vertical slice로 `lidarsim ui`가 구현되었다. Browser form에서 source/scanner/target/receiver parameter, compatible component reference와 absolute/port numeric placement를 수정하고, `configs/ui_runs/` variant를 검증한 뒤 `results/ui_runs/` report·3D workspace·optical-train·optional scanner-path·standalone dashboard를 생성한다.
 - Nested UI project가 repository schema/catalog/assets를 찾도록 project-root 탐색을 공통화했다. 새 variant validation이 실패하면 생성 file을 rollback하며 baseline은 수정하지 않는다.
-- 다음 활성 목표는 UI Phase C의 첫 guideline/snapping vertical slice다. 추천은 mirror를 target center로 향하게 하는 pose preview와 receiver look-at preview이며, 적용 시 explicit variant transform으로 저장해야 한다.
+- Streamlit workspace를 Plotly interactive 3D optical bench로 재구성했다. Orbit·zoom, component marker selection, hover, guide toggle, beam/reflected ray, target hit·footprint와 receiver FOV overlay를 제공하고 선택한 객체의 inspector만 표시한다.
+- UI Phase C의 첫 `MirrorTargetMate` vertical slice가 구현되었다. Phase 2 incident center ray와 rectangle target center에서 required mirror normal을 구하고 static scanner command angle을 유지하는 base pose와 local mechanical axis에 일관된 world rotation axis를 함께 역산하며, residual·추천 ray/normal을 preview한 뒤 사용자 적용과 variant 저장을 분리한다.
+- `MirrorTargetMate` 적용은 현재 absolute placement scanner mirror만 지원한다. Geometry face picking, drag/rotate gizmo, undo/redo, receiver `LookAtMate`, port/coaxial snap과 persistent constraint solver는 아직 없다.
 
 ## 유지할 결정 사항
 
@@ -67,7 +69,7 @@
 
 ## 가장 좋은 다음 작업
 
-추천 1순위는 UI Phase C의 `MirrorTargetMate` preview다. 현재 mirror origin·incident direction과 선택 target center에서 필요한 mirror normal을 계산하고, 현재 pose 대비 angle residual을 표시한 뒤 사용자가 적용할 때만 variant transform으로 저장한다. 이어서 receiver `LookAtMate` preview와 target distance/receiver aperture comparison을 추가한다. 물리 확장 1순위는 실제 scanner 사양이 정해진 뒤 command/actual state, calibration table, lag와 jitter를 분리하는 Phase 3 dynamics contract다.
+추천 1순위는 UI Phase C의 receiver `LookAtMate` preview다. Receiver direction을 current target hit 또는 footprint center로 향하게 하고 현재 FOV residual을 표시한 뒤 사용자 적용 시에만 variant direction으로 저장한다. 이어서 distance/angle ruler, port/coaxial guide와 target distance/receiver aperture comparison을 추가한다. 물리 확장 1순위는 실제 scanner 사양이 정해진 뒤 command/actual state, calibration table, lag와 jitter를 분리하는 Phase 3 dynamics contract다.
 
 ## 검증 기록
 
@@ -182,7 +184,7 @@
 - `lidarsim optical-train configs/project.yaml --output results/audit/optical_train.yaml --plot results/audit/optical_train.png --dpi 100`: 통과. Target hit 1, `P_target=0.00999997341 W`, `P_rx=2.49999335e-09 W`, link loss `66.02059991327963 dB`, q/energy/aperture/target/receiver check `pass`.
 - `lidarsim scanner-path configs/project.yaml --samples 11 --output results/audit/scanner_path.yaml --csv results/audit/scanner_path.csv --plot results/audit/scanner_path.png --dpi 100`: 통과. Triangle forward line 0.05 s, 11/11 target hit와 positive return을 확인했다.
 - `lidarsim dashboard configs/project.yaml --output results/audit/dashboard.html --include-scanner-path --scanner-path-samples 11 --dpi 100`: 통과. Phase 2 report, viewport scene, workspace/optical-train/scanner-path plot과 YAML/CSV를 생성했다.
-- UI Phase 0.2/B에서 `streamlit>=1.43,<2`를 optional dependency `ui`로 추가하고 현재 `.venv`에는 Streamlit 1.59.1을 설치했다.
+- UI Phase A/B/C에서 `streamlit>=1.59,<2`, `plotly>=6,<7`을 optional dependency `ui`로 사용하며 현재 `.venv`에는 Streamlit 1.59.1과 Plotly 6.9.0을 설치했다.
 - `src/lidarsim/config/paths.py`의 repository root 탐색으로 `configs/ui_runs/` nested project를 지원하고 CLI의 schema lookup을 같은 helper로 통일했다.
 - `SimulationParameterEdits`, `AssemblyElementEdits`, `create_simulation_variant`와 transactional validation rollback을 추가했다. Source/scanner/target/receiver parameter와 한 component의 catalog/placement edit를 하나의 variant에 저장한다.
 - UI scenario ID는 schema identifier 문자만 허용해 path traversal 형태의 file name을 쓰기 전에 거부한다.
@@ -192,6 +194,14 @@
 - `python -m pytest tests/test_streamlit_app.py tests/test_ui_app.py tests/test_ui_runner.py tests/test_simulation_variant.py tests/test_placement_editor.py tests/test_cli.py -q`: 37개 통과.
 - `python -m pytest -q`: 132개 통과.
 - `python -W error::DeprecationWarning -W error::UserWarning -m pytest -q`: 132개 통과.
+- Plotly interactive viewport를 실제 local browser에서 검수했다. 기본 화면은 component marker, beam path, target plane/footprint와 선택 mirror만 표시하고 receiver FOV/local frame은 toggle로 켜도록 정리해 초기 clutter를 줄였다.
+- Off-axis target와 `scanner.static_command_angle_rad=2 deg` 조건에서 `MirrorTargetMate` 추천 quaternion과 world scanner axis를 variant에 저장한 뒤 reflected direction residual이 `1e-8 rad` 이하로 정렬되는 end-to-end test를 추가했다.
+- `lidarsim ui configs/project.yaml --headless --port 8768`: 최초 email prompt 없이 server 시작, `/_stcore/health` HTTP 200 `ok` 확인 후 test server를 종료했다.
+- `lidarsim validate configs/project.yaml`: 통과. 예상 warning은 paraxial proxy, virtual receiver, `scan_path` reference fidelity와 analytical regression이다.
+- `lidarsim optical-train configs/project.yaml`: 통과. Target hit 1, q/energy/aperture/target/receiver check가 모두 `pass`다.
+- `python -m pytest -q`: 137개 통과.
+- `python -W error::DeprecationWarning -W error::UserWarning -m pytest -q`: 137개 통과.
+- `git diff --check`: 통과.
 
 ## 세션 갱신 형식
 

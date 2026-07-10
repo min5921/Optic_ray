@@ -834,7 +834,7 @@ lidarsim scanner-path configs/project.yaml --samples 11 --output results/scanner
 - beam path와 target hit ray
 - target footprint overlay
 
-`--write-scene`으로 저장되는 YAML은 Streamlit, Plotly, Three.js 또는 React frontend가 소비할 data contract다. Streamlit UI에서는 component 선택과 numeric placement edit를 지원하지만, `workspace` 명령 자체는 read-only다. Snapping, mate/constraint와 drag/rotate gizmo는 아직 구현하지 않았다. UI 변경값은 반드시 variant config로 저장되어 CLI에서 재현된다.
+`--write-scene`으로 저장되는 YAML은 Streamlit, Plotly, Three.js 또는 React frontend가 소비할 data contract다. Streamlit UI에서는 interactive Plotly 3D viewer, component 선택, guide toggle, numeric placement와 첫 `MirrorTargetMate` preview를 지원하지만, `workspace` CLI 명령 자체는 read-only다. Drag/rotate gizmo, undo/redo와 일반 constraint solver는 아직 구현하지 않았다. UI 변경값은 반드시 variant config로 저장되어 CLI에서 재현된다.
 
 `dashboard`는 현재 Phase 2.3 simulation을 한 HTML에서 검토하기 위한 read-only dashboard 명령이다. 기본 실행은 다음 파일을 함께 만든다.
 
@@ -875,7 +875,7 @@ Port placement element에서 바꿀 수 있는 값:
 - Loader는 project file의 상위 directory에서 repository `schemas/` root를 탐색하므로 `configs/ui_runs/`의 nested variant도 지원한다.
 - UI가 생기더라도 baseline을 조용히 덮어쓰지 않고 이 variant 생성 흐름을 사용해야 한다.
 
-### 20.1 Streamlit parameter·numeric placement UI
+### 20.1 Interactive 3D optical bench UI
 
 UI dependency는 core runtime과 분리되어 있다.
 
@@ -887,7 +887,17 @@ lidarsim ui configs/project.yaml
 lidarsim ui configs/project.yaml --headless --port 8765
 ```
 
-현재 browser form에서 바꿀 수 있는 항목:
+CLI는 Streamlit usage-statistics 수집을 끈 상태로 실행하므로 최초 실행 email 입력 prompt를 띄우지 않는다. 이미 해당 prompt에서 대기 중인 이전 process가 있다면 그 terminal에서 `Ctrl+C`로 종료하고 위 명령을 다시 실행한다.
+
+화면의 왼쪽은 3D optical bench, 오른쪽은 선택한 객체의 inspector다. 3D 영역에서는 다음을 할 수 있다.
+
+- 마우스 orbit, zoom과 pan
+- component marker 선택 또는 sidebar에서 객체 선택
+- optical/port axis, local frame, mirror normal, target plane, receiver FOV guide toggle
+- beam path, reflected ray, target hit와 footprint overlay 확인
+- 선택 객체의 origin, type, component reference hover 확인
+
+오른쪽 inspector에서 바꿀 수 있는 항목:
 
 - wavelength와 source power
 - scanner static command angle, waveform, amplitude, frequency와 samples per line
@@ -896,6 +906,8 @@ lidarsim ui configs/project.yaml --headless --port 8765
 - 선택 component와 같은 type의 catalog reference
 - absolute placement의 position·quaternion
 - port placement의 axial gap·transverse offset·clocking·angular misalignment
+
+`scan_mirror`를 선택하면 `Mirror → Target 정렬` section이 나타난다. 이 preview는 현재 Phase 2 incident center ray와 target rectangle center를 사용해 ideal reflection law를 만족하는 surface normal을 구하고, 현재 mirror pose 대비 residual과 추천 rotation을 표시한다. `추천 pose를 편집값에 적용`은 browser의 quaternion과 `scanner.rotation_axis_world` 편집값만 바꾸며 파일을 쓰지 않는다. 두 값을 함께 바꾸는 이유는 scanner mount pose를 회전할 때 catalog의 local mechanical axis도 world frame에서 같이 회전해야 하기 때문이다. 그 뒤 `Variant 저장 · 검증 · 시뮬레이션`을 눌러야 값이 variant YAML에 저장되고 새 beam path가 계산된다. 현재 첫 구현은 absolute placement mirror만 적용할 수 있다.
 
 `Variant 저장 · 검증 · 시뮬레이션`을 누르면 다음 순서로 실행된다.
 
@@ -916,7 +928,7 @@ lidarsim optical-train configs/ui_runs/my_variant_project.yaml
 lidarsim dashboard configs/ui_runs/my_variant_project.yaml --include-scanner-path
 ```
 
-현재 UI는 numeric editor다. 3D component picking, snapping, constraint/mate, undo/redo와 drag/rotate gizmo는 후속 UI Phase C~E 범위다.
+현재 UI는 interactive viewer와 numeric editor를 결합한 단계다. Plotly point selection은 component marker에 적용되며, 작은 부품을 고르기 어려우면 sidebar `선택 객체`를 사용한다. Drag/rotate gizmo, undo/redo, port/coaxial snap, receiver `LookAtMate`와 persistent constraint list는 후속 UI Phase C~E 범위다.
 
 다음 명령은 이후 Phase에서 구현할 계획이다.
 

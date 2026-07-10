@@ -27,6 +27,7 @@ def test_simulation_variant_combines_parameters_and_placement(
         parameter_edits=SimulationParameterEdits(
             optical_power_w="8 mW",
             scanner_static_command_angle_rad="1 deg",
+            scanner_rotation_axis_world=(0.0, 0.999, 0.0447),
             target_id="target_plane",
             target_center_m=("12 m", "0 m", "0 m"),
             receiver_aperture_diameter_m="30 mm",
@@ -46,6 +47,7 @@ def test_simulation_variant_combines_parameters_and_placement(
     assert scenario["source"]["optical_power_w"] == pytest.approx(0.008)
     assert scenario["source"]["catalog_parameter_policy"] == "explicit_override"
     assert scenario["scanner"]["static_command_angle_rad"] == pytest.approx(math.radians(1.0))
+    assert scenario["scanner"]["rotation_axis_world"] == pytest.approx([0.0, 0.999, 0.0447])
     assert scenario["scene"]["targets"][0]["geometry"]["center_m"] == pytest.approx(
         [12.0, 0.0, 0.0]
     )
