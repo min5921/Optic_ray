@@ -20,6 +20,9 @@ dependencies = [
 dev = [
   "pytest>=8,<9",
 ]
+ui = [
+  "streamlit>=1.43,<2",
+]
 
 [project.scripts]
 lidarsim = "lidarsim.cli:main"

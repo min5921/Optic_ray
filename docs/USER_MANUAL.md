@@ -793,6 +793,9 @@ lidarsim placement-variant configs/project.yaml --element scan_mirror --scenario
 
 # Port-to-port collimator gap variant 생성
 lidarsim placement-variant configs/project.yaml --element collimator --scenario-id collimator_gap_25mm --axial-gap-m "25 mm"
+
+# Browser parameter·numeric placement workspace 실행
+lidarsim ui configs/project.yaml
 ```
 
 `review` 그림의 scan limit, receiver FOV와 return path는 설정값 기반 기하학 가이드다. 실제 Phase 2.2/2.3 footprint와 received power 값은 `lidarsim optical-train` report에서 확인한다.
@@ -831,7 +834,7 @@ lidarsim scanner-path configs/project.yaml --samples 11 --output results/scanner
 - beam path와 target hit ray
 - target footprint overlay
 
-`--write-scene`으로 저장되는 YAML은 나중에 Streamlit, Plotly, Three.js 또는 React frontend가 소비할 data contract다. 아직 component 선택, placement edit, snapping, mate/constraint, drag/rotate gizmo는 구현하지 않았다. Placement를 바꾸는 UI가 생기더라도 변경값은 반드시 variant config로 저장되어 CLI에서 재현되어야 한다.
+`--write-scene`으로 저장되는 YAML은 Streamlit, Plotly, Three.js 또는 React frontend가 소비할 data contract다. Streamlit UI에서는 component 선택과 numeric placement edit를 지원하지만, `workspace` 명령 자체는 read-only다. Snapping, mate/constraint와 drag/rotate gizmo는 아직 구현하지 않았다. UI 변경값은 반드시 variant config로 저장되어 CLI에서 재현된다.
 
 `dashboard`는 현재 Phase 2.3 simulation을 한 HTML에서 검토하기 위한 read-only dashboard 명령이다. 기본 실행은 다음 파일을 함께 만든다.
 
@@ -841,7 +844,7 @@ lidarsim scanner-path configs/project.yaml --samples 11 --output results/scanner
 - `ui_dashboard_workspace.png`
 - `ui_dashboard_optical_train.png`
 
-Dashboard HTML에는 workspace 그림, optical train radius/power 그림, summary, generated file path, component report, power ledger, target footprint, receiver return, warning, assumptions와 raw summary가 포함된다. 외부 server 없이 browser에서 열 수 있도록 PNG는 HTML 안에 base64로 포함한다. 이 기능은 Streamlit dashboard 전 단계의 안정적인 결과 viewer이며, 아직 parameter edit나 placement edit를 수행하지 않는다.
+Dashboard HTML에는 workspace 그림, optical train radius/power 그림, summary, generated file path, component report, power ledger, target footprint, receiver return, warning, assumptions와 raw summary가 포함된다. 외부 server 없이 browser에서 열 수 있도록 PNG는 HTML 안에 base64로 포함한다. 이 파일은 계속 read-only 결과 viewer이며, parameter/placement 편집은 `lidarsim ui`에서 수행한다.
 
 `--include-scanner-path`를 추가하면 같은 dashboard에 ideal forward-line scanner path section을 포함한다. 이때 다음 파일도 함께 저장된다.
 
@@ -869,8 +872,51 @@ Port placement element에서 바꿀 수 있는 값:
 
 - Absolute placement field와 port placement field를 섞으면 error가 발생한다.
 - 생성된 variant project는 `lidarsim validate`, `lidarsim workspace`, `lidarsim dashboard`로 다시 실행할 수 있어야 한다.
-- 현재 loader는 project file 위치를 기준으로 `schemas/`, `catalog/`, `assets/`를 찾으므로 variant project는 `configs/` 같은 directory 아래에 저장해야 한다.
+- Loader는 project file의 상위 directory에서 repository `schemas/` root를 탐색하므로 `configs/ui_runs/`의 nested variant도 지원한다.
 - UI가 생기더라도 baseline을 조용히 덮어쓰지 않고 이 variant 생성 흐름을 사용해야 한다.
+
+### 20.1 Streamlit parameter·numeric placement UI
+
+UI dependency는 core runtime과 분리되어 있다.
+
+```powershell
+python -m pip install -e ".[ui]"
+lidarsim ui configs/project.yaml
+
+# Browser를 자동으로 열지 않고 port 지정
+lidarsim ui configs/project.yaml --headless --port 8765
+```
+
+현재 browser form에서 바꿀 수 있는 항목:
+
+- wavelength와 source power
+- scanner static command angle, waveform, amplitude, frequency와 samples per line
+- target center, normal, width와 height
+- receiver position, direction, aperture, full FOV와 optical efficiency
+- 선택 component와 같은 type의 catalog reference
+- absolute placement의 position·quaternion
+- port placement의 axial gap·transverse offset·clocking·angular misalignment
+
+`Variant 저장 · 검증 · 시뮬레이션`을 누르면 다음 순서로 실행된다.
+
+```text
+browser 입력
+→ configs/ui_runs/<scenario>.yaml
+→ configs/ui_runs/<scenario>_project.yaml
+→ schema/unit/physical/placement validation
+→ Phase 2 optical train과 optional ideal scanner path
+→ results/ui_runs/<scenario>_<hash>/
+```
+
+Validation이 실패하면 잘못된 새 variant file은 rollback한다. 성공한 project는 다음처럼 CLI에서 재현할 수 있다.
+
+```powershell
+lidarsim validate configs/ui_runs/my_variant_project.yaml
+lidarsim optical-train configs/ui_runs/my_variant_project.yaml
+lidarsim dashboard configs/ui_runs/my_variant_project.yaml --include-scanner-path
+```
+
+현재 UI는 numeric editor다. 3D component picking, snapping, constraint/mate, undo/redo와 drag/rotate gizmo는 후속 UI Phase C~E 범위다.
 
 다음 명령은 이후 Phase에서 구현할 계획이다.
 

@@ -10,6 +10,9 @@ from typing import Any
 
 import yaml
 
+from lidarsim.config.paths import schema_directory_for_project
+from lidarsim.errors import ConfigFileError
+
 
 @dataclass(frozen=True, slots=True)
 class PlacementVariantResult:
@@ -118,12 +121,75 @@ def _ensure_writable(path: Path, *, overwrite: bool) -> None:
 
 
 def _validate_variant_project_layout(project_path: Path) -> None:
-    schema_dir = project_path.parent.parent / "schemas"
-    if not schema_dir.is_dir():
+    try:
+        schema_directory_for_project(project_path)
+    except ConfigFileError as exc:
         raise ValueError(
-            "variant project YAML은 부모의 부모에 schemas/가 있는 configs-like directory 아래에 "
-            f"저장해야 합니다. 현재 예상 schema directory: {schema_dir}"
+            "variant project YAML은 schemas/ contract를 찾을 수 있는 project tree 안에 "
+            f"저장해야 합니다: {project_path}"
+        ) from exc
+
+
+def _apply_placement_updates(
+    scenario: dict[str, Any],
+    *,
+    element_id: str,
+    component_ref: str | None = None,
+    translation_m: tuple[float, float, float] | None = None,
+    quaternion_wxyz: tuple[float, float, float, float] | None = None,
+    axial_gap_m: str | float | None = None,
+    transverse_offset_m: tuple[str | float, str | float] | None = None,
+    clocking_rad: str | float | None = None,
+    angular_misalignment_rad: tuple[str | float, str | float] | None = None,
+) -> tuple[str, ...]:
+    """Apply one element's catalog/placement edit to a mutable scenario."""
+
+    element = _find_element(scenario, element_id)
+    placement = element["placement"]
+    mode = str(placement["mode"])
+    changed: list[str] = []
+
+    absolute_updates = translation_m is not None or quaternion_wxyz is not None
+    port_updates = any(
+        item is not None
+        for item in (
+            axial_gap_m,
+            transverse_offset_m,
+            clocking_rad,
+            angular_misalignment_rad,
         )
+    )
+    if absolute_updates and mode != "absolute":
+        raise ValueError(f"{element_id!r}은 port placement입니다. absolute transform field를 수정할 수 없습니다.")
+    if port_updates and mode != "port":
+        raise ValueError(f"{element_id!r}은 absolute placement입니다. port placement field를 수정할 수 없습니다.")
+
+    if component_ref is not None and str(element["component_ref"]) != component_ref:
+        element["component_ref"] = component_ref
+        changed.append(f"optical_assembly.elements[{element_id}].component_ref")
+    if translation_m is not None:
+        placement["translation_m"] = [float(item) for item in translation_m]
+        changed.append(f"optical_assembly.elements[{element_id}].placement.translation_m")
+    if quaternion_wxyz is not None:
+        placement["quaternion_wxyz"] = [float(item) for item in quaternion_wxyz]
+        changed.append(f"optical_assembly.elements[{element_id}].placement.quaternion_wxyz")
+    if axial_gap_m is not None:
+        placement["axial_gap_m"] = _quantity_arg(axial_gap_m)
+        changed.append(f"optical_assembly.elements[{element_id}].placement.axial_gap_m")
+    if transverse_offset_m is not None:
+        placement["transverse_offset_m"] = [_quantity_arg(item) for item in transverse_offset_m]
+        changed.append(f"optical_assembly.elements[{element_id}].placement.transverse_offset_m")
+    if clocking_rad is not None:
+        placement["clocking_rad"] = _quantity_arg(clocking_rad)
+        changed.append(f"optical_assembly.elements[{element_id}].placement.clocking_rad")
+    if angular_misalignment_rad is not None:
+        placement["angular_misalignment_rad"] = [
+            _quantity_arg(item) for item in angular_misalignment_rad
+        ]
+        changed.append(
+            f"optical_assembly.elements[{element_id}].placement.angular_misalignment_rad"
+        )
+    return tuple(changed)
 
 
 def create_placement_variant(
@@ -169,46 +235,17 @@ def create_placement_variant(
         f"{base_description} Placement variant of {base_scenario_id}; "
         f"edited element={element_id}."
     ).strip()
-    element = _find_element(scenario, element_id)
-    placement = element["placement"]
-    mode = str(placement["mode"])
-    changed: list[str] = []
-
-    absolute_updates = translation_m is not None or quaternion_wxyz is not None
-    port_updates = any(
-        item is not None
-        for item in (
-            axial_gap_m,
-            transverse_offset_m,
-            clocking_rad,
-            angular_misalignment_rad,
-        )
+    changed_paths = _apply_placement_updates(
+        scenario,
+        element_id=element_id,
+        translation_m=translation_m,
+        quaternion_wxyz=quaternion_wxyz,
+        axial_gap_m=axial_gap_m,
+        transverse_offset_m=transverse_offset_m,
+        clocking_rad=clocking_rad,
+        angular_misalignment_rad=angular_misalignment_rad,
     )
-    if absolute_updates and mode != "absolute":
-        raise ValueError(f"{element_id!r}은 port placement입니다. absolute transform field를 수정할 수 없습니다.")
-    if port_updates and mode != "port":
-        raise ValueError(f"{element_id!r}은 absolute placement입니다. port placement field를 수정할 수 없습니다.")
-
-    if translation_m is not None:
-        placement["translation_m"] = [float(item) for item in translation_m]
-        changed.append("translation_m")
-    if quaternion_wxyz is not None:
-        placement["quaternion_wxyz"] = [float(item) for item in quaternion_wxyz]
-        changed.append("quaternion_wxyz")
-    if axial_gap_m is not None:
-        placement["axial_gap_m"] = _quantity_arg(axial_gap_m)
-        changed.append("axial_gap_m")
-    if transverse_offset_m is not None:
-        placement["transverse_offset_m"] = [_quantity_arg(item) for item in transverse_offset_m]
-        changed.append("transverse_offset_m")
-    if clocking_rad is not None:
-        placement["clocking_rad"] = _quantity_arg(clocking_rad)
-        changed.append("clocking_rad")
-    if angular_misalignment_rad is not None:
-        placement["angular_misalignment_rad"] = [
-            _quantity_arg(item) for item in angular_misalignment_rad
-        ]
-        changed.append("angular_misalignment_rad")
+    changed = [path.rsplit(".", 1)[-1] for path in changed_paths]
     if not changed:
         raise ValueError("수정할 placement field가 없습니다.")
 

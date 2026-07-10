@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import math
+import os
+import subprocess
 import sys
 from collections.abc import Sequence
 from pathlib import Path
@@ -14,7 +17,7 @@ import yaml
 
 from lidarsim.assets import load_measurement, load_stl_asset
 from lidarsim.beam import build_source_beam, default_propagation_distance_m
-from lidarsim.config import load_project
+from lidarsim.config import load_project, schema_directory_for_project
 from lidarsim.config.units import resolve_quantities
 from lidarsim.config.schema import SchemaStore
 from lidarsim.errors import ConfigError
@@ -368,6 +371,17 @@ def _parser() -> argparse.ArgumentParser:
         action="store_true",
         help="allow overwriting existing variant files",
     )
+    ui = subparsers.add_parser(
+        "ui",
+        help="launch the Streamlit parameter and numeric-placement workspace",
+    )
+    ui.add_argument("project", nargs="?", default="configs/project.yaml")
+    ui.add_argument("--port", type=int, default=8501, help="Streamlit server port")
+    ui.add_argument(
+        "--headless",
+        action="store_true",
+        help="do not open a browser automatically",
+    )
     return parser
 
 
@@ -453,7 +467,7 @@ def _write_yaml_report(path: Path, report: dict) -> Path:
 def _inspect_mesh(args: argparse.Namespace) -> int:
     try:
         project = load_project(args.project)
-        schemas = SchemaStore.load(project.project_path.parent.parent / "schemas")
+        schemas = SchemaStore.load(schema_directory_for_project(project.project_path))
         asset = load_stl_asset(args.metadata, schemas, catalog=project.catalog)
     except ConfigError as exc:
         print(exc, file=sys.stderr)
@@ -483,7 +497,7 @@ def _inspect_mesh(args: argparse.Namespace) -> int:
 def _inspect_measurement(args: argparse.Namespace) -> int:
     try:
         project = load_project(args.project)
-        schemas = SchemaStore.load(project.project_path.parent.parent / "schemas")
+        schemas = SchemaStore.load(schema_directory_for_project(project.project_path))
         measurement = load_measurement(args.metadata, schemas)
     except ConfigError as exc:
         print(exc, file=sys.stderr)
@@ -512,7 +526,7 @@ def _report(args: argparse.Namespace) -> int:
         )
         report = build_phase0_report(project, assembly)
         report_data = report.to_dict()
-        schemas = SchemaStore.load(project.project_path.parent.parent / "schemas")
+        schemas = SchemaStore.load(schema_directory_for_project(project.project_path))
         schemas.validate(
             report_data,
             "phase0_report.schema.json",
@@ -553,7 +567,7 @@ def _review(args: argparse.Namespace) -> int:
             source=str(project.project_path),
         )
         report = build_phase0_report(project, assembly)
-        schemas = SchemaStore.load(project.project_path.parent.parent / "schemas")
+        schemas = SchemaStore.load(schema_directory_for_project(project.project_path))
         schemas.validate(
             report.to_dict(),
             "phase0_report.schema.json",
@@ -601,7 +615,7 @@ def _beam(args: argparse.Namespace) -> int:
             grid_size=args.grid_size,
             extent_radii=args.extent_radii,
         )
-        schemas = SchemaStore.load(project.project_path.parent.parent / "schemas")
+        schemas = SchemaStore.load(schema_directory_for_project(project.project_path))
         schemas.validate(
             report.to_dict(),
             "phase1_beam_report.schema.json",
@@ -695,7 +709,7 @@ def _optical_train(args: argparse.Namespace) -> int:
     try:
         project = load_project(args.project)
         report = build_phase2_optical_train_report(project)
-        schemas = SchemaStore.load(project.project_path.parent.parent / "schemas")
+        schemas = SchemaStore.load(schema_directory_for_project(project.project_path))
         schemas.validate(
             report.to_dict(),
             "phase2_optical_train_report.schema.json",
@@ -780,7 +794,7 @@ def _scanner_sweep(args: argparse.Namespace) -> int:
         angles = _scanner_sweep_angles(args, project)
         result = run_static_scanner_angle_sweep(project, angles)
         result_data = result.to_dict()
-        schemas = SchemaStore.load(project.project_path.parent.parent / "schemas")
+        schemas = SchemaStore.load(schema_directory_for_project(project.project_path))
         schemas.validate(
             result_data,
             "phase3_static_scanner_angle_sweep.schema.json",
@@ -819,7 +833,7 @@ def _scanner_path(args: argparse.Namespace) -> int:
         project = load_project(args.project)
         result = run_ideal_scanner_line_path(project, sample_count=args.samples)
         result_data = result.to_dict()
-        schemas = SchemaStore.load(project.project_path.parent.parent / "schemas")
+        schemas = SchemaStore.load(schema_directory_for_project(project.project_path))
         schemas.validate(
             result_data,
             "phase3_ideal_scanner_line_path.schema.json",
@@ -889,7 +903,7 @@ def _dashboard(args: argparse.Namespace) -> int:
     try:
         project = load_project(args.project)
         report = build_phase2_optical_train_report(project)
-        schemas = SchemaStore.load(project.project_path.parent.parent / "schemas")
+        schemas = SchemaStore.load(schema_directory_for_project(project.project_path))
         schemas.validate(
             report.to_dict(),
             "phase2_optical_train_report.schema.json",
@@ -1028,6 +1042,36 @@ def _placement_variant(args: argparse.Namespace) -> int:
     return 0
 
 
+def _ui(args: argparse.Namespace) -> int:
+    if importlib.util.find_spec("streamlit") is None:
+        print(
+            'Streamlit UI dependency가 없습니다. python -m pip install -e ".[ui]"를 실행하세요.',
+            file=sys.stderr,
+        )
+        return 2
+    project_path = Path(args.project).resolve()
+    app_path = Path(__file__).resolve().parent / "ui" / "app.py"
+    command = [
+        sys.executable,
+        "-m",
+        "streamlit",
+        "run",
+        str(app_path),
+        f"--server.port={int(args.port)}",
+        f"--server.headless={'true' if args.headless else 'false'}",
+        "--",
+        str(project_path),
+    ]
+    environment = dict(os.environ)
+    environment["LIDARSIM_UI_PROJECT"] = str(project_path)
+    try:
+        completed = subprocess.run(command, env=environment, check=False)
+    except OSError as exc:
+        print(f"Streamlit UI를 시작할 수 없습니다: {exc}", file=sys.stderr)
+        return 2
+    return int(completed.returncode)
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     """Run the requested CLI command."""
 
@@ -1060,6 +1104,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         return _scanner_path(args)
     if args.command == "placement-variant":
         return _placement_variant(args)
+    if args.command == "ui":
+        return _ui(args)
     raise AssertionError(f"Unhandled command: {args.command}")
 
 

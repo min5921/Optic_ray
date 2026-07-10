@@ -25,7 +25,7 @@ Phase 2의 vertical slice로 source에서 ideal thin-lens collimator를 지나 s
 ```powershell
 py -m venv .venv
 .\.venv\Scripts\Activate.ps1
-python -m pip install -e ".[dev]"
+python -m pip install -e ".[dev,ui]"
 lidarsim validate configs/project.yaml
 lidarsim placement configs/project.yaml
 lidarsim report configs/project.yaml
@@ -39,6 +39,7 @@ lidarsim workspace configs/project.yaml --output results/ui_workspace.png --writ
 lidarsim dashboard configs/project.yaml --output results/ui_dashboard.html
 lidarsim dashboard configs/project.yaml --output results/ui_dashboard_with_path.html --include-scanner-path --scanner-path-samples 11
 lidarsim placement-variant configs/project.yaml --element scan_mirror --scenario-id mirror_shift --translation-m 0.1 0 0
+lidarsim ui configs/project.yaml
 python -m pytest -q
 ```
 
@@ -54,11 +55,13 @@ python -m pytest -q
 
 `scanner-path`는 config의 `scanner.waveform`, `mechanical_amplitude_rad`, `frequency_hz`, `samples_per_line`을 사용해 한 줄의 ideal forward scan path를 샘플링한다. 각 시간 샘플은 static scanner angle reference run으로 계산되어 target hit와 receiver return을 포함한다. `static`은 0 Hz 정지 pose를, `triangle`과 `sinusoidal`은 forward half-cycle을 지원한다. Bidirectional return stroke, motor dynamics, lag, jitter와 calibration table은 아직 제외된다. 따라서 `scan_path` output은 validator와 review에서 `reference_only` fidelity로 표시된다.
 
-`workspace`는 현재 Phase 2.3 결과를 optical assembly workspace용 `ViewportScene`으로 변환하고, source/collimator/mirror/target/receiver, local frame, port axis, mirror normal, beam path, target hit, footprint와 receiver FOV를 하나의 3D PNG로 저장한다. `--write-scene`을 주면 향후 Streamlit/Three.js UI가 소비할 수 있는 YAML scene도 함께 저장한다. 이 명령은 아직 placement를 편집하지 않는 read-only viewer이며, UI가 숨겨진 source of truth가 되지 않도록 모든 값은 config와 report에서 나온다.
+`workspace`는 현재 Phase 2.3 결과를 optical assembly workspace용 `ViewportScene`으로 변환하고, source/collimator/mirror/target/receiver, local frame, port axis, mirror normal, beam path, target hit, footprint와 receiver FOV를 하나의 3D PNG로 저장한다. `--write-scene`을 주면 Streamlit/Three.js UI가 소비할 수 있는 YAML scene도 함께 저장한다. 이 명령 자체는 read-only viewer이며, 모든 값은 config와 report에서 나온다.
 
-`dashboard`는 Streamlit 같은 추가 dependency 없이 열 수 있는 self-contained HTML dashboard를 만든다. 같은 실행에서 Phase 2 report YAML, `ViewportScene` YAML, workspace PNG와 optical-train PNG를 함께 저장하고, HTML 안에 summary, warning, power ledger, target footprint와 receiver return을 표시한다. `--include-scanner-path`를 주면 ideal forward-line scanner path YAML/CSV/PNG도 함께 생성해 HTML에 embedding한다. 이 역시 read-only viewer이며 component 선택·편집·snapping은 다음 UI 단계의 범위다.
+`dashboard`는 추가 dependency 없이 열 수 있는 self-contained HTML dashboard를 만든다. 같은 실행에서 Phase 2 report YAML, `ViewportScene` YAML, workspace PNG와 optical-train PNG를 함께 저장하고, HTML 안에 summary, warning, power ledger, target footprint와 receiver return을 표시한다. `--include-scanner-path`를 주면 ideal forward-line scanner path YAML/CSV/PNG도 함께 생성한다. 이 명령은 계속 read-only 결과물이다.
 
-`placement-variant`는 baseline scenario를 직접 덮어쓰지 않고, 숫자로 지정한 placement 변경을 별도 scenario/project YAML로 저장한다. Absolute placement element에는 `--translation-m`, `--quaternion-wxyz`를 사용할 수 있고, port placement element에는 `--axial-gap-m`, `--transverse-offset-m`, `--clocking-rad`, `--angular-misalignment-rad`를 사용할 수 있다. 생성된 variant project는 다시 `validate`, `workspace`, `dashboard` 명령으로 실행한다. 현재 variant project는 loader 규칙상 `configs/` 같은 directory 아래에 저장해야 한다.
+`placement-variant`는 baseline scenario를 직접 덮어쓰지 않고, 숫자로 지정한 placement 변경을 별도 scenario/project YAML로 저장한다. Absolute placement element에는 `--translation-m`, `--quaternion-wxyz`를 사용할 수 있고, port placement element에는 `--axial-gap-m`, `--transverse-offset-m`, `--clocking-rad`, `--angular-misalignment-rad`를 사용할 수 있다. 생성된 variant project는 다시 `validate`, `workspace`, `dashboard` 명령으로 실행한다. Loader는 repository schema root를 상위 directory에서 탐색하므로 `configs/ui_runs/` 같은 하위 directory도 지원한다.
+
+`lidarsim ui`는 UI Phase 0.2/B의 Streamlit browser workspace를 실행한다. 파장·출력, scanner 설정, target geometry, receiver 위치/FOV/aperture, 호환 component reference와 absolute/port placement를 form에서 바꿀 수 있다. 실행할 때 baseline을 수정하지 않고 `configs/ui_runs/`에 variant scenario/project YAML을 저장하고, validation을 통과한 경우에만 `results/ui_runs/`에 3D workspace, optical-train, optional scanner-path, report와 standalone dashboard를 생성한다. 현재 UI는 numeric editor이며 3D picking, snapping, mate/constraint와 drag/rotate gizmo는 아직 없다.
 
 Phase 1 결과는 numerical check가 통과해도 실제 측정으로 calibration되지 않았다면 전체 상태를 `warning`, hardware readiness를 `analytical_only`로 표시한다. Fiber MFD의 정의와 catalog nominal override 여부도 configuration에 명시해야 한다.
 

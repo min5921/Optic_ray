@@ -36,7 +36,7 @@
 - CLI distance는 `20 mm` 같은 단위 포함 값을 받고 기본 결과는 timestamp run directory에 저장해 덮어쓰지 않는다.
 - `configs/line_beam_project.example.yaml`은 3.0 mm × 0.25 mm numerical elliptical-Gaussian line preset을 제공하며 Powell lens나 상용 제품 model이 아니다.
 - Resolved project state는 재귀적으로 변경 불가능하며 안정적인 물리 configuration SHA-256을 갖는다. 표시 단위와 UI preference는 이 hash를 바꾸지 않는다.
-- Local `.venv`는 `pyproject.toml`에서 설치했으며, deprecation·user warning을 error로 처리해도 자동 test 119개가 통과한다.
+- Local `.venv`는 `pyproject.toml`에서 `dev,ui` optional dependency까지 설치했으며, deprecation·user warning을 error로 처리해도 자동 test 132개가 통과한다.
 - 사용자 친화적인 로컬 simulation dashboard와 SolidWorks-like Optical Assembly Workspace 개발 방향은 `docs/UI_SIMULATION_DASHBOARD.md`에 분리해 정리했다.
 - UI MVP 0의 첫 vertical slice로 `ViewportScene` data contract, source/collimator/scanner mirror/target/receiver 표시 data, local frame, port axis, mirror normal, reflected ray, target plane, receiver FOV, beam path, target hit ray, footprint overlay와 headless Matplotlib 3D workspace PNG renderer가 구현되었다.
 - `lidarsim workspace configs/project.yaml --output results/ui_workspace.png --write-scene results/ui_workspace_scene.yaml`로 현재 Phase 2.3 static simulation을 optical assembly workspace용 PNG와 YAML scene으로 확인할 수 있다.
@@ -48,7 +48,9 @@
 - `scanner-path`는 ideal command path reference이며 motor/galvo lag, jitter, acceleration limit, bidirectional return stroke와 calibration table은 아직 계산하지 않는다. `scan_path`는 더 이상 “생성되지 않는 output”으로 표시하지 않고, 실행 가능하지만 fidelity가 제한된 `reference_only` output으로 validator와 Phase 0.1 review에서 구분한다.
 - Read-only dashboard에 `--include-scanner-path` 옵션이 추가되었다. 옵션을 켜면 ideal scanner path YAML/CSV/PNG를 함께 생성하고, HTML에 scanner path plot, sample table, fidelity warning을 embedding한다.
 - Phase 3 scanner reference reports에 JSON Schema contract가 추가되었다. `scanner-sweep`, `scanner-path`, `dashboard --include-scanner-path`는 생성한 scanner report를 YAML로 쓰기 전에 schema validation을 통과해야 한다.
-- 다음 활성 목표는 read-only dashboard를 browser form 기반 parameter/numeric-placement runner로 확장하는 것이다. 모든 변경은 variant config로 저장하고 CLI에서 재현해야 한다. Scanner 쪽 다음 물리 목표는 ideal command path와 분리된 calibrated dynamics contract다.
+- UI Phase 0.2/B의 첫 Streamlit vertical slice로 `lidarsim ui`가 구현되었다. Browser form에서 source/scanner/target/receiver parameter, compatible component reference와 absolute/port numeric placement를 수정하고, `configs/ui_runs/` variant를 검증한 뒤 `results/ui_runs/` report·3D workspace·optical-train·optional scanner-path·standalone dashboard를 생성한다.
+- Nested UI project가 repository schema/catalog/assets를 찾도록 project-root 탐색을 공통화했다. 새 variant validation이 실패하면 생성 file을 rollback하며 baseline은 수정하지 않는다.
+- 다음 활성 목표는 UI Phase C의 첫 guideline/snapping vertical slice다. 추천은 mirror를 target center로 향하게 하는 pose preview와 receiver look-at preview이며, 적용 시 explicit variant transform으로 저장해야 한다.
 
 ## 유지할 결정 사항
 
@@ -65,7 +67,7 @@
 
 ## 가장 좋은 다음 작업
 
-추천 1순위는 UI Phase 0.2/B의 browser form 기반 parameter·numeric placement runner다. Project/scenario를 읽고 자주 쓰는 물리값과 component transform을 수정해 variant config로 저장한 뒤 validate→simulation→dashboard를 실행하도록 한다. UI 내부 상태를 source of truth로 만들지 않는다. 물리 확장 1순위는 실제 scanner 사양이 정해진 뒤 command/actual state, calibration table, lag와 jitter를 분리하는 Phase 3 dynamics contract다.
+추천 1순위는 UI Phase C의 `MirrorTargetMate` preview다. 현재 mirror origin·incident direction과 선택 target center에서 필요한 mirror normal을 계산하고, 현재 pose 대비 angle residual을 표시한 뒤 사용자가 적용할 때만 variant transform으로 저장한다. 이어서 receiver `LookAtMate` preview와 target distance/receiver aperture comparison을 추가한다. 물리 확장 1순위는 실제 scanner 사양이 정해진 뒤 command/actual state, calibration table, lag와 jitter를 분리하는 Phase 3 dynamics contract다.
 
 ## 검증 기록
 
@@ -180,6 +182,16 @@
 - `lidarsim optical-train configs/project.yaml --output results/audit/optical_train.yaml --plot results/audit/optical_train.png --dpi 100`: 통과. Target hit 1, `P_target=0.00999997341 W`, `P_rx=2.49999335e-09 W`, link loss `66.02059991327963 dB`, q/energy/aperture/target/receiver check `pass`.
 - `lidarsim scanner-path configs/project.yaml --samples 11 --output results/audit/scanner_path.yaml --csv results/audit/scanner_path.csv --plot results/audit/scanner_path.png --dpi 100`: 통과. Triangle forward line 0.05 s, 11/11 target hit와 positive return을 확인했다.
 - `lidarsim dashboard configs/project.yaml --output results/audit/dashboard.html --include-scanner-path --scanner-path-samples 11 --dpi 100`: 통과. Phase 2 report, viewport scene, workspace/optical-train/scanner-path plot과 YAML/CSV를 생성했다.
+- UI Phase 0.2/B에서 `streamlit>=1.43,<2`를 optional dependency `ui`로 추가하고 현재 `.venv`에는 Streamlit 1.59.1을 설치했다.
+- `src/lidarsim/config/paths.py`의 repository root 탐색으로 `configs/ui_runs/` nested project를 지원하고 CLI의 schema lookup을 같은 helper로 통일했다.
+- `SimulationParameterEdits`, `AssemblyElementEdits`, `create_simulation_variant`와 transactional validation rollback을 추가했다. Source/scanner/target/receiver parameter와 한 component의 catalog/placement edit를 하나의 variant에 저장한다.
+- UI scenario ID는 schema identifier 문자만 허용해 path traversal 형태의 file name을 쓰기 전에 거부한다.
+- `run_ui_simulation`이 schema-validated Phase 2 report, `ViewportScene`, workspace/optical-train PNG, optional scanner path YAML/CSV/PNG와 standalone dashboard를 result bundle로 생성한다.
+- `lidarsim ui configs/project.yaml`은 Streamlit process를 실행하며 `--headless`, `--port`를 지원한다. 실제 server를 port 8765에서 시작하고 `/_stcore/health` HTTP 200 `ok`를 확인했다.
+- Streamlit `AppTest`에서 baseline load, browser form 변경, variant 저장·validation·simulation까지 exception 없이 통과했다.
+- `python -m pytest tests/test_streamlit_app.py tests/test_ui_app.py tests/test_ui_runner.py tests/test_simulation_variant.py tests/test_placement_editor.py tests/test_cli.py -q`: 37개 통과.
+- `python -m pytest -q`: 132개 통과.
+- `python -W error::DeprecationWarning -W error::UserWarning -m pytest -q`: 132개 통과.
 
 ## 세션 갱신 형식
 

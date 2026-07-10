@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 import yaml
@@ -614,3 +615,45 @@ def test_placement_variant_command_writes_valid_variant_project(
     )
     assert "Placement variant project:" in output.out
     assert "Variant config valid:" in output.out
+
+
+def test_ui_command_reports_optional_dependency_when_missing(
+    project_root: Path,
+    monkeypatch,
+    capsys,
+) -> None:
+    monkeypatch.setattr("lidarsim.cli.importlib.util.find_spec", lambda name: None)
+
+    result = main(["ui", str(project_root / "configs" / "project.yaml"), "--headless"])
+    output = capsys.readouterr()
+
+    assert result == 2
+    assert "[ui]" in output.err
+
+
+def test_ui_command_launches_streamlit_with_project_argument(
+    project_root: Path,
+    monkeypatch,
+) -> None:
+    captured: dict = {}
+
+    monkeypatch.setattr("lidarsim.cli.importlib.util.find_spec", lambda name: object())
+
+    def fake_run(command, *, env, check):
+        captured["command"] = command
+        captured["env"] = env
+        captured["check"] = check
+        return SimpleNamespace(returncode=0)
+
+    monkeypatch.setattr("lidarsim.cli.subprocess.run", fake_run)
+    project_path = project_root / "configs" / "project.yaml"
+
+    result = main(["ui", str(project_path), "--port", "8765", "--headless"])
+
+    assert result == 0
+    assert captured["command"][1:4] == ["-m", "streamlit", "run"]
+    assert "--server.port=8765" in captured["command"]
+    assert "--server.headless=true" in captured["command"]
+    assert captured["command"][-1] == str(project_path.resolve())
+    assert captured["env"]["LIDARSIM_UI_PROJECT"] == str(project_path.resolve())
+    assert captured["check"] is False

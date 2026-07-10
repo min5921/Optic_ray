@@ -7,7 +7,12 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     from .loader import ResolvedProject
 
-__all__ = ["ResolvedProject", "load_project"]
+__all__ = [
+    "ResolvedProject",
+    "find_project_root",
+    "load_project",
+    "schema_directory_for_project",
+]
 
 
 def __getattr__(name: str) -> Any:
@@ -15,10 +20,13 @@ def __getattr__(name: str) -> Any:
 
     if name in __all__:
         from .loader import ResolvedProject, load_project
+        from .paths import find_project_root, schema_directory_for_project
 
         exports = {
             "ResolvedProject": ResolvedProject,
+            "find_project_root": find_project_root,
             "load_project": load_project,
+            "schema_directory_for_project": schema_directory_for_project,
         }
         return exports[name]
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

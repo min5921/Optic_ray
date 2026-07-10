@@ -91,6 +91,28 @@ def test_placement_variant_project_points_to_only_variant_scenario(
     assert project_yaml["scenarios"] == ["mirror_z_offset.yaml"]
 
 
+def test_placement_variant_supports_nested_ui_runs_directory(
+    copied_project: Path,
+) -> None:
+    output_dir = copied_project.parent / "ui_runs"
+    result = create_placement_variant(
+        project_path=copied_project,
+        element_id="scan_mirror",
+        scenario_id="nested_mirror_shift",
+        scenario_output=output_dir / "nested_mirror_shift.yaml",
+        project_output=output_dir / "nested_mirror_shift_project.yaml",
+        translation_m=(0.05, 0.0, 0.0),
+    )
+
+    project = load_project(result.project_path)
+    assembly = resolve_assembly(project.active_scenario, project.catalog)
+
+    assert project.project_path.parent == output_dir
+    assert assembly["scan_mirror"].T_world_from_component.translation_m.tolist() == pytest.approx(
+        [0.05, 0.0, 0.0]
+    )
+
+
 def test_placement_variant_rejects_project_outside_configs_layout(
     project_root: Path,
     tmp_path: Path,

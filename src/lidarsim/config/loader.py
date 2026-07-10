@@ -14,6 +14,7 @@ import yaml
 from lidarsim.assets.loader import AssetRegistry, load_asset_registry
 from lidarsim.catalog.loader import Catalog, load_catalog
 from lidarsim.config.immutable import canonical_hash, deep_freeze, deep_thaw
+from lidarsim.config.paths import schema_directory_for_project
 from lidarsim.config.physical import validate_scenario_physics
 from lidarsim.config.schema import SchemaStore
 from lidarsim.config.units import resolve_quantities
@@ -446,7 +447,7 @@ def load_project(project_path: str | Path = "configs/project.yaml") -> ResolvedP
 
     path = Path(project_path).resolve()
     raw_project = _load_yaml_mapping(path)
-    schemas = SchemaStore.load(path.parent.parent / "schemas")
+    schemas = SchemaStore.load(schema_directory_for_project(path))
     schemas.validate(raw_project, "project.schema.json", source=str(path))
 
     project_dir = path.parent
