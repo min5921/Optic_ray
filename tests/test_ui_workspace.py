@@ -36,7 +36,7 @@ def test_viewport_scene_round_trips_as_yaml(project_root: Path) -> None:
 
     assert payload["project_id"] == "optic_ray_default"
     assert payload["scenario_id"] == "baseline_1550nm"
-    assert payload["model_scope"] == "source_to_static_mirror_rectangle_target_lambertian_receiver"
+    assert payload["model_scope"] == "source_to_static_mirror_rectangle_target_lambertian_virtual_aperture"
     assert payload["placement_edits"] == []
     assert payload["constraints"] == []
 

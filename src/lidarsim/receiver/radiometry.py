@@ -28,7 +28,7 @@ def _safe_loss_db(reference_power_w: float, received_power_w: float) -> float | 
 
 @dataclass(frozen=True, slots=True)
 class ReceiverReturn:
-    """Small-footprint Lambertian receiver return report."""
+    """Small-footprint Lambertian virtual-aperture return report."""
 
     target_id: str
     material_ref: str
@@ -76,7 +76,7 @@ def estimate_lambertian_receiver_return(
     material: Any,
     receiver: Any,
 ) -> ReceiverReturn:
-    """One rectangle-plane Lambertian target의 receiver aperture power를 추정한다."""
+    """One rectangle-plane Lambertian target의 virtual-aperture power를 추정한다."""
 
     architecture = str(receiver["architecture"])
     aperture_diameter = float(receiver["aperture_diameter_m"])
@@ -85,7 +85,8 @@ def estimate_lambertian_receiver_return(
     aperture_area = math.pi * (0.5 * aperture_diameter) ** 2
     assumptions = [
         "Small-footprint Lambertian analytical approximation입니다.",
-        "Receiver는 virtual aperture이며 receive lens, detector, beamsplitter와 reverse scanner path를 생략합니다.",
+        "Receiver는 virtual aperture이며 동일 scanner/collimator의 reverse path, single-mode fiber coupling, detector와 duplexer를 생략합니다.",
+        "estimated_received_power_w는 virtual aperture plane의 분석용 추정값이며 fiber-coupled power가 아닙니다.",
         "Occlusion, atmospheric loss, speckle, coherent field, shot noise와 detector saturation은 계산하지 않습니다.",
         "Receiver aperture projected solid angle은 A_rx*cos(theta_rx)/R^2로 근사합니다.",
     ]

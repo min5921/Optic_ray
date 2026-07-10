@@ -204,6 +204,12 @@ def test_phase2_report_is_schema_valid(project_root: Path) -> None:
     )
     assert report.summary["estimated_received_power_w"] > 0.0
     assert report.summary["link_loss_db"] is not None
+    assert report.accuracy["scope"].endswith("lambertian_virtual_aperture")
+    assert any("fiber 결합" in warning for warning in report.accuracy["warnings"])
+    assert any(
+        "virtual aperture plane" in assumption
+        for assumption in report.receiver_return["assumptions"]
+    )
     assert report.analytical_checks["external_validation_status"] == "not_evaluated"
 
 

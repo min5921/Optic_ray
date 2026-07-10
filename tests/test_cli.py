@@ -453,6 +453,8 @@ def test_dashboard_command_writes_self_contained_workspace_html(
     assert "Power ledger" in document
     assert "Target footprint" in document
     assert "Receiver return" in document
+    assert "Virtual aperture estimate" in document
+    assert "single-mode fiber" in document
     assert html_path.with_name("dashboard_phase2_report.yaml").is_file()
     assert html_path.with_name("dashboard_viewport_scene.yaml").is_file()
     assert html_path.with_name("dashboard_workspace.png").read_bytes().startswith(
@@ -462,7 +464,7 @@ def test_dashboard_command_writes_self_contained_workspace_html(
         b"\x89PNG\r\n\x1a\n"
     )
     assert "Workspace dashboard:" in output.out
-    assert "P_rx=" in output.out
+    assert "P_virtual_ap=" in output.out
 
 
 def test_dashboard_command_can_embed_scanner_path(

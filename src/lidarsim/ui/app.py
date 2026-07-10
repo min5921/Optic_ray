@@ -127,8 +127,12 @@ def _render_metrics(st: Any, run: UiSimulationRun) -> None:
         f"{float(summary['estimated_power_on_target_w']) * 1e3:.6g} mW",
     )
     columns[1].metric(
-        "Receiver power",
+        "Virtual aperture estimate",
         f"{float(summary['estimated_received_power_w']) * 1e9:.6g} nW",
+        help=(
+            "현재 값은 분석용 virtual aperture 추정값입니다. 동일 scanner/collimator의 "
+            "역방향 광로와 single-mode fiber 결합은 아직 포함하지 않습니다."
+        ),
     )
     link_loss = summary.get("link_loss_db")
     columns[2].metric(

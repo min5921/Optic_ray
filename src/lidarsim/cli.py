@@ -755,7 +755,7 @@ def _optical_train(args: argparse.Namespace) -> int:
     print(
         f"Target/receiver: hits={summary['target_hit_count']}, "
         f"P_target={summary['estimated_power_on_target_w']:.9g} W, "
-        f"P_rx={summary['estimated_received_power_w']:.9g} W, "
+        f"P_virtual_ap={summary['estimated_received_power_w']:.9g} W, "
         f"link_loss_db={summary['link_loss_db']}"
     )
     print(
@@ -817,7 +817,7 @@ def _scanner_sweep(args: argparse.Namespace) -> int:
     print(
         f"Samples: {summary['sample_count']}, hits={summary['target_hit_count']}, "
         f"positive_returns={summary['positive_return_count']}, "
-        f"max_P_rx={summary['max_estimated_received_power_w']:.9g} W"
+        f"max_P_virtual_ap={summary['max_estimated_received_power_w']:.9g} W"
     )
     print(
         "Scope: static command-angle comparison only; scanner waveform/time dynamics "
@@ -987,7 +987,7 @@ def _dashboard(args: argparse.Namespace) -> int:
         print(f"Scanner path plot: {scanner_path_plot_path}")
     print(
         f"Summary: status={report.summary['overall_status']}, "
-        f"P_rx={report.summary['estimated_received_power_w']:.9g} W, "
+        f"P_virtual_ap={report.summary['estimated_received_power_w']:.9g} W, "
         f"link_loss_db={report.summary['link_loss_db']}"
     )
     for warning in report.accuracy["warnings"]:

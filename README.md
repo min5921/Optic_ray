@@ -1,6 +1,6 @@
 # 사용자 정의 빔·스캐너·광수신 시뮬레이터
 
-이 프로젝트는 catalog 기반 또는 사용자 정의 광학 부품을 3D 공간에 배치하고, 포인트·라인·면적 빔이 collimator 광학계와 사용자 정의 scanner를 통과해 재질이 지정된 target을 비춘 뒤 수신기로 돌아오는 광 파워 또는 coherent FMCW 신호를 계산한다.
+이 프로젝트는 catalog 기반 또는 사용자 정의 광학 부품을 3D 공간에 배치하고, 포인트·라인·면적 빔이 collimator 광학계와 사용자 정의 scanner를 통과해 재질이 지정된 target을 비춘 뒤, 반환광이 동일 scanner와 collimator를 역으로 통과해 single-mode fiber에 결합되는 광 파워 또는 coherent FMCW 신호를 계산하는 것을 목표로 한다.
 
 ## 프로젝트 방향
 
@@ -9,6 +9,8 @@
 물리 조건과 부품 선택은 configuration으로 관리한다. [`configs/project.yaml`](configs/project.yaml)을 열고 [`configs/baseline_1550nm.yaml`](configs/baseline_1550nm.yaml)을 기준으로 시작한 뒤, `1550 nm` 같은 단위 포함 값이나 component reference를 직접 변경한다. 여러 조건을 비교할 때는 [`configs/experiments/component_swap.example.yaml`](configs/experiments/component_swap.example.yaml) 같은 experiment를 사용한다.
 
 합의된 임시 초기값은 [`docs/specs/INITIAL_BASELINE.md`](docs/specs/INITIAL_BASELINE.md)에 있다. FreeCAD/STL asset 준비 방법은 [`docs/specs/COORDINATES_AND_PLACEMENT.md`](docs/specs/COORDINATES_AND_PLACEMENT.md)와 [`assets/README.md`](assets/README.md)를 따른다.
+
+실제 수신 구조와 다음 물리 구현 순서는 [`docs/specs/RECIPROCAL_FIBER_RETURN.md`](docs/specs/RECIPROCAL_FIBER_RETURN.md)에 정의한다. 기준은 `target → same scanner mirror → same collimator → same single-mode fiber → circulator/coupler → detector`이며, 현재 virtual aperture 계산은 이 경로가 구현되기 전의 분석·회귀 검증용 중간값이다.
 
 파장, 광원, 광학 부품, 배치, scanner, STL geometry, 재질, 수신기 설정, output과 비교 experiment를 변경하는 자세한 방법은 [`docs/USER_MANUAL.md`](docs/USER_MANUAL.md)를 참고한다.
 
@@ -20,7 +22,7 @@
 
 Phase 0.1의 검증 기반 위에 NumPy/float64 Gaussian Beam Engine을 구현했다. 현재 point·elliptical·line Gaussian의 자유공간 전파, M², q-parameter, second moment, power-normalized irradiance와 PNG 시각화를 지원한다.
 
-Phase 2의 vertical slice로 source에서 ideal thin-lens collimator를 지나 scanner mirror에서 정지 반사되고, rectangle-plane target footprint와 첫 Lambertian receiver return까지 계산한다. `lidarsim optical-train`은 free-space propagation, thin-lens ABCD transform, centered circular aperture clipping, static flat-mirror reflection, static scanner command angle, mirror aperture clipping, catalog transmission/reflectivity, target footprint, receiver aperture power와 link budget을 YAML/PNG로 저장한다. Phase 3 reference helper는 static angle sweep과 ideal forward-line scanner path를 지원한다. Calibrated scanner dynamics, STL hit detection, BRDF, detector noise와 coherent FMCW는 아직 후속 Phase 범위다.
+Phase 2의 vertical slice로 source에서 ideal thin-lens collimator를 지나 scanner mirror에서 정지 반사되고, rectangle-plane target footprint와 첫 Lambertian virtual-aperture return까지 계산한다. `lidarsim optical-train`은 free-space propagation, thin-lens ABCD transform, centered circular aperture clipping, static flat-mirror reflection, static scanner command angle, mirror aperture clipping, catalog transmission/reflectivity, target footprint, 분석용 virtual-aperture power와 link budget을 YAML/PNG로 저장한다. 이 값은 reverse scanner/collimator traversal 또는 fiber-coupled power가 아니다. Phase 3 reference helper는 static angle sweep과 ideal forward-line scanner path를 지원한다. Reciprocal return train, single-mode fiber coupling, calibrated scanner dynamics, STL hit detection, BRDF, detector noise와 coherent FMCW는 후속 Phase 범위다.
 
 ```powershell
 py -m venv .venv
@@ -49,9 +51,9 @@ python -m pytest -q
 
 `beam`은 active source에서 첫 downstream element까지 기본 자유공간 전파를 계산한다. 결과는 덮어쓰지 않도록 `results/phase1/<timestamp>_<scenario>_<hash>/` 아래에 full report, compact summary와 PNG로 저장된다. `--z-max-m "100 mm"`처럼 단위를 포함해 범위를 바꿀 수 있다. Line-beam 예제는 `lidarsim beam configs/line_beam_project.example.yaml`로 실행한다. Phase 1은 downstream lens·aperture·mirror를 아직 적용하지 않는다.
 
-`optical-train`은 Phase 2 조각으로 collimator 전후와 scanner mirror 반사 후의 `BeamState`, aperture clipping loss, component transmission, mirror reflectivity, rectangle-plane target footprint와 Lambertian receiver return을 계산한다. 결과는 `results/phase2/<timestamp>_<scenario>_<hash>/` 아래에 `optical_train_report.yaml`과 `optical_train.png`로 저장된다. `scanner.static_command_angle_rad`는 static pose로 적용되어 mirror normal, reflected ray, target hit와 receiver return을 바꾼다. 이 명령 자체는 시간 waveform을 sampling하지 않으며, ideal time sample은 `scanner-path` 명령에서 생성한다. 같은 명령은 짧게 `lidarsim train configs/project.yaml`로도 실행할 수 있다.
+`optical-train`은 Phase 2 조각으로 collimator 전후와 scanner mirror 반사 후의 `BeamState`, aperture clipping loss, component transmission, mirror reflectivity, rectangle-plane target footprint와 Lambertian virtual-aperture return을 계산한다. 결과는 `results/phase2/<timestamp>_<scenario>_<hash>/` 아래에 `optical_train_report.yaml`과 `optical_train.png`로 저장된다. 기존 schema field `estimated_received_power_w`와 CLI의 `P_virtual_ap`는 분석용 virtual aperture plane의 값이며 fiber 결합 파워가 아니다. `scanner.static_command_angle_rad`는 static pose로 적용되어 mirror normal, reflected ray, target hit와 virtual-aperture estimate를 바꾼다. 이 명령 자체는 시간 waveform을 sampling하지 않으며, ideal time sample은 `scanner-path` 명령에서 생성한다. 같은 명령은 짧게 `lidarsim train configs/project.yaml`로도 실행할 수 있다.
 
-`scanner-sweep`은 Phase 3의 정적 scanner 비교 helper다. 여러 `static_command_angle_rad` 값을 독립적인 Phase 2 reference run으로 계산해 angle별 reflected ray, target hit 좌표, target power, received aperture power와 link loss를 YAML/CSV/PNG로 저장한다. 명령 입력은 degree가 편하지만 내부 계산과 report는 radian/SI 기준을 유지한다. 이 기능은 scanner waveform이나 time-sampled scan path가 아니며, motor lag·jitter·calibration table은 아직 적용하지 않는다.
+`scanner-sweep`은 Phase 3의 정적 scanner 비교 helper다. 여러 `static_command_angle_rad` 값을 독립적인 Phase 2 reference run으로 계산해 angle별 reflected ray, target hit 좌표, target power, virtual-aperture estimate와 link loss를 YAML/CSV/PNG로 저장한다. 명령 입력은 degree가 편하지만 내부 계산과 report는 radian/SI 기준을 유지한다. 이 기능은 scanner waveform이나 time-sampled scan path가 아니며, motor lag·jitter·calibration table은 아직 적용하지 않는다.
 
 `scanner-path`는 config의 `scanner.waveform`, `mechanical_amplitude_rad`, `frequency_hz`, `samples_per_line`을 사용해 한 줄의 ideal forward scan path를 샘플링한다. 각 시간 샘플은 static scanner angle reference run으로 계산되어 target hit와 receiver return을 포함한다. `static`은 0 Hz 정지 pose를, `triangle`과 `sinusoidal`은 forward half-cycle을 지원한다. Bidirectional return stroke, motor dynamics, lag, jitter와 calibration table은 아직 제외된다. 따라서 `scan_path` output은 validator와 review에서 `reference_only` fidelity로 표시된다.
 

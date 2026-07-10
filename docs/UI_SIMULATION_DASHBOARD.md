@@ -327,9 +327,11 @@ source
 → ideal thin-lens collimator
 → static flat scanner mirror reflection
 → rectangle-plane target footprint
-→ Lambertian virtual receiver return
-→ link budget
+→ Lambertian virtual-aperture estimate
+→ virtual-aperture plane까지의 link budget
 ```
+
+이 forward path 뒤의 `target → same scanner mirror → same collimator → single-mode fiber` return train은 아직 계산되지 않는다. 현재 receiver component, FOV cone과 return guide를 실제 fiber-coupled power로 해석하면 안 된다.
 
 현재 UI에서 표시 가능한 값:
 
@@ -431,8 +433,10 @@ source
 - receiver FOV cone
 - beam path
 - reflected ray
+- planned return ray: target→same mirror→same collimator→fiber
 - target hit marker
 - footprint overlay
+- fiber receive port와 mode-coupling residual
 
 권장 구현:
 
@@ -450,8 +454,9 @@ source
 
 완료 조건:
 
-- 사용자가 source→collimator→mirror→target→receiver 관계를 한 화면에서 이해할 수 있다.
+- 사용자가 fiber/source→collimator→mirror→target과 target→same mirror→same collimator→fiber 왕복 관계를 한 화면에서 이해할 수 있다.
 - beam path와 reflected ray가 report 값과 일치한다.
+- reverse path가 구현되기 전에는 planned guide와 계산된 ray를 명확히 구분한다.
 - target hit marker와 footprint overlay가 Phase 2.3 report 값과 일치한다.
 
 ### UI Phase B — Numeric Placement Editor
@@ -730,8 +735,10 @@ MVP 범위:
 6. 선택한 component의 numeric transform을 편집할 수 있다.
 7. placement validation을 실행한다.
 8. optical train simulation을 실행한다.
-9. reflected ray, target hit, footprint, receiver FOV를 overlay한다.
+9. reflected ray, target hit, footprint와 현재 virtual receiver FOV를 overlay한다.
 10. 변경된 layout을 variant config로 저장한다.
+
+실제 수신 구조를 위한 다음 MVP 확장은 target에서 동일 mirror와 collimator를 거쳐 fiber로 돌아가는 reverse ray, aperture residual, fiber receive mode와 coupling efficiency를 overlay하는 것이다. 기존 receiver FOV cone과 virtual-aperture power는 회귀 검증용 표시로만 유지한다.
 
 이 MVP는 다음을 아직 포함하지 않아도 된다.
 
@@ -963,6 +970,8 @@ Beam path와 reflected ray 표시 단위.
 - radius_start_m
 - radius_end_m
 - status
+- propagation_role: `transmit`, `return` 또는 `planned_return`
+- plane_power_name
 
 ### FootprintOverlay
 
@@ -1169,12 +1178,16 @@ UI MVP 0 — 3D bench viewer + read-only simulation dashboard
 
 ## 14. 추천 다음 작업
 
-1. UI Phase C의 다음 vertical slice
-   - receiver를 target hit point로 정렬하는 `LookAtMate` preview
+1. 물리 Phase 2.4-R1의 reciprocal center-ray vertical slice
+   - target hit→same scanner mirror→same collimator receive port→fiber return path
+   - mirror/collimator aperture residual과 round-trip closure residual
+   - 계산된 return `RaySegment`를 3D viewport에 overlay
+2. UI Phase C의 reciprocal alignment helper
+   - receiver `LookAtMate` 대신 shared collimator/fiber port와 return ray의 coaxial residual 표시
    - distance/angle ruler와 port/coaxial guide
-   - preview 적용 전후 residual과 receiver FOV 상태 비교
-2. UI Phase 0.3 comparison
-   - target distance와 receiver aperture sweep
-   - baseline 대비 received power/link loss 비교
+   - preview 적용 전후 return-path residual 비교
+3. UI Phase 0.3 comparison
+   - target distance, mirror/collimator aperture와 fiber alignment sweep
+   - baseline 대비 virtual-aperture intermediate, fiber coupling과 link loss 비교
 
-현재 interactive viewer, numeric editor와 첫 mirror 자동 정렬 preview가 연결되었다. 다음 단계는 receiver 정렬과 guide/ruler를 같은 preview→apply→variant 규칙으로 추가한다.
+현재 interactive viewer, numeric editor와 첫 mirror 자동 정렬 preview가 연결되었다. 독립 virtual receiver를 target으로 돌리는 기능은 사용자의 실제 shared optical train을 표현하지 못하므로 우선순위를 내린다. 다음 단계는 [`specs/RECIPROCAL_FIBER_RETURN.md`](specs/RECIPROCAL_FIBER_RETURN.md)의 왕복 geometry를 engine/report에 만든 뒤 같은 결과를 viewport와 guide에 연결하는 것이다.

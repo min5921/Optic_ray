@@ -250,7 +250,7 @@ bidirectional return stroke와 calibration table은 아직 포함하지 않습�
 <img class="hero" src="{scanner_path_uri}" alt="Scanner path plot">
 <h3>Scanner path samples</h3>
 <table>
-<tr><th>Time</th><th>Line pos.</th><th>Command</th><th>Status</th><th>Target u</th><th>Target v</th><th>P_rx</th></tr>
+<tr><th>Time</th><th>Line pos.</th><th>Command</th><th>Status</th><th>Target u</th><th>Target v</th><th>Virtual aperture</th></tr>
 {_scanner_path_rows(scanner_path_data)}
 </table>
 <details><summary>Scanner path summary</summary><pre>{_escape(scanner_summary_yaml)}</pre></details>
@@ -295,12 +295,13 @@ details {{ margin-top: 10px; }}
   {_card("Total transmission", _fmt(summary["total_transmission"]))}
   {_card("Target hits", _fmt(summary["target_hit_count"]))}
   {_card("Power on target", _fmt(summary["estimated_power_on_target_w"], unit="W"))}
-  {_card("Received power", _fmt(summary["estimated_received_power_w"], unit="W"))}
+  {_card("Virtual aperture estimate", _fmt(summary["estimated_received_power_w"], unit="W"))}
   {_card("Link loss", _fmt(summary["link_loss_db"], unit="dB"))}
 </div>
 <div class="callout">
 현재 dashboard는 read-only 결과 viewer입니다. Placement edit, snapping, constraint, scanner time dynamics는 아직 구현하지 않았으며,
-모든 값은 YAML config와 Phase 2.3 report에서 생성됩니다.
+모든 값은 YAML config와 Phase 2.3 report에서 생성됩니다. 표시된 virtual aperture estimate에는 target에서 동일 scanner mirror와
+collimator를 거쳐 single-mode fiber로 결합되는 실제 수신 광로가 포함되지 않습니다.
 </div>
 <section><h2>생성 파일</h2><table>
 <tr><th>파일</th><th>경로</th></tr>
@@ -326,8 +327,8 @@ details {{ margin-top: 10px; }}
 <tr><th>Target</th><th>Status</th><th>Distance</th><th>Major radius</th><th>Minor radius</th><th>Power on target</th><th>Clipped</th></tr>
 {_target_rows(report_data)}
 </table></section>
-<section><h2>Receiver return</h2><table>
-<tr><th>Target</th><th>Status</th><th>FOV</th><th>Reflectivity</th><th>Distance</th><th>Received power</th><th>Link loss</th></tr>
+<section><h2>Receiver return — analytical virtual aperture</h2><table>
+<tr><th>Target</th><th>Status</th><th>FOV</th><th>Reflectivity</th><th>Distance</th><th>Virtual aperture estimate</th><th>Link loss</th></tr>
 {_receiver_rows(report_data)}
 </table></section>
 <section><h2>경고</h2><ul>{_warning_items(report_data, scene)}</ul></section>

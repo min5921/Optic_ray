@@ -69,7 +69,7 @@ def render_optical_train_view(
     title = (
         f"Phase 2 optical train | {summary['overall_status'].upper()} | "
         f"readiness={accuracy['hardware_readiness']} | final={summary['final_plane']} | "
-        f"P_rx={receiver_power:.3e} W"
+        f"P_virtual_ap={receiver_power:.3e} W"
     )
     fig.suptitle(title)
     fig.tight_layout()

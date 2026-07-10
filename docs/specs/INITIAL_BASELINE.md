@@ -152,7 +152,7 @@ Plane은 10 m 거리의 nominal ±10 deg optical scan을 포함할 만큼 충분
 | Detector model | 후속 단계 |
 | Primary result | Receiver aperture의 optical power |
 
-Virtual co-location을 사용해 첫 radiometric validation에서는 beamsplitter와 reverse scanner path를 model하지 않는다. 실제 장비 사양이 결정되면 physical transmit·receive assembly로 교체한다.
+Virtual co-location을 사용해 첫 radiometric validation에서는 duplexer, reverse scanner/collimator path와 single-mode fiber coupling을 model하지 않는다. 이 25 mm aperture는 analytical regression intermediate다. 목표 physical assembly는 target 반환광이 동일 scanner mirror와 collimator를 역으로 통과해 동일 single-mode fiber에 결합되고 circulator/coupler를 통해 detector로 전달되는 구조이며, 상세 구현 순서는 [`RECIPROCAL_FIBER_RETURN.md`](RECIPROCAL_FIBER_RETURN.md)를 따른다.
 
 ## 8. Numerical·validation baseline
 

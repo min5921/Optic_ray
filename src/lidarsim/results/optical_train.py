@@ -157,7 +157,7 @@ def _receiver_return_check(returns: tuple[ReceiverReturn, ...]) -> dict[str, Any
         "positive_return_count": sum(1 for power in powers if power > 0.0),
         "total_estimated_received_power_w": sum(powers),
         "status": status,
-        "message": "Lambertian small-footprint receiver return power를 검사합니다.",
+        "message": "Lambertian small-footprint virtual-aperture power를 검사합니다.",
     }
 
 
@@ -178,6 +178,8 @@ def _receiver_return_section(returns: tuple[ReceiverReturn, ...]) -> dict[str, A
         "total_link_loss_db": link_loss,
         "assumptions": [
             "각 target footprint를 독립 small-footprint Lambertian patch로 근사합니다.",
+            "estimated_received_power_w는 기존 schema 이름이며 현재는 virtual aperture plane의 값입니다.",
+            "동일 scanner/collimator의 역방향 광로와 single-mode fiber mode coupling은 계산하지 않습니다.",
             "Occlusion, BRDF lobe, detector response, coherent sum과 speckle은 계산하지 않습니다.",
         ],
     }
@@ -196,6 +198,11 @@ def _accuracy(
         warnings.extend(footprint.warnings)
     for receiver_return in returns:
         warnings.extend(receiver_return.warnings)
+    warnings.append(
+        "현재 receiver return은 analytical virtual aperture 추정값입니다. 동일 scanner mirror와 "
+        "collimator의 역방향 traversal, single-mode fiber 결합과 duplexer/detector loss는 아직 "
+        "계산하지 않습니다."
+    )
     if result.unsupported_elements:
         warnings.append(
             "Scanner/mirror 이후 propagation은 아직 계산하지 않고 unsupported_elements에 기록합니다."
@@ -206,13 +213,13 @@ def _accuracy(
         "hardware_readiness": hardware,
         "confidence_level": confidence,
         "calibration_status": calibration,
-        "scope": "source_to_static_mirror_rectangle_target_lambertian_receiver",
+        "scope": "source_to_static_mirror_rectangle_target_lambertian_virtual_aperture",
         "assumptions": [
             "Source부터 collimator까지는 scalar paraxial Gaussian q-parameter로 계산합니다.",
             "Collimator는 catalog의 ideal_thin_lens, clear aperture와 power_transmission만 사용합니다.",
             "Scanner mirror는 catalog base pose에 static command angle을 적용하고 catalog reflectivity를 사용합니다.",
             "Rectangle-plane target footprint는 projected Gaussian first-order model로 계산합니다.",
-            "Receiver return은 Lambertian small-footprint analytical approximation입니다.",
+            "Receiver return은 Lambertian small-footprint analytical virtual-aperture approximation입니다.",
             "Aperture clipping 뒤 profile shape, diffraction과 edge scattering은 계산하지 않고 power loss만 반영합니다.",
             "Scanner time dynamics, STL hit detection, BRDF/BSDF, detector noise와 coherent FMCW는 계산하지 않습니다.",
         ],
@@ -302,7 +309,7 @@ def build_phase2_optical_train_report(
             "radius_definition": "1/e^2 irradiance radius",
             "validity": (
                 "Paraxial scalar Gaussian, ideal centered thin lens, centered apertures, "
-                "static flat mirror reflection, rectangle-plane footprint and Lambertian receiver return"
+                "static flat mirror reflection, rectangle-plane footprint and Lambertian virtual-aperture return"
             ),
             "limitations": [
                 "No aberration, diffraction, coating spectral curve, polarization or ghost reflection.",
@@ -311,6 +318,8 @@ def build_phase2_optical_train_report(
                 "No scanner motor lag, jitter, bidirectional return stroke or calibration table yet.",
                 "No STL mesh hit detection, visibility, occlusion or BVH yet.",
                 "No non-Lambertian BRDF/BSDF, roughness, speckle or coherent FMCW yet.",
+                "No reciprocal target-to-scanner-to-collimator return train or single-mode fiber coupling yet.",
+                "estimated_received_power_w is an analytical virtual-aperture value, not fiber-coupled power.",
                 "No detector photocurrent, noise, saturation, FFT or CZT yet.",
                 "No measured/vendor black-box optical model execution yet.",
                 "Astigmatic post-lens beam with separated x/y waist locations is rejected by the current BeamState contract.",

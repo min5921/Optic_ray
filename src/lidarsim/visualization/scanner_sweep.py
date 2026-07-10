@@ -78,7 +78,7 @@ def render_scanner_sweep_view(
 
     received_power_nw = received_power * 1.0e9
     power_ax.plot(angles, received_power_nw, marker="o", color="#2b8a3e")
-    power_ax.set_ylabel("Estimated received power (nW)")
+    power_ax.set_ylabel("Virtual-aperture estimate (nW)")
     power_ax.set_xlabel("Static scanner command angle (deg)")
     power_ax.xaxis.set_major_formatter(FormatStrFormatter("%.3g"))
     power_ax.yaxis.set_major_formatter(FormatStrFormatter("%.3g"))

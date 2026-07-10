@@ -77,7 +77,7 @@ def render_scanner_path_view(
     hit_ax.legend(loc="best")
 
     power_ax.plot(time_ms, received_nw, marker="o", color="#2b8a3e")
-    power_ax.set_ylabel("P_rx (nW)")
+    power_ax.set_ylabel("Virtual-aperture estimate (nW)")
     power_ax.set_xlabel("Time in forward line (ms)")
 
     for ax in axes:

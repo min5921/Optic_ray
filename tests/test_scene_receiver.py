@@ -144,6 +144,7 @@ def test_lambertian_receiver_return_is_positive_inside_fov() -> None:
     assert result.estimated_received_power_w > 0.0
     assert result.link_loss_db is not None
     assert math.isfinite(result.link_loss_db)
+    assert any("fiber-coupled power가 아닙니다" in item for item in result.assumptions)
 
 
 def test_lambertian_receiver_return_is_zero_outside_fov() -> None:

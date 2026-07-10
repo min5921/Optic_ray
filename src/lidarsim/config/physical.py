@@ -741,8 +741,9 @@ def validate_scenario_physics(
                 source=source_text,
                 path="receiver.architecture",
                 message=(
-                    "virtual_monostatic receiver는 실제 beamsplitter·reverse scanner·detector "
-                    "path를 생략한 analytical aperture입니다."
+                    "virtual_monostatic receiver는 동일 scanner/collimator의 reverse path, "
+                    "single-mode fiber coupling, duplexer와 detector를 생략한 analytical "
+                    "aperture입니다."
                 ),
                 severity="warning",
             )

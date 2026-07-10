@@ -26,7 +26,7 @@
 
 Phase 0·0.1과 Phase 1 Gaussian Beam Engine이 완료되었다. `lidarsim validate`는 project/scenario/experiment/catalog YAML을 검사하고 단위, 물리 범위, wavelength validity와 참조·배치를 검증한다. `placement`, `inspect-mesh`, `inspect-measurement`, `report`, `view`, `review`로 배치와 입력 contract를 확인할 수 있다. `lidarsim beam`은 active source의 point·elliptical·line Gaussian을 NumPy/float64로 자유공간 전파하고 radius, divergence, q-parameter, second moment와 power-normalized irradiance를 YAML/PNG로 저장한다. Numerical check와 실제 장비 calibration을 구분해 confidence, provenance, paraxial validity와 hardware readiness를 함께 표시한다.
 
-Phase 2의 vertical slice로 `lidarsim optical-train`이 추가되었다. 이 명령은 source에서 ideal thin-lens collimator를 거쳐 scanner mirror에서 정지 반사되고, rectangle-plane target footprint와 첫 Lambertian receiver return까지 free-space propagation, ABCD thin-lens transform, centered circular aperture clipping, static flat-mirror reflection, mirror aperture clipping, catalog power transmission/reflectivity, target hit/footprint, receiver aperture power와 link budget을 계산한다. 현재는 `scanner.static_command_angle_rad` 하나를 static pose로 적용해 mirror normal, reflected ray, target hit와 receiver return을 바꿀 수 있다. Phase 3의 첫 helper로 `lidarsim scanner-sweep`이 추가되어 여러 static command angle에서 target hit와 receiver return 변화를 YAML/CSV/PNG로 비교할 수 있다. 이어서 `lidarsim scanner-path`가 추가되어 config의 scanner waveform에서 한 줄의 ideal forward scan path를 시간 샘플로 만들고, 각 sample의 target hit와 receiver return을 계산한다. Dynamic lag, jitter, bidirectional return stroke, calibration table과 실제 scanner dynamics는 아직 적용하지 않는다. STL hit detection, visibility/occlusion, non-Lambertian BRDF/BSDF, detector noise, speckle와 coherent FMCW는 아직 구현되지 않았다. `lidarsim run`, `compare`와 calibrated scan radiometry는 아직 구현되지 않았다.
+Phase 2의 vertical slice로 `lidarsim optical-train`이 추가되었다. 이 명령은 source에서 ideal thin-lens collimator를 거쳐 scanner mirror에서 정지 반사되고, rectangle-plane target footprint와 첫 Lambertian virtual-aperture estimate까지 free-space propagation, ABCD thin-lens transform, centered circular aperture clipping, static flat-mirror reflection, mirror aperture clipping, catalog power transmission/reflectivity, target hit/footprint와 analytical link budget을 계산한다. 이 값은 동일 scanner/collimator의 역방향 traversal 또는 fiber-coupled power가 아니다. 현재는 `scanner.static_command_angle_rad` 하나를 static pose로 적용해 mirror normal, reflected ray, target hit와 virtual-aperture estimate를 바꿀 수 있다. Phase 3의 첫 helper로 `lidarsim scanner-sweep`이 추가되어 여러 static command angle에서 target hit와 analytical return 변화를 YAML/CSV/PNG로 비교할 수 있다. 이어서 `lidarsim scanner-path`가 추가되어 config의 scanner waveform에서 한 줄의 ideal forward scan path를 시간 샘플로 만들고, 각 sample의 target hit와 virtual-aperture estimate를 계산한다. Dynamic lag, jitter, bidirectional return stroke, calibration table과 실제 scanner dynamics는 아직 적용하지 않는다. Reciprocal return train, single-mode fiber coupling, STL hit detection, visibility/occlusion, non-Lambertian BRDF/BSDF, detector noise, speckle와 coherent FMCW는 아직 구현되지 않았다. `lidarsim run`, `compare`와 calibrated scan radiometry는 아직 구현되지 않았다.
 
 ## 3. 주요 파일 위치
 
@@ -609,20 +609,53 @@ receiver:
   detector_model: none
 ```
 
-`virtual_monostatic/virtual_aperture`는 실제 beamsplitter, scanner 역경로, receive lens와 detector를 생략한 분석용 aperture다. 실제 장비 배치를 주장하려면 해당 부품과 reverse optical path를 assembly에 추가하고 `model_level`을 구현된 수준에 맞춰 변경해야 한다.
+`virtual_monostatic/virtual_aperture`는 실제 동일 scanner·collimator 역경로, single-mode fiber mode coupling, duplexer와 detector를 생략한 분석용 aperture다. 기존 field `estimated_received_power_w`와 화면의 `Virtual aperture estimate`는 이 가상 plane의 값이며 fiber에 결합되는 power가 아니다.
 
-현재 `lidarsim optical-train`은 rectangle-plane target hit가 있을 때 `virtual_monostatic/virtual_aperture` receiver에 대한 첫 Lambertian analytical return을 계산한다. 결과는 receiver aperture에 도달하는 optical power와 link loss이며, 실제 beamsplitter·reverse scanner·receive lens·detector를 통과한 calibrated hardware prediction은 아니다.
+현재 `lidarsim optical-train`은 rectangle-plane target hit가 있을 때 `virtual_monostatic/virtual_aperture` receiver에 대한 첫 Lambertian analytical return을 계산한다. 결과는 virtual aperture가 차지하는 solid angle에 기반한 optical power와 해당 plane까지의 link loss이며, 실제 target→same scanner→same collimator→fiber→duplexer→detector 경로를 통과한 calibrated hardware prediction은 아니다.
+
+이 프로젝트에서 목표로 하는 실제 수신 구조는 다음과 같다.
+
+```text
+송신: fiber/source → shared collimator → shared scanner mirror → target
+수신: target → same scanner mirror → same collimator → same fiber receive mode
+      → circulator/coupler → detector 또는 coherent mixer
+```
+
+계획된 configuration은 다음 형태다. **현재 schema에는 아직 이 field를 넣으면 안 된다.** Phase 2.4에서 loader/schema와 함께 구현한 뒤 사용할 수 있다.
+
+```yaml
+receiver:
+  architecture: reciprocal_single_mode_fiber
+  model_level: reciprocal_path_reference
+  return_path:
+    target_ref: target_plane
+    scanner_element_id: scan_mirror
+    collimator_element_id: collimator
+    fiber_element_id: source
+    reuse_transmit_path: true
+  fiber_coupling:
+    model: single_mode_overlap
+    mode_field_source: component_catalog
+    lateral_offset_m: [0.0, 0.0]
+    angular_offset_rad: [0.0, 0.0]
+  duplexer:
+    type: ideal_circulator
+    return_power_transmission: 1.0
+  detector_model: none
+```
+
+single-mode fiber coupling은 aperture 안으로 들어왔는지만 검사하지 않고 return field와 fiber mode의 overlap, MFD, lateral/angular offset과 focus mismatch를 계산해야 한다. 자세한 구현 contract, output plane과 검증 항목은 [`specs/RECIPROCAL_FIBER_RETURN.md`](specs/RECIPROCAL_FIBER_RETURN.md)를 따른다.
 
 향후 변경 가능한 항목:
 
-- monostatic/bistatic architecture
-- receiver position/orientation
-- aperture size/shape
-- FOV
-- receive lens train
-- optical efficiency
+- 동일 송수신 fiber 또는 별도 receive fiber
+- circulator/coupler/PBS 등의 duplexer architecture
+- shared collimator와 scanner element reference
+- fiber MFD/NA, lateral/angular/focus offset
+- return mirror/collimator aperture와 optical efficiency
+- optional bistatic receiver position/orientation, aperture와 FOV
 - detector responsivity/noise/bandwidth/saturation
-- fiber/LO coupling
+- coherent LO path와 mixer coupling
 
 ## 16. Simulation 조건 변경
 
@@ -673,6 +706,8 @@ outputs:
 필요하지 않은 output은 목록에서 제거할 수 있다. 다만 모든 run은 재현성을 위해 effective config, manifest와 warning을 항상 저장한다.
 
 현재 `scan_path`는 `lidarsim scanner-path`로 생성되지만 ideal forward-line command reference다. Validator의 `reference_only` warning은 명령 실패가 아니라 실제 scanner dynamics·calibration이 포함되지 않았음을 뜻한다. 나머지 현재 지원 output은 각 전용 명령(`report`, `beam`, `optical-train`, `workspace`)에서 생성된다.
+
+현재 `received_aperture_power`와 `link_budget`은 `virtual_monostatic/virtual_aperture` plane까지의 analytical output이다. 향후 reciprocal return train이 구현되면 return mirror, return collimator, fiber coupling과 detector input plane을 분리한 output을 추가한다. 기존 이름을 fiber-coupled power로 해석하지 않는다.
 
 ## 18. 여러 조건 비교
 
@@ -930,7 +965,7 @@ lidarsim optical-train configs/ui_runs/my_variant_project.yaml
 lidarsim dashboard configs/ui_runs/my_variant_project.yaml --include-scanner-path
 ```
 
-현재 UI는 interactive viewer와 numeric editor를 결합한 단계다. Plotly point selection은 component marker에 적용되며, 작은 부품을 고르기 어려우면 sidebar `선택 객체`를 사용한다. Drag/rotate gizmo, undo/redo, port/coaxial snap, receiver `LookAtMate`와 persistent constraint list는 후속 UI Phase C~E 범위다.
+현재 UI는 interactive viewer와 numeric editor를 결합한 단계다. Plotly point selection은 component marker에 적용되며, 작은 부품을 고르기 어려우면 sidebar `선택 객체`를 사용한다. Drag/rotate gizmo, undo/redo, port/coaxial snap과 persistent constraint list는 후속 UI Phase C~E 범위다. 독립 receiver `LookAtMate`는 실제 shared scanner/collimator/fiber return path와 맞지 않아 우선순위를 내렸고, reciprocal return ray와 fiber port의 coaxial residual을 먼저 구현한다.
 
 다음 명령은 이후 Phase에서 구현할 계획이다.
 

@@ -59,7 +59,7 @@
         "hardware_readiness": { "enum": ["analytical_only", "bench_template", "calibrated"] },
         "confidence_level": { "enum": ["comparative", "engineering_estimate", "calibrated"] },
         "calibration_status": { "enum": ["uncalibrated", "calibrated"] },
-        "scope": { "const": "source_to_static_mirror_rectangle_target_lambertian_receiver" },
+        "scope": { "const": "source_to_static_mirror_rectangle_target_lambertian_virtual_aperture" },
         "assumptions": { "type": "array", "items": { "type": "string" } },
         "warnings": { "type": "array", "items": { "type": "string" } }
       }
