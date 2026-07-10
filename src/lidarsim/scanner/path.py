@@ -103,10 +103,13 @@ def _scanner_config(project: ResolvedProject) -> dict[str, Any]:
     scanner = dict(project.active_scenario["scanner"])
     amplitude = float(scanner.get("mechanical_amplitude_rad", 0.0))
     frequency = float(scanner.get("frequency_hz", 0.0))
+    waveform = str(scanner.get("waveform", ""))
     if not math.isfinite(amplitude) or amplitude < 0.0:
         raise ValueError("scanner.mechanical_amplitude_rad는 0 이상 유한한 값이어야 합니다.")
-    if not math.isfinite(frequency) or frequency <= 0.0:
-        raise ValueError("scanner.frequency_hz는 0보다 큰 유한한 값이어야 합니다.")
+    if not math.isfinite(frequency) or frequency < 0.0:
+        raise ValueError("scanner.frequency_hz는 0 이상 유한한 값이어야 합니다.")
+    if waveform != "static" and frequency <= 0.0:
+        raise ValueError("Moving scanner의 scanner.frequency_hz는 0보다 커야 합니다.")
     scanner["mechanical_amplitude_rad"] = amplitude
     scanner["frequency_hz"] = frequency
     return scanner
@@ -128,7 +131,9 @@ def ideal_forward_line_command_angles(
 
     if waveform == "static":
         command = float(scanner.get("static_command_angle_rad", 0.0))
-        return tuple(command for _ in positions), 0.0, waveform
+        # A static scanner has no line duration or distinct time samples. Emit
+        # one pose even when samples_per_line was configured for moving modes.
+        return (command,), 0.0, waveform
     if waveform == "triangle":
         return tuple(-amplitude + 2.0 * amplitude * position for position in positions), 0.5 / frequency, waveform
     if waveform == "sinusoidal":
@@ -174,6 +179,11 @@ def run_ideal_scanner_line_path(
         )
         for index, sweep_sample in enumerate(sweep.samples)
     )
+    waveform_assumption = {
+        "static": "static waveform은 0 Hz의 단일 command pose로 저장합니다.",
+        "triangle": "triangle waveform은 -amplitude에서 +amplitude로 이동하는 half-period line으로 근사합니다.",
+        "sinusoidal": "sinusoidal waveform은 sin phase -π/2에서 +π/2까지의 forward half-cycle로 근사합니다.",
+    }[waveform]
     return ScannerPathResult(
         project_id=str(project.project["project_id"]),
         scenario_id=str(project.active_scenario["scenario_id"]),
@@ -186,9 +196,8 @@ def run_ideal_scanner_line_path(
         mechanical_amplitude_rad=float(scanner["mechanical_amplitude_rad"]),
         samples=samples,
         assumptions=(
-            "한 줄의 ideal forward scanner command path만 샘플링합니다.",
-            "triangle waveform은 -amplitude에서 +amplitude로 이동하는 half-period line으로 근사합니다.",
-            "sinusoidal waveform은 sin phase -π/2에서 +π/2까지의 forward half-cycle로 근사합니다.",
+            "Moving waveform은 한 줄의 ideal forward scanner command path만 샘플링합니다.",
+            waveform_assumption,
             "각 time sample의 optical/target/receiver 값은 Phase 2 static scanner angle reference run을 재사용합니다.",
         ),
         warnings=(

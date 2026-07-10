@@ -153,7 +153,7 @@ def _parser() -> argparse.ArgumentParser:
     optical_train = subparsers.add_parser(
         "optical-train",
         aliases=["train"],
-        help="run Phase 2 source-to-collimator optical train propagation",
+        help="run the Phase 2 source-to-static-mirror target/receiver reference path",
     )
     optical_train.add_argument("project", nargs="?", default="configs/project.yaml")
     optical_train.add_argument(

@@ -210,7 +210,7 @@ def _accuracy(
         "assumptions": [
             "Source부터 collimator까지는 scalar paraxial Gaussian q-parameter로 계산합니다.",
             "Collimator는 catalog의 ideal_thin_lens, clear aperture와 power_transmission만 사용합니다.",
-            "Scanner mirror는 default static flat-mirror pose와 catalog reflectivity만 사용합니다.",
+            "Scanner mirror는 catalog base pose에 static command angle을 적용하고 catalog reflectivity를 사용합니다.",
             "Rectangle-plane target footprint는 projected Gaussian first-order model로 계산합니다.",
             "Receiver return은 Lambertian small-footprint analytical approximation입니다.",
             "Aperture clipping 뒤 profile shape, diffraction과 edge scattering은 계산하지 않고 power loss만 반영합니다.",
@@ -307,7 +307,8 @@ def build_phase2_optical_train_report(
             "limitations": [
                 "No aberration, diffraction, coating spectral curve, polarization or ghost reflection.",
                 "No decenter/tilt tolerance propagation yet.",
-                "No time-dependent scanner command, lag, jitter or calibration table yet.",
+                "This Phase 2 report applies one static scanner command angle; use the ideal scanner-path report for forward-line samples.",
+                "No scanner motor lag, jitter, bidirectional return stroke or calibration table yet.",
                 "No STL mesh hit detection, visibility, occlusion or BVH yet.",
                 "No non-Lambertian BRDF/BSDF, roughness, speckle or coherent FMCW yet.",
                 "No detector photocurrent, noise, saturation, FFT or CZT yet.",

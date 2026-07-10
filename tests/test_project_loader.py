@@ -214,6 +214,39 @@ def test_material_wavelength_mismatch_is_reported(copied_project: Path) -> None:
     )
 
 
+def test_scan_path_output_is_reported_as_reference_fidelity(project_root: Path) -> None:
+    project = load_project(project_root / "configs" / "project.yaml")
+
+    assert any(
+        item.path == "outputs"
+        and "Reference fidelity" in item.message
+        and "scan_path=ideal_forward_line_command_path" in item.message
+        for item in project.warnings
+    )
+    assert not any(
+        item.path == "outputs"
+        and "현재 Phase에서 생성되지 않는 output" in item.message
+        and "scan_path" in item.message
+        for item in project.warnings
+    )
+
+
+def test_unsupported_reference_scan_waveform_is_warned(copied_project: Path) -> None:
+    scenario_path = copied_project.parent / "baseline_1550nm.yaml"
+    scenario = _read_yaml(scenario_path)
+    scenario["scanner"]["waveform"] = "raster"
+    _write_yaml(scenario_path, scenario)
+
+    project = load_project(copied_project)
+
+    assert any(
+        item.path == "scanner.waveform"
+        and "ideal scanner-path runner" in item.message
+        and "raster" in item.message
+        for item in project.warnings
+    )
+
+
 def test_incompatible_port_interfaces_are_rejected(copied_project: Path) -> None:
     source_path = (
         copied_project.parent.parent

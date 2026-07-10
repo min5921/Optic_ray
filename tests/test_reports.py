@@ -79,4 +79,6 @@ def test_phase0_1_html_review_is_self_contained(
     assert "analytical_only" in document
     assert "virtual_monostatic/virtual_aperture" in document
     assert "data:image/png;base64," in document
-    assert "실제 수신광 계산은 아직 수행하지 않습니다" in document
+    assert "이 Phase 0.1 review 자체는 배치·설정 검증만 수행" in document
+    assert "lidarsim optical-train" in document
+    assert "reference_only" in document

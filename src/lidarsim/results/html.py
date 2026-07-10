@@ -7,7 +7,7 @@ import html
 from pathlib import Path
 from typing import Any
 
-from lidarsim.config.physical import IMPLEMENTED_OUTPUTS
+from lidarsim.config.physical import IMPLEMENTED_OUTPUTS, REFERENCE_OUTPUTS
 from lidarsim.results.reports import Phase0Report
 
 
@@ -56,11 +56,16 @@ def write_review_html(
 
     output_rows = []
     for output in scenario["outputs"]:
-        implemented = output in IMPLEMENTED_OUTPUTS
+        if output in IMPLEMENTED_OUTPUTS:
+            status = "implemented"
+        elif output in REFERENCE_OUTPUTS:
+            status = "reference_only"
+        else:
+            status = "not_evaluated"
         output_rows.append(
             "<tr>"
             f"<td><code>{_escape(output)}</code></td>"
-            f"<td>{_status_badge('implemented' if implemented else 'not_evaluated')}</td>"
+            f"<td>{_status_badge(status)}</td>"
             "</tr>"
         )
 
@@ -113,7 +118,7 @@ code, pre {{ font-family: Consolas, monospace; white-space: pre-wrap; margin: 0;
   <div class="card"><strong>Energy</strong>{_status_badge(report.energy_ledger.status)}</div>
   <div class="card"><strong>Convergence</strong>{_status_badge(report.convergence.overall_status)}</div>
 </div>
-<div class="callout">현재 baseline은 실제 제품 예측이 아니라 analytical regression 기준입니다. 실제 수신광 계산은 아직 수행하지 않습니다.</div>
+<div class="callout">현재 baseline은 실제 제품 예측이 아니라 analytical regression 기준입니다. 이 Phase 0.1 review 자체는 배치·설정 검증만 수행하며, analytical target/receiver 계산은 <code>lidarsim optical-train</code> 또는 <code>lidarsim dashboard</code>에서 확인합니다.</div>
 <section><h2>Placement와 시야</h2><img class="hero" src="{image_uri}" alt="2D and 3D placement view"></section>
 <section><h2>운전 조건</h2><table>
 <tr><th>항목</th><th>값</th></tr>
@@ -126,7 +131,7 @@ code, pre {{ font-family: Consolas, monospace; white-space: pre-wrap; margin: 0;
 <tr><th>Element</th><th>Type</th><th>Catalog ID</th><th>Model level</th><th>World origin</th><th>Port interface</th></tr>
 {''.join(component_rows)}
 </table></section>
-<section><h2>요청 output 지원 상태</h2><table><tr><th>Output</th><th>상태</th></tr>{''.join(output_rows)}</table></section>
+<section><h2>요청 output의 프로젝트 지원 상태</h2><p><code>reference_only</code>는 계산 경로는 있지만 calibrated hardware fidelity가 아닌 output입니다.</p><table><tr><th>Output</th><th>상태</th></tr>{''.join(output_rows)}</table></section>
 <section><h2>Numerical check</h2><table><tr><th>Check</th><th>상태</th><th>설명</th></tr>{convergence_rows}</table></section>
 <section><h2>경고와 제한</h2><ul>{warning_items}</ul></section>
 </main></body></html>"""

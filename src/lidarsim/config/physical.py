@@ -24,6 +24,12 @@ IMPLEMENTED_OUTPUTS = {
     "link_budget",
 }
 
+# 계산 경로는 존재하지만 아직 calibrated hardware output으로 해석할 수 없는
+# 중간 fidelity output입니다. Validator와 UI는 이를 미구현과 구분해서 표시합니다.
+REFERENCE_OUTPUTS = {
+    "scan_path": "ideal_forward_line_command_path",
+}
+
 PARAXIAL_PROXY_TOLERANCE = 1e-3
 
 
@@ -761,7 +767,8 @@ def validate_scenario_physics(
                 severity="warning",
             )
         )
-    unavailable = sorted(set(scenario["outputs"]) - IMPLEMENTED_OUTPUTS)
+    requested_outputs = set(scenario["outputs"])
+    unavailable = sorted(requested_outputs - IMPLEMENTED_OUTPUTS - set(REFERENCE_OUTPUTS))
     if unavailable:
         warnings.append(
             Diagnostic(
@@ -769,6 +776,40 @@ def validate_scenario_physics(
                 path="outputs",
                 message=f"현재 Phase에서 생성되지 않는 output입니다: {', '.join(unavailable)}",
                 hint="해당 후속 Phase 구현 전까지 report에서 not_evaluated로 취급하세요.",
+                severity="warning",
+            )
+        )
+    reference_only = sorted(requested_outputs & set(REFERENCE_OUTPUTS))
+    if reference_only:
+        descriptions = ", ".join(
+            f"{name}={REFERENCE_OUTPUTS[name]}" for name in reference_only
+        )
+        warnings.append(
+            Diagnostic(
+                source=source_text,
+                path="outputs",
+                message=f"Reference fidelity로만 생성되는 output입니다: {descriptions}",
+                hint=(
+                    "scan_path는 lidarsim scanner-path에서 생성되지만 motor/galvo dynamics, "
+                    "lag, jitter, bidirectional return stroke와 calibration table은 포함하지 않습니다."
+                ),
+                severity="warning",
+            )
+        )
+    if "scan_path" in requested_outputs and scanner["waveform"] not in {
+        "static",
+        "triangle",
+        "sinusoidal",
+    }:
+        warnings.append(
+            Diagnostic(
+                source=source_text,
+                path="scanner.waveform",
+                message=(
+                    f"현재 ideal scanner-path runner는 {scanner['waveform']!r} waveform을 "
+                    "지원하지 않습니다."
+                ),
+                hint="static, triangle 또는 sinusoidal을 사용하거나 후속 scanner dynamics 구현을 기다리세요.",
                 severity="warning",
             )
         )

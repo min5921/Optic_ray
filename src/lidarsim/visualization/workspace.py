@@ -140,14 +140,15 @@ def _draw_components(ax: Any, data: dict[str, Any]) -> None:
         marker = "^" if component["display_role"] == "receiver" else "o"
         if component["display_role"] == "target":
             marker = "s"
-        ax.scatter(origin[0], origin[1], origin[2], s=34, color=color, marker=marker, depthshade=True)
-        ax.text(
+        ax.scatter(
             origin[0],
             origin[1],
             origin[2],
-            f"  {component['element_id']}",
-            fontsize=8,
+            s=34,
             color=color,
+            marker=marker,
+            depthshade=True,
+            label=str(component["element_id"]),
         )
         _draw_wire_box(ax, component, color=color)
 
@@ -247,6 +248,8 @@ def render_viewport_scene(
     fig = plt.figure(figsize=(13.2, 6.8))
     full_ax = fig.add_subplot(121, projection="3d")
     detail_ax = fig.add_subplot(122, projection="3d")
+    full_points = _scene_points(data)
+    detail_points = _detail_points(data)
     for ax in (full_ax, detail_ax):
         _draw_components(ax, data)
         _draw_guides(ax, data)
@@ -257,10 +260,11 @@ def render_viewport_scene(
         ax.set_zlabel("Z (m)")
         ax.grid(True, alpha=0.22)
         ax.view_init(elev=22.0, azim=-58.0)
+        ax.legend(loc="upper left", fontsize=7, framealpha=0.88)
 
-    _set_equal_limits(full_ax, _scene_points(data))
+    _set_equal_limits(full_ax, full_points)
     full_ax.set_title("Full optical bench")
-    _set_equal_limits(detail_ax, _detail_points(data))
+    _set_equal_limits(detail_ax, detail_points)
     detail_ax.set_title("Optical head detail")
     fig.suptitle(
         "Optical Assembly Workspace | "

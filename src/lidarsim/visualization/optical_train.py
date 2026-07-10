@@ -34,20 +34,27 @@ def render_optical_train_view(
     axes[0].legend(loc="best")
 
     seen_positions: dict[float, int] = {}
+    x_min = min(x_m)
+    x_span = max(max(x_m) - x_min, 1.0e-15)
+    label_height = max(radius_x_mm + radius_y_mm)
     for state in states:
         x = float(state["distance_along_path_m"])
         duplicate_index = seen_positions.get(x, 0)
         seen_positions[x] = duplicate_index + 1
         label = str(state["label"])
+        place_left = x >= x_min + 0.75 * x_span
+        offset_magnitude = 4 + 18 * duplicate_index
+        x_offset = -offset_magnitude if place_left else offset_magnitude
         axes[0].axvline(x, color="0.75", linewidth=0.8, zorder=0)
         axes[0].annotate(
             label,
-            xy=(x, max(radius_x_mm + radius_y_mm)),
-            xytext=(4 + 11 * duplicate_index, -10 - 12 * duplicate_index),
+            xy=(x, label_height),
+            xytext=(x_offset, -9),
             textcoords="offset points",
-            rotation=75,
+            rotation=70,
             fontsize=8,
             va="top",
+            ha="right" if place_left else "left",
         )
 
     axes[1].plot(x_m, power_mw, marker="o", color="#2ca02c")

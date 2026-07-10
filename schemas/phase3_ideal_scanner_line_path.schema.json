@@ -15,7 +15,7 @@
     "waveform": { "enum": ["static", "triangle", "sinusoidal"] },
     "sample_count": { "type": "integer", "minimum": 1 },
     "line_duration_s": { "type": "number", "minimum": 0.0 },
-    "frequency_hz": { "type": "number", "exclusiveMinimum": 0.0 },
+    "frequency_hz": { "type": "number", "minimum": 0.0 },
     "mechanical_amplitude_rad": { "type": "number", "minimum": 0.0 },
     "mechanical_amplitude_deg": { "type": "number", "minimum": 0.0 },
     "summary": {
@@ -34,6 +34,31 @@
     "assumptions": { "type": "array", "items": { "type": "string" } },
     "warnings": { "type": "array", "items": { "type": "string" } }
   },
+  "allOf": [
+    {
+      "if": {
+        "properties": { "waveform": { "const": "static" } },
+        "required": ["waveform"]
+      },
+      "then": {
+        "properties": {
+          "sample_count": { "const": 1 },
+          "line_duration_s": { "const": 0.0 },
+          "frequency_hz": { "const": 0.0 },
+          "mechanical_amplitude_rad": { "const": 0.0 },
+          "mechanical_amplitude_deg": { "const": 0.0 }
+        }
+      },
+      "else": {
+        "properties": {
+          "line_duration_s": { "exclusiveMinimum": 0.0 },
+          "frequency_hz": { "exclusiveMinimum": 0.0 },
+          "mechanical_amplitude_rad": { "exclusiveMinimum": 0.0 },
+          "mechanical_amplitude_deg": { "exclusiveMinimum": 0.0 }
+        }
+      }
+    }
+  ],
   "$defs": {
     "vec3": { "type": "array", "minItems": 3, "maxItems": 3, "items": { "type": "number" } },
     "vec2": { "type": "array", "minItems": 2, "maxItems": 2, "items": { "type": "number" } },

@@ -17,7 +17,8 @@ def test_validate_command_reports_resolved_project(project_root: Path, capsys) -
     assert "4 components, 1 materials" in output.out
     assert "Resolved config SHA-256:" in output.out
     assert "virtual_monostatic receiver" in output.err
-    assert "현재 Phase에서 생성되지 않는 output" in output.err
+    assert "Reference fidelity로만 생성되는 output" in output.err
+    assert "scan_path=ideal_forward_line_command_path" in output.err
     assert "analytical regression 기준" in output.err
 
 

@@ -1,6 +1,6 @@
 # 프로젝트 인계 문서
 
-마지막 갱신: 2026-07-09 (Asia/Seoul)
+마지막 갱신: 2026-07-10 (Asia/Seoul)
 
 ## 현재 상태
 
@@ -30,13 +30,13 @@
 - `lidarsim view`는 component origin, port axis, optical path, mirror normal, declared scan limit, target plane, receiver FOV, return guide와 STL bounds를 full 3D scene 및 X-Z detail PNG로 렌더링한다.
 - `lidarsim review`는 placement PNG, hardware readiness, component/port, output 지원 상태, convergence와 경고를 self-contained HTML로 생성한다.
 - `lidarsim beam`은 active source를 불변 `BeamState`로 만들고 circular·elliptical·line Gaussian의 M² 기반 자유공간 radius, q-parameter, second moment와 power-normalized irradiance를 full report·compact summary·PNG로 생성한다.
-- `lidarsim optical-train` 또는 `lidarsim train`은 active source에서 ideal thin-lens collimator를 지나 scanner mirror default pose에서 정지 반사되고, rectangle-plane target과 Lambertian virtual receiver까지의 element별 `BeamState`, aperture clipping, catalog transmission/reflectivity, power ledger, target footprint, receiver return, link budget, 내부 일관성 check와 radius/power PNG를 생성한다.
+- `lidarsim optical-train` 또는 `lidarsim train`은 active source에서 ideal thin-lens collimator를 지나 catalog base pose에 `scanner.static_command_angle_rad`를 적용한 mirror에서 반사되고, rectangle-plane target과 Lambertian virtual receiver까지의 element별 `BeamState`, aperture clipping, catalog transmission/reflectivity, power ledger, target footprint, receiver return, link budget, 내부 일관성 check와 radius/power PNG를 생성한다.
 - Fiber MFD definition과 Gaussian approximation, catalog nominal match/explicit override, small-angle paraxial proxy, confidence·calibration·provenance를 검증·보고한다.
 - Power audit은 analytical tail truncation, base/refined grid quadrature와 grid convergence를 분리하며 second-moment 비교는 internal consistency로만 표시한다.
 - CLI distance는 `20 mm` 같은 단위 포함 값을 받고 기본 결과는 timestamp run directory에 저장해 덮어쓰지 않는다.
 - `configs/line_beam_project.example.yaml`은 3.0 mm × 0.25 mm numerical elliptical-Gaussian line preset을 제공하며 Powell lens나 상용 제품 model이 아니다.
 - Resolved project state는 재귀적으로 변경 불가능하며 안정적인 물리 configuration SHA-256을 갖는다. 표시 단위와 UI preference는 이 hash를 바꾸지 않는다.
-- Local `.venv`는 `pyproject.toml`에서 설치했으며, deprecation·user warning을 error로 처리해도 자동 test 91개가 통과한다.
+- Local `.venv`는 `pyproject.toml`에서 설치했으며, deprecation·user warning을 error로 처리해도 자동 test 119개가 통과한다.
 - 사용자 친화적인 로컬 simulation dashboard와 SolidWorks-like Optical Assembly Workspace 개발 방향은 `docs/UI_SIMULATION_DASHBOARD.md`에 분리해 정리했다.
 - UI MVP 0의 첫 vertical slice로 `ViewportScene` data contract, source/collimator/scanner mirror/target/receiver 표시 data, local frame, port axis, mirror normal, reflected ray, target plane, receiver FOV, beam path, target hit ray, footprint overlay와 headless Matplotlib 3D workspace PNG renderer가 구현되었다.
 - `lidarsim workspace configs/project.yaml --output results/ui_workspace.png --write-scene results/ui_workspace_scene.yaml`로 현재 Phase 2.3 static simulation을 optical assembly workspace용 PNG와 YAML scene으로 확인할 수 있다.
@@ -45,10 +45,10 @@
 - Phase 3의 첫 static scanner command angle slice가 진행되어 `scanner.static_command_angle_rad`가 mirror normal과 aperture axes에 적용된다. Reflected ray, target hit, footprint와 receiver return이 static command angle에 따라 바뀌며 `workspace`/`dashboard`에는 report 기반으로 반영된다.
 - Phase 3 static scanner angle sweep helper로 `lidarsim scanner-sweep`이 구현되었다. 여러 정적 command angle을 독립 Phase 2 reference run으로 계산해 angle별 reflected ray, target hit coordinate, target power, received aperture power와 link loss를 YAML/CSV/PNG로 비교한다.
 - Phase 3.1의 첫 ideal scanner line path helper로 `lidarsim scanner-path`가 구현되었다. Config의 `scanner.waveform`, `mechanical_amplitude_rad`, `frequency_hz`, `samples_per_line`에서 한 줄 forward scan path를 만들고, 각 time sample의 target hit와 receiver return을 계산해 YAML/CSV/PNG로 저장한다.
-- `scanner-path`는 ideal command path reference이며 motor/galvo lag, jitter, acceleration limit, bidirectional return stroke와 calibration table은 아직 계산하지 않는다. 따라서 baseline의 `scan_path` output warning은 full scan path가 표준 report로 통합될 때까지 유지한다.
+- `scanner-path`는 ideal command path reference이며 motor/galvo lag, jitter, acceleration limit, bidirectional return stroke와 calibration table은 아직 계산하지 않는다. `scan_path`는 더 이상 “생성되지 않는 output”으로 표시하지 않고, 실행 가능하지만 fidelity가 제한된 `reference_only` output으로 validator와 Phase 0.1 review에서 구분한다.
 - Read-only dashboard에 `--include-scanner-path` 옵션이 추가되었다. 옵션을 켜면 ideal scanner path YAML/CSV/PNG를 함께 생성하고, HTML에 scanner path plot, sample table, fidelity warning을 embedding한다.
 - Phase 3 scanner reference reports에 JSON Schema contract가 추가되었다. `scanner-sweep`, `scanner-path`, `dashboard --include-scanner-path`는 생성한 scanner report를 YAML로 쓰기 전에 schema validation을 통과해야 한다.
-- 다음 활성 목표는 full `scan_path` output을 standard report/schema에 통합하거나, dashboard를 browser form 기반 parameter runner로 확장하는 것이다.
+- 다음 활성 목표는 read-only dashboard를 browser form 기반 parameter/numeric-placement runner로 확장하는 것이다. 모든 변경은 variant config로 저장하고 CLI에서 재현해야 한다. Scanner 쪽 다음 물리 목표는 ideal command path와 분리된 calibrated dynamics contract다.
 
 ## 유지할 결정 사항
 
@@ -65,7 +65,7 @@
 
 ## 가장 좋은 다음 작업
 
-다음 조각을 선택한다. 추천 1순위는 full `scan_path` output을 standard report/schema에 통합하되, ideal command path와 calibrated scanner dynamics의 fidelity 차이를 명확히 분리하는 것이다. 대안은 dashboard를 browser form 기반 parameter runner로 확장해 scanner angle/path sample 수를 UI에서 입력하게 하는 것이다.
+추천 1순위는 UI Phase 0.2/B의 browser form 기반 parameter·numeric placement runner다. Project/scenario를 읽고 자주 쓰는 물리값과 component transform을 수정해 variant config로 저장한 뒤 validate→simulation→dashboard를 실행하도록 한다. UI 내부 상태를 source of truth로 만들지 않는다. 물리 확장 1순위는 실제 scanner 사양이 정해진 뒤 command/actual state, calibration table, lag와 jitter를 분리하는 Phase 3 dynamics contract다.
 
 ## 검증 기록
 
@@ -168,6 +168,18 @@
 - `python -m pytest -q`: 116개 통과.
 - `python -W error::DeprecationWarning -W error::UserWarning -m pytest -q`: 116개 통과.
 - `git diff --check`: 통과.
+- 2026-07-10 요구사항 재검수에서 유효한 `static_mirror`의 `frequency_hz: 0` 설정을 `scanner-path`가 거부하던 모순을 수정했다. Static path는 중복 time sample 대신 0초의 단일 command pose를 생성하며 report schema가 static/moving 조건을 각각 검증한다.
+- Output contract를 `implemented`, `reference_only`, `not_evaluated` 의미로 정리했다. Baseline `scan_path`는 실행 가능한 `ideal_forward_line_command_path`이지만 calibrated dynamics가 없으므로 `reference_only` warning으로 표시한다. `raster`/`custom` waveform 요청에는 별도 지원 경고가 나온다.
+- Phase 0.1 review의 오래된 “실제 수신광 계산 미수행” 문구를 수정해 이 review는 설정/배치만 검증하고, analytical target/receiver 계산은 `optical-train`/`dashboard`에서 확인하도록 안내한다.
+- Workspace PNG는 겹치는 component text 대신 색상·marker legend를 사용하고, optical-train PNG의 동일 거리 state label을 분리해 가독성을 개선했다. `results/audit/dashboard_workspace.png`, `dashboard_optical_train.png`, `dashboard_scanner_path.png`를 직접 시각 검수했다.
+- `python -m pytest tests/test_scanner_path.py tests/test_project_loader.py tests/test_reports.py tests/test_cli.py -q`: 51개 통과.
+- `python -m pytest tests/test_ui_workspace.py tests/test_optical_train.py tests/test_cli.py -q`: 35개 통과.
+- `python -m pytest -q`: 119개 통과.
+- `python -W error::DeprecationWarning -W error::UserWarning -m pytest -q`: 119개 통과.
+- `lidarsim validate configs/project.yaml`: 통과. 예상 warning은 paraxial proxy, virtual receiver, `scan_path` reference fidelity와 analytical regression이다.
+- `lidarsim optical-train configs/project.yaml --output results/audit/optical_train.yaml --plot results/audit/optical_train.png --dpi 100`: 통과. Target hit 1, `P_target=0.00999997341 W`, `P_rx=2.49999335e-09 W`, link loss `66.02059991327963 dB`, q/energy/aperture/target/receiver check `pass`.
+- `lidarsim scanner-path configs/project.yaml --samples 11 --output results/audit/scanner_path.yaml --csv results/audit/scanner_path.csv --plot results/audit/scanner_path.png --dpi 100`: 통과. Triangle forward line 0.05 s, 11/11 target hit와 positive return을 확인했다.
+- `lidarsim dashboard configs/project.yaml --output results/audit/dashboard.html --include-scanner-path --scanner-path-samples 11 --dpi 100`: 통과. Phase 2 report, viewport scene, workspace/optical-train/scanner-path plot과 YAML/CSV를 생성했다.
 
 ## 세션 갱신 형식
 

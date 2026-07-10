@@ -446,7 +446,7 @@ scanner:
 - calibration table
 - jitter/lag/facet error
 
-현재 구현된 `static_command_angle_rad`는 한 순간의 scanner command angle을 뜻한다. 이 값은 mirror normal과 aperture axes를 `rotation_axis_world` 기준으로 회전시켜 reflected ray와 target hit 위치를 바꾼다. Flat mirror에서는 mechanical angle 변화에 대해 reflected optical angle이 약 2배로 변한다. 다만 이 값은 시간 waveform을 sampling한 scan path가 아니며, dynamic lag, jitter와 frequency는 아직 계산하지 않는다.
+현재 구현된 `static_command_angle_rad`는 한 순간의 scanner command angle을 뜻한다. 이 값은 mirror normal과 aperture axes를 `rotation_axis_world` 기준으로 회전시켜 reflected ray와 target hit 위치를 바꾼다. Flat mirror에서는 mechanical angle 변화에 대해 reflected optical angle이 약 2배로 변한다. `optical-train`은 이 정적 pose 하나만 계산하며, frequency 기반 ideal sample은 `scanner-path`에서 계산한다. Dynamic lag와 jitter는 두 명령 모두 아직 계산하지 않는다.
 
 Degree 입력이 허용되는 UI가 생기더라도 effective config에는 radian으로 변환된 값을 저장한다.
 
@@ -494,7 +494,7 @@ lidarsim scanner-path configs/project.yaml --samples 11 --output results/scanner
 - receiver FOV status
 - link loss
 
-이 명령은 ideal command path reference다. 아직 motor/galvo dynamics, lag, jitter, acceleration limit, bidirectional return stroke, calibration table과 실제 encoder measurement는 반영하지 않는다. 따라서 validate에서 요청된 `scan_path` output warning은 full scan path가 표준 report로 통합되고 fidelity contract가 정리될 때까지 유지한다.
+이 명령은 ideal command path reference다. 아직 motor/galvo dynamics, lag, jitter, acceleration limit, bidirectional return stroke, calibration table과 실제 encoder measurement는 반영하지 않는다. 따라서 validator와 Phase 0.1 review는 `scan_path`를 “생성 불가”가 아닌 `reference_only` fidelity로 표시한다. `raster` 또는 `custom` waveform을 선택하면 현재 runner가 지원하지 않는다는 별도 warning이 발생한다.
 
 ## 13. FreeCAD/STL geometry 사용
 
@@ -671,6 +671,8 @@ outputs:
 ```
 
 필요하지 않은 output은 목록에서 제거할 수 있다. 다만 모든 run은 재현성을 위해 effective config, manifest와 warning을 항상 저장한다.
+
+현재 `scan_path`는 `lidarsim scanner-path`로 생성되지만 ideal forward-line command reference다. Validator의 `reference_only` warning은 명령 실패가 아니라 실제 scanner dynamics·calibration이 포함되지 않았음을 뜻한다. 나머지 현재 지원 output은 각 전용 명령(`report`, `beam`, `optical-train`, `workspace`)에서 생성된다.
 
 ## 18. 여러 조건 비교
 
