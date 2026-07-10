@@ -907,9 +907,11 @@ CLI는 Streamlit usage-statistics 수집을 끈 상태로 실행하므로 최초
 - absolute placement의 position·quaternion
 - port placement의 axial gap·transverse offset·clocking·angular misalignment
 
-`scan_mirror`를 선택하면 `Mirror → Target 정렬` section이 나타난다. 이 preview는 현재 Phase 2 incident center ray와 target rectangle center를 사용해 ideal reflection law를 만족하는 surface normal을 구하고, 현재 mirror pose 대비 residual과 추천 rotation을 표시한다. `추천 pose를 편집값에 적용`은 browser의 quaternion과 `scanner.rotation_axis_world` 편집값만 바꾸며 파일을 쓰지 않는다. 두 값을 함께 바꾸는 이유는 scanner mount pose를 회전할 때 catalog의 local mechanical axis도 world frame에서 같이 회전해야 하기 때문이다. 그 뒤 `Variant 저장 · 검증 · 시뮬레이션`을 눌러야 값이 variant YAML에 저장되고 새 beam path가 계산된다. 현재 첫 구현은 absolute placement mirror만 적용할 수 있다.
+값을 바꾸면 inspector 상단 상태가 `편집값이 아직 3D와 config에 반영되지 않았습니다`로 바뀐다. 이 상태에서는 3D와 power metric이 마지막 실행 결과를 계속 표시한다. 상단의 `변경값 반영 · 시뮬레이션`을 눌러야 현재 편집값을 variant YAML로 저장·검증하고 3D와 metric을 다시 계산한다. 실행 중 active project/scenario YAML을 외부 editor에서 수정한 경우에도 config hash 변화가 감지되면 stale session 결과를 버리고 자동 재계산한다.
 
-`Variant 저장 · 검증 · 시뮬레이션`을 누르면 다음 순서로 실행된다.
+`scan_mirror`를 선택하면 `Mirror → Target 정렬` section이 나타난다. 이 preview는 현재 Phase 2 incident center ray와 target rectangle center를 사용해 ideal reflection law를 만족하는 surface normal을 구하고, 현재 mirror pose 대비 residual과 추천 rotation을 표시한다. `추천 pose를 편집값에 적용`은 browser의 quaternion과 `scanner.rotation_axis_world` 편집값만 바꾸며 파일을 쓰지 않는다. 두 값을 함께 바꾸는 이유는 scanner mount pose를 회전할 때 catalog의 local mechanical axis도 world frame에서 같이 회전해야 하기 때문이다. 그 뒤 `변경값 반영 · 시뮬레이션`을 눌러야 값이 variant YAML에 저장되고 새 beam path가 계산된다. 현재 첫 구현은 absolute placement mirror만 적용할 수 있다.
+
+`변경값 반영 · 시뮬레이션`을 누르면 다음 순서로 실행된다.
 
 ```text
 browser 입력

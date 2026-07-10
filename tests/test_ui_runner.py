@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from lidarsim.config import load_project
 from lidarsim.ui import run_ui_simulation
 
 
@@ -16,6 +17,7 @@ def test_ui_runner_writes_reproducible_result_bundle(
         dpi=72,
     )
 
+    assert result.config_hash == load_project(project_root / "configs" / "project.yaml").config_hash
     assert result.summary["target_hit_count"] == 1
     assert result.summary["estimated_received_power_w"] > 0.0
     assert result.report_path.is_file()

@@ -53,6 +53,7 @@
 - Streamlit workspace를 Plotly interactive 3D optical bench로 재구성했다. Orbit·zoom, component marker selection, hover, guide toggle, beam/reflected ray, target hit·footprint와 receiver FOV overlay를 제공하고 선택한 객체의 inspector만 표시한다.
 - UI Phase C의 첫 `MirrorTargetMate` vertical slice가 구현되었다. Phase 2 incident center ray와 rectangle target center에서 required mirror normal을 구하고 static scanner command angle을 유지하는 base pose와 local mechanical axis에 일관된 world rotation axis를 함께 역산하며, residual·추천 ray/normal을 preview한 뒤 사용자 적용과 variant 저장을 분리한다.
 - `MirrorTargetMate` 적용은 현재 absolute placement scanner mirror만 지원한다. Geometry face picking, drag/rotate gizmo, undo/redo, receiver `LookAtMate`, port/coaxial snap과 persistent constraint solver는 아직 없다.
+- UI 편집값이 3D에 반영되지 않은 것처럼 보이던 UX를 수정했다. Inspector 상단에 `변경값 반영 · 시뮬레이션` action과 pending/applied 상태를 표시하고, active config hash가 바뀌면 cached `UiSimulationRun`을 자동 갱신한다.
 
 ## 유지할 결정 사항
 
@@ -201,6 +202,12 @@
 - `lidarsim optical-train configs/project.yaml`: 통과. Target hit 1, q/energy/aperture/target/receiver check가 모두 `pass`다.
 - `python -m pytest -q`: 137개 통과.
 - `python -W error::DeprecationWarning -W error::UserWarning -m pytest -q`: 137개 통과.
+- `git diff --check`: 통과.
+- UI config 반영 회귀 검수에서 scanner angle을 `1 deg`로 편집하면 즉시 pending 경고가 표시되고, 상단 `변경값 반영 · 시뮬레이션` 후 variant YAML의 angle과 `ViewportScene` target-hit Z coordinate가 함께 바뀌는 것을 확인했다.
+- 실행 중 baseline target center를 `10 m`에서 `12 m`로 외부 수정한 AppTest에서 config hash 변화가 감지되고 새 `ui_preview/<scenario>_<hash>/viewport_scene.yaml`의 target origin이 `12 m`로 자동 갱신되는 것을 확인했다.
+- 실제 local browser에서 상단 반영 action, initial applied 상태, 입력 후 pending 상태와 안내 문구를 시각 검수했다.
+- `python -m pytest -q`: 138개 통과.
+- `python -W error::DeprecationWarning -W error::UserWarning -m pytest -q`: 138개 통과.
 - `git diff --check`: 통과.
 
 ## 세션 갱신 형식

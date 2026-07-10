@@ -26,6 +26,7 @@ class UiSimulationRun:
     """Paths and summary produced by one UI-triggered simulation."""
 
     project_path: Path
+    config_hash: str
     output_directory: Path
     report_path: Path
     scene_path: Path
@@ -41,6 +42,7 @@ class UiSimulationRun:
     def to_dict(self) -> dict[str, Any]:
         return {
             "project_path": str(self.project_path),
+            "config_hash": self.config_hash,
             "output_directory": str(self.output_directory),
             "report_path": str(self.report_path),
             "scene_path": str(self.scene_path),
@@ -157,6 +159,7 @@ def run_ui_simulation(
     )
     return UiSimulationRun(
         project_path=project.project_path,
+        config_hash=project.config_hash,
         output_directory=destination,
         report_path=report_path,
         scene_path=scene_path,

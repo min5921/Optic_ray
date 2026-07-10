@@ -94,14 +94,21 @@ def _same_values(first: tuple[float, ...], second: tuple[float, ...], *, atol: f
 def _ensure_preview_run(st: Any, project_path: Path, project: Any) -> UiSimulationRun:
     current = st.session_state.get("last_run")
     if isinstance(current, UiSimulationRun):
-        return current
+        current_project = load_project(current.project_path)
+        if (
+            getattr(current, "config_hash", None) == current_project.config_hash
+        ):
+            return current
+        project_path = current_project.project_path
+        project = current_project
+        st.session_state["last_variant"] = None
     preview_dir = (
         find_project_root(project_path)
         / "results"
         / "ui_preview"
         / f"{project.active_scenario['scenario_id']}_{project.config_hash[:8]}"
     )
-    with st.spinner("현재 광학 배치와 빔 경로를 계산하는 중입니다..."):
+    with st.spinner("Config 변경을 읽고 광학 배치와 빔 경로를 계산하는 중입니다..."):
         current = run_ui_simulation(
             project_path,
             output_directory=preview_dir,
@@ -736,30 +743,39 @@ def run_streamlit_app(project_path: str | Path | None = None) -> None:
 
     with inspector_column:
         st.subheader(selected_object_id)
-        st.caption("선택한 객체의 값만 표시합니다. 변경은 아직 config에 반영되지 않습니다.")
+        if "default_variant_id" not in st.session_state:
+            st.session_state["default_variant_id"] = (
+                f"{view_project.active_scenario['scenario_id']}_ui_variant"
+            )
+        with st.expander("Variant 저장 설정"):
+            variant_id = st.text_input(
+                "Scenario ID",
+                value=st.session_state["default_variant_id"],
+                help="Baseline을 덮어쓰지 않고 configs/ui_runs 아래에 저장합니다.",
+            )
+            overwrite = st.checkbox("같은 ID의 기존 UI variant 덮어쓰기", value=False)
+            include_scanner_path = st.checkbox("Ideal scanner path도 계산", value=False)
+        submitted = st.button(
+            "변경값 반영 · 시뮬레이션",
+            type="primary",
+            width="stretch",
+            help="현재 편집값을 variant YAML로 저장하고 검증한 뒤 3D와 결과를 갱신합니다.",
+        )
+        pending_status = st.empty()
+        st.caption("선택한 객체의 값만 표시합니다. 입력 후 위 버튼을 눌러 3D에 반영합니다.")
         parameter_edits, element_edits = _selected_object_editor(
             st,
             view_project,
             selected_object_id,
             mate_preview=mate_preview,
         )
-        st.divider()
-        if "default_variant_id" not in st.session_state:
-            st.session_state["default_variant_id"] = (
-                f"{view_project.active_scenario['scenario_id']}_ui_variant"
-            )
-        variant_id = st.text_input(
-            "Scenario ID",
-            value=st.session_state["default_variant_id"],
-            help="Baseline을 덮어쓰지 않고 configs/ui_runs 아래에 저장합니다.",
+        has_pending_edits = (
+            parameter_edits != SimulationParameterEdits() or element_edits is not None
         )
-        overwrite = st.checkbox("같은 ID의 기존 UI variant 덮어쓰기", value=False)
-        include_scanner_path = st.checkbox("Ideal scanner path도 계산", value=False)
-        submitted = st.button(
-            "Variant 저장 · 검증 · 시뮬레이션",
-            type="primary",
-            width="stretch",
-        )
+        if has_pending_edits:
+            pending_status.warning("편집값이 아직 3D와 config에 반영되지 않았습니다.")
+        else:
+            pending_status.success("현재 입력값과 3D simulation이 일치합니다.")
         st.caption("UI는 source of truth가 아닙니다. 저장된 YAML과 CLI 실행이 같은 결과를 재현합니다.")
 
     if submitted:

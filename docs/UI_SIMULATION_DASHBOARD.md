@@ -482,6 +482,8 @@ source
 - `lidarsim ui`에서 component를 선택하고 같은 type의 catalog reference와 numeric placement를 form으로 수정할 수 있다.
 - Target와 receiver의 position/direction도 같은 variant scenario에 저장한다.
 - 잘못된 variant는 validation 실패 시 새 file을 rollback한다.
+- 편집값과 current config가 다르면 미반영 상태를 명시하고, inspector 상단 action으로 variant 저장·검증·3D 재계산을 실행한다.
+- Active config hash가 session의 마지막 simulation hash와 다르면 stale result를 자동으로 다시 계산한다.
 
 완료 조건:
 
