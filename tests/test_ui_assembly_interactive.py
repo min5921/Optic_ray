@@ -115,3 +115,25 @@ def test_plotly_selection_payload_resolves_component_id() -> None:
 
     assert _selection_event_element_id(event) == "scan_mirror"
     assert _selection_event_element_id({"selection": {"points": []}}) is None
+
+
+def test_transmitter_closeup_uses_local_ranges_and_labels_components(
+    project_root: Path,
+) -> None:
+    project = load_project(project_root / "configs" / "project.yaml")
+    scene = build_viewport_scene(project)
+
+    figure = build_interactive_viewport_figure(
+        scene,
+        selected_element_id="scan_mirror",
+        view_mode="transmitter_closeup",
+    )
+
+    component_trace = figure.data[0]
+    assert {"source", "collimator", "scan_mirror"} <= set(component_trace.text)
+    assert component_trace.marker.size[0] == 13
+    assert component_trace.marker.size[2] == 19
+    assert figure.layout.scene.aspectmode == "cube"
+    assert figure.layout.scene.xaxis.range is not None
+    assert figure.layout.scene.yaxis.range is not None
+    assert figure.layout.scene.zaxis.range is not None

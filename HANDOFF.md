@@ -56,6 +56,7 @@
 - `MirrorTargetMate` 적용은 현재 absolute placement scanner mirror만 지원한다. Geometry face picking, drag/rotate gizmo, undo/redo, receiver `LookAtMate`, port/coaxial snap과 persistent constraint solver는 아직 없다.
 - UI 편집값이 3D에 반영되지 않은 것처럼 보이던 UX를 수정했다. Inspector 상단에 `변경값 반영 · 시뮬레이션` action과 pending/applied 상태를 표시하고, active config hash가 바뀌면 cached `UiSimulationRun`을 자동 갱신한다.
 - UI에서 같은 Scenario ID를 반복 적용할 때 기존 `configs/ui_runs` 작업 variant 때문에 실패하던 문제를 수정했다. 작업 variant 덮어쓰기는 기본으로 켜져 있고 기존 파일이 있으면 보존 방법을 안내하며, baseline config는 계속 수정하지 않는다.
+- 3D UI에 기본 `광학 헤드 확대`, `전체 광로`, `선택 부품 확대` view range를 추가했다. 10 m target 때문에 겹치던 source·collimator·scanner mirror를 근거리 동일 축척, component label과 확대 marker로 확인할 수 있다. Scanner static angle은 실제 기계각으로 명시하고 rotation-axis X/Y/Z는 고급 단위벡터 설정으로 분리했으며 non-unit 입력은 저장 시 명시적으로 정규화한다.
 
 ## 유지할 결정 사항
 
@@ -76,6 +77,11 @@
 추천 1순위는 Phase 2.4-R1 reciprocal center-ray geometry다. Current target hit에서 동일 scanner mirror로 reverse ray를 만들고 같은 mirror에서 재반사한 뒤 collimator receive reference plane과 fiber port까지 역추적한다. Return mirror/collimator aperture, angular/lateral mismatch와 round-trip closure residual을 report와 `ViewportScene`에 연결한다. 그 다음 Phase 2.4-R2 return power ledger, R3 single-mode fiber mode overlap, R4 circulator/detector boundary 순서로 진행한다. 독립 receiver `LookAtMate`와 receiver aperture comparison은 실제 shared optical train과 맞지 않으므로 우선순위를 내린다.
 
 ## 검증 기록
+
+- 2026-07-12 UI 각도·가시성 수정: baseline 배치의 source `z=-0.10 m`, collimator `z=-0.08 m`, scanner mirror `z=0 m`를 optical-head 범위 `x/y≈±0.0686 m`, `z≈[-0.1208, 0.0163] m`로 표시하고 세 component label과 marker가 분리되는 것을 확인했다. Streamlit test는 static command 1 deg 적용 후 target-hit ray의 Z 변화와 현재 적용각/pending 상태를 확인한다.
+- 관련 UI 테스트: `10 passed in 6.97s`.
+- `python -m pytest -q`: 통과, `139 passed in 28.59s`.
+- `python -W error::DeprecationWarning -W error::UserWarning -m pytest -q`: 통과, `139 passed in 25.95s`.
 
 - 2026-07-12 UI variant 반복 저장 수정: `tests/test_streamlit_app.py`에서 같은 Scenario ID를 1 deg로 저장한 뒤 2 deg로 다시 적용해 기존 variant YAML이 정상 갱신되는 것을 확인했다. 사용자가 생성한 `configs/ui_runs/baseline_1550nm_ui_variant*.yaml`은 삭제하거나 수정하지 않았다.
 - 관련 UI 테스트: `10 passed in 9.64s`.

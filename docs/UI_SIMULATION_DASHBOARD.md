@@ -288,11 +288,14 @@ UI 기능은 이 명령들을 우회하지 않고 같은 loader, schema, physics
 - read-only dashboard에 scanner path plot과 sample table을 선택적으로 embedding
 - `lidarsim ui` Streamlit browser workspace
 - Plotly 기반 interactive 3D optical bench와 component marker 선택
+- 전체 광로, 근거리 optical head와 선택 부품을 전환하는 3D view range
+- 근거리 보기의 component label과 확대 marker
 - orbit/zoom, guide toggle, beam/reflected ray, target hit·footprint와 receiver FOV overlay
 - 선택한 객체만 표시하는 parameter·numeric placement inspector
 - `MirrorTargetMate` target-center pose preview, angle residual과 명시적 적용
 - `configs/ui_runs/` variant 저장, validation rollback과 `results/ui_runs/` simulation bundle
 - 동일 Scenario ID를 반복 편집할 때 UI 작업 variant를 기본 갱신하고, 보존이 필요하면 새 ID로 저장
+- scanner static angle과 기계 회전축 방향벡터를 구분하고 non-unit axis를 명시적으로 정규화
 
 현재 실행 예:
 

@@ -42,6 +42,8 @@ _GUIDE_COLORS = {
     "receiver_look": "#c026d3",
 }
 
+VIEW_MODES = frozenset({"full_scene", "transmitter_closeup", "selected_component"})
+
 
 def _point(value: Any) -> np.ndarray:
     return np.asarray(value, dtype=np.float64)
@@ -103,23 +105,73 @@ def _footprint_coordinates(footprint: Any, *, samples: int = 72) -> np.ndarray:
     )
 
 
+def _view_ranges(
+    scene: ViewportScene,
+    *,
+    view_mode: str,
+    selected_element_id: str | None,
+) -> dict[str, list[float]] | None:
+    """근거리 optical head와 선택 부품을 물리적으로 같은 축척으로 확대한다."""
+
+    if view_mode == "full_scene":
+        return None
+    if view_mode == "transmitter_closeup":
+        components = [
+            component
+            for component in scene.components
+            if component.display_role == "optical_component"
+        ]
+    else:
+        components = [
+            component
+            for component in scene.components
+            if component.element_id == selected_element_id
+        ]
+    if not components:
+        return None
+
+    points: list[np.ndarray] = []
+    for component in components:
+        points.append(np.asarray(component.origin_world_m, dtype=np.float64))
+        vertices = _component_vertices(component)
+        if vertices is not None:
+            points.extend(vertices)
+    coordinates = np.asarray(points, dtype=np.float64)
+    lower = np.min(coordinates, axis=0)
+    upper = np.max(coordinates, axis=0)
+    center = 0.5 * (lower + upper)
+    largest_span = max(float(np.max(upper - lower)), 0.04)
+    half_span = 0.65 * largest_span
+    return {
+        axis: [float(center[index] - half_span), float(center[index] + half_span)]
+        for index, axis in enumerate("xyz")
+    }
+
+
 def build_interactive_viewport_figure(
     scene: ViewportScene,
     *,
     selected_element_id: str | None = None,
     visible_guide_types: Iterable[str] | None = None,
     mirror_mate_preview: MirrorTargetMatePreview | None = None,
+    view_mode: str = "full_scene",
 ) -> Any:
     """ViewportScene을 orbit/zoom 가능한 Plotly Figure로 변환한다."""
 
     import plotly.graph_objects as go
 
+    if view_mode not in VIEW_MODES:
+        raise ValueError(f"지원하지 않는 3D view mode입니다: {view_mode!r}")
+
     guide_types = set(DEFAULT_GUIDE_TYPES if visible_guide_types is None else visible_guide_types)
     figure = go.Figure()
 
     origins = np.asarray([component.origin_world_m for component in scene.components], dtype=np.float64)
+    show_all_labels = view_mode != "full_scene"
     labels = [
-        component.element_id if component.element_id == selected_element_id else ""
+        component.element_id
+        if show_all_labels or component.element_id == selected_element_id
+        else ""
         for component in scene.components
     ]
     customdata = [[component.element_id] for component in scene.components]
@@ -127,7 +179,16 @@ def build_interactive_viewport_figure(
         _COMPONENT_COLORS.get(component.component_type, "#64748b")
         for component in scene.components
     ]
-    sizes = [15 if component.element_id == selected_element_id else 9 for component in scene.components]
+    sizes = [
+        19
+        if component.element_id == selected_element_id and view_mode != "full_scene"
+        else 15
+        if component.element_id == selected_element_id
+        else 13
+        if view_mode != "full_scene" and component.display_role == "optical_component"
+        else 9
+        for component in scene.components
+    ]
     hover = [
         (
             f"<b>{component.element_id}</b><br>"
@@ -293,6 +354,19 @@ def build_interactive_viewport_figure(
             )
         )
 
+    ranges = _view_ranges(
+        scene,
+        view_mode=view_mode,
+        selected_element_id=selected_element_id,
+    )
+    axes = {
+        axis: {
+            "title": f"{axis.upper()} (m)",
+            "showspikes": False,
+            **({"range": ranges[axis]} if ranges is not None else {}),
+        }
+        for axis in "xyz"
+    }
     figure.update_layout(
         height=560,
         margin={"l": 0, "r": 0, "t": 8, "b": 0},
@@ -302,16 +376,16 @@ def build_interactive_viewport_figure(
         hovermode="closest",
         legend={"orientation": "h", "yanchor": "bottom", "y": 1.0, "xanchor": "left", "x": 0.0},
         scene={
-            "aspectmode": "data",
+            "aspectmode": "data" if ranges is None else "cube",
             "dragmode": "orbit",
-            "xaxis": {"title": "X (m)", "showspikes": False},
-            "yaxis": {"title": "Y (m)", "showspikes": False},
-            "zaxis": {"title": "Z (m)", "showspikes": False},
+            "xaxis": axes["x"],
+            "yaxis": axes["y"],
+            "zaxis": axes["z"],
             "camera": {"eye": {"x": 1.35, "y": 1.55, "z": 0.8}},
         },
-        uirevision=scene.config_hash,
+        uirevision=f"{scene.config_hash}:{view_mode}:{selected_element_id}",
     )
     return figure
 
 
-__all__ = ["DEFAULT_GUIDE_TYPES", "build_interactive_viewport_figure"]
+__all__ = ["DEFAULT_GUIDE_TYPES", "VIEW_MODES", "build_interactive_viewport_figure"]

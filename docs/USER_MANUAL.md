@@ -926,6 +926,9 @@ CLI는 Streamlit usage-statistics 수집을 끈 상태로 실행하므로 최초
 
 화면의 왼쪽은 3D optical bench, 오른쪽은 선택한 객체의 inspector다. 3D 영역에서는 다음을 할 수 있다.
 
+- `광학 헤드 확대`: source, collimator와 scanner mirror를 근거리 동일 축척으로 표시하는 기본 보기
+- `전체 광로`: scanner에서 target까지의 전체 beam path와 footprint 확인
+- `선택 부품 확대`: 선택한 부품의 geometry와 local guide 확인
 - 마우스 orbit, zoom과 pan
 - component marker 선택 또는 sidebar에서 객체 선택
 - optical/port axis, local frame, mirror normal, target plane, receiver FOV guide toggle
@@ -941,6 +944,8 @@ CLI는 Streamlit usage-statistics 수집을 끈 상태로 실행하므로 최초
 - 선택 component와 같은 type의 catalog reference
 - absolute placement의 position·quaternion
 - port placement의 axial gap·transverse offset·clocking·angular misalignment
+
+Scanner의 `Static command angle (deg)`가 실제 미러 기계각이다. 값을 바꾸면 pending warning이 나타나며 `변경값 반영 · 시뮬레이션`을 눌러야 reflected ray와 target hit가 다시 계산된다. `고급 설정: 기계 회전축 단위벡터`의 X/Y/Z는 각도가 아니라 회전축 방향이다. 기본 Y축은 `[0, 1, 0]`이며 `[10, 10, 0]`처럼 크기가 1이 아닌 값은 저장할 때 방향을 유지한 채 단위벡터로 정규화한다.
 
 값을 바꾸면 inspector 상단 상태가 `편집값이 아직 3D와 config에 반영되지 않았습니다`로 바뀐다. 이 상태에서는 3D와 power metric이 마지막 실행 결과를 계속 표시한다. 상단의 `변경값 반영 · 시뮬레이션`을 눌러야 현재 편집값을 variant YAML로 저장·검증하고 3D와 metric을 다시 계산한다. 실행 중 active project/scenario YAML을 외부 editor에서 수정한 경우에도 config hash 변화가 감지되면 stale session 결과를 버리고 자동 재계산한다.
 

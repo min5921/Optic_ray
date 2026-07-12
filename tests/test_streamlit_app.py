@@ -29,6 +29,7 @@ def test_streamlit_app_loads_and_runs_variant(
 
     assert not app.exception
     assert app.title[0].value == "Optic Ray Workspace"
+    assert _widget_by_label(app.radio, "3D 보기 범위").value == "광학 헤드 확대"
     assert _widget_by_label(
         app.checkbox,
         "같은 ID의 기존 UI variant 덮어쓰기",
@@ -36,6 +37,7 @@ def test_streamlit_app_loads_and_runs_variant(
     _widget_by_label(app.text_input, "Scenario ID").set_value("streamlit_test_variant")
     _widget_by_label(app.number_input, "Static command angle (deg)").set_value(1.0).run()
     assert any("아직 3D" in item.value for item in app.warning)
+    assert any("현재 3D simulation 적용각: 0" in item.value for item in app.caption)
     _widget_by_label(app.number_input, "Samples per line").set_value(5)
     _widget_by_label(app.checkbox, "Ideal scanner path도 계산").uncheck()
     _widget_by_label(app.button, "변경값 반영 · 시뮬레이션").click().run()

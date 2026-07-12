@@ -388,23 +388,47 @@ def _selected_object_editor(
         elif component_type == "scanner_mirror":
             scanner = scenario["scanner"]
             st.markdown("#### Scanner pose")
+            applied_static_angle_deg = math.degrees(
+                float(scanner.get("static_command_angle_rad", 0.0))
+            )
             static_angle_deg = st.number_input(
                 "Static command angle (deg)",
-                value=math.degrees(float(scanner.get("static_command_angle_rad", 0.0))),
+                value=applied_static_angle_deg,
                 key=f"scanner:{project.config_hash}:static_angle",
+                help=(
+                    "미러의 현재 기계 회전각입니다. 값을 바꾼 뒤 "
+                    "'변경값 반영 · 시뮬레이션'을 눌러야 빔 경로가 다시 계산됩니다."
+                ),
             )
+            st.caption(f"현재 3D simulation 적용각: {applied_static_angle_deg:.6g} deg")
             axis_values = tuple(float(value) for value in scanner["rotation_axis_world"])
             axis_keys = _scanner_axis_keys(project.config_hash)
-            axis_columns = st.columns(3)
-            rotation_axis = tuple(
-                axis_columns[index].number_input(
-                    f"Rotation axis {axis.upper()}",
-                    value=axis_values[index],
-                    key=axis_keys[index],
-                    format="%.9f",
+            with st.expander("고급 설정: 기계 회전축 단위벡터"):
+                st.caption(
+                    "회전축은 각도(deg)가 아니라 방향벡터입니다. 기본 Y축은 [0, 1, 0]입니다."
                 )
-                for index, axis in enumerate("xyz")
-            )
+                axis_columns = st.columns(3)
+                raw_rotation_axis = tuple(
+                    axis_columns[index].number_input(
+                        f"Rotation axis {axis.upper()} (vector)",
+                        value=axis_values[index],
+                        key=axis_keys[index],
+                        format="%.9f",
+                    )
+                    for index, axis in enumerate("xyz")
+                )
+                axis_norm = math.sqrt(sum(value * value for value in raw_rotation_axis))
+                if axis_norm <= 1.0e-12:
+                    rotation_axis = raw_rotation_axis
+                    st.error("회전축 방향벡터는 [0, 0, 0]일 수 없습니다.")
+                else:
+                    rotation_axis = tuple(value / axis_norm for value in raw_rotation_axis)
+                    if not math.isclose(axis_norm, 1.0, rel_tol=0.0, abs_tol=1.0e-9):
+                        st.info(
+                            "저장 시 단위벡터로 정규화합니다: "
+                            f"[{rotation_axis[0]:.6g}, {rotation_axis[1]:.6g}, "
+                            f"{rotation_axis[2]:.6g}]"
+                        )
             with st.expander("Ideal scan path 설정"):
                 waveform_options = ["static", "triangle", "sinusoidal"]
                 current_waveform = str(scanner["waveform"])
@@ -720,16 +744,31 @@ def run_streamlit_app(project_path: str | Path | None = None) -> None:
 
     viewport_column, inspector_column = st.columns((3.0, 1.45), gap="large")
     with viewport_column:
+        view_mode_label = st.radio(
+            "3D 보기 범위",
+            ("광학 헤드 확대", "전체 광로", "선택 부품 확대"),
+            horizontal=True,
+            help=(
+                "광학 헤드 확대는 10 m 표적 때문에 겹쳐 보이는 source, collimator와 "
+                "scanner mirror를 근거리 축척으로 보여줍니다."
+            ),
+        )
+        view_mode = {
+            "광학 헤드 확대": "transmitter_closeup",
+            "전체 광로": "full_scene",
+            "선택 부품 확대": "selected_component",
+        }[view_mode_label]
         figure = build_interactive_viewport_figure(
             scene,
             selected_element_id=selected_object_id,
             visible_guide_types=visible_guides,
             mirror_mate_preview=mate_preview,
+            view_mode=view_mode,
         )
         event = st.plotly_chart(
             figure,
             width="stretch",
-            key=f"assembly_viewport_v2:{view_project.config_hash}",
+            key=f"assembly_viewport_v3:{view_project.config_hash}:{view_mode}",
             on_select="rerun",
             selection_mode="points",
             config={"displaylogo": False, "scrollZoom": True},
