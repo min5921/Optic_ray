@@ -292,6 +292,7 @@ UI 기능은 이 명령들을 우회하지 않고 같은 loader, schema, physics
 - 선택한 객체만 표시하는 parameter·numeric placement inspector
 - `MirrorTargetMate` target-center pose preview, angle residual과 명시적 적용
 - `configs/ui_runs/` variant 저장, validation rollback과 `results/ui_runs/` simulation bundle
+- 동일 Scenario ID를 반복 편집할 때 UI 작업 variant를 기본 갱신하고, 보존이 필요하면 새 ID로 저장
 
 현재 실행 예:
 

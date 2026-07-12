@@ -29,6 +29,10 @@ def test_streamlit_app_loads_and_runs_variant(
 
     assert not app.exception
     assert app.title[0].value == "Optic Ray Workspace"
+    assert _widget_by_label(
+        app.checkbox,
+        "같은 ID의 기존 UI variant 덮어쓰기",
+    ).value is True
     _widget_by_label(app.text_input, "Scenario ID").set_value("streamlit_test_variant")
     _widget_by_label(app.number_input, "Static command angle (deg)").set_value(1.0).run()
     assert any("아직 3D" in item.value for item in app.warning)
@@ -54,6 +58,17 @@ def test_streamlit_app_loads_and_runs_variant(
     )
     target_ray = next(ray for ray in scene["rays"] if ray["status"] == "target_hit")
     assert abs(float(target_ray["end_m"][2])) > 0.1
+
+    _widget_by_label(app.number_input, "Static command angle (deg)").set_value(2.0).run()
+    assert any("이미 있습니다" in item.value for item in app.info)
+    _widget_by_label(app.button, "변경값 반영 · 시뮬레이션").click().run()
+
+    assert not app.exception
+    assert any("완료" in item.value for item in app.success)
+    overwritten = yaml.safe_load(
+        (output_dir / "streamlit_test_variant.yaml").read_text(encoding="utf-8")
+    )
+    assert overwritten["scanner"]["static_command_angle_rad"] == "2 deg"
 
 
 def test_streamlit_app_refreshes_when_active_config_changes(

@@ -757,8 +757,24 @@ def run_streamlit_app(project_path: str | Path | None = None) -> None:
                 value=st.session_state["default_variant_id"],
                 help="Baseline을 덮어쓰지 않고 configs/ui_runs 아래에 저장합니다.",
             )
-            overwrite = st.checkbox("같은 ID의 기존 UI variant 덮어쓰기", value=False)
+            overwrite = st.checkbox(
+                "같은 ID의 기존 UI variant 덮어쓰기",
+                value=True,
+                help=(
+                    "UI에서 같은 variant를 반복 편집할 때 configs/ui_runs의 작업 사본만 "
+                    "갱신합니다. Baseline config는 덮어쓰지 않습니다."
+                ),
+            )
             include_scanner_path = st.checkbox("Ideal scanner path도 계산", value=False)
+            root = find_project_root(view_project.project_path)
+            output_dir = root / "configs" / "ui_runs"
+            scenario_output = output_dir / f"{variant_id}.yaml"
+            project_output = output_dir / f"{variant_id}_project.yaml"
+            if scenario_output.exists() or project_output.exists():
+                st.info(
+                    "같은 Scenario ID의 UI variant가 이미 있습니다. 덮어쓰기를 유지하면 "
+                    "현재 작업 사본을 갱신하고, 보존하려면 Scenario ID를 바꾸세요."
+                )
         submitted = st.button(
             "변경값 반영 · 시뮬레이션",
             type="primary",
@@ -783,10 +799,6 @@ def run_streamlit_app(project_path: str | Path | None = None) -> None:
         st.caption("UI는 source of truth가 아닙니다. 저장된 YAML과 CLI 실행이 같은 결과를 재현합니다.")
 
     if submitted:
-        root = find_project_root(view_project.project_path)
-        output_dir = root / "configs" / "ui_runs"
-        scenario_output = output_dir / f"{variant_id}.yaml"
-        project_output = output_dir / f"{variant_id}_project.yaml"
         try:
             with st.spinner("Variant를 저장하고 optical simulation을 실행하는 중입니다..."):
                 variant = create_simulation_variant(

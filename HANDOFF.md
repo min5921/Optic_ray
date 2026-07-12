@@ -55,6 +55,7 @@
 - UI Phase C의 첫 `MirrorTargetMate` vertical slice가 구현되었다. Phase 2 incident center ray와 rectangle target center에서 required mirror normal을 구하고 static scanner command angle을 유지하는 base pose와 local mechanical axis에 일관된 world rotation axis를 함께 역산하며, residual·추천 ray/normal을 preview한 뒤 사용자 적용과 variant 저장을 분리한다.
 - `MirrorTargetMate` 적용은 현재 absolute placement scanner mirror만 지원한다. Geometry face picking, drag/rotate gizmo, undo/redo, receiver `LookAtMate`, port/coaxial snap과 persistent constraint solver는 아직 없다.
 - UI 편집값이 3D에 반영되지 않은 것처럼 보이던 UX를 수정했다. Inspector 상단에 `변경값 반영 · 시뮬레이션` action과 pending/applied 상태를 표시하고, active config hash가 바뀌면 cached `UiSimulationRun`을 자동 갱신한다.
+- UI에서 같은 Scenario ID를 반복 적용할 때 기존 `configs/ui_runs` 작업 variant 때문에 실패하던 문제를 수정했다. 작업 variant 덮어쓰기는 기본으로 켜져 있고 기존 파일이 있으면 보존 방법을 안내하며, baseline config는 계속 수정하지 않는다.
 
 ## 유지할 결정 사항
 
@@ -75,6 +76,11 @@
 추천 1순위는 Phase 2.4-R1 reciprocal center-ray geometry다. Current target hit에서 동일 scanner mirror로 reverse ray를 만들고 같은 mirror에서 재반사한 뒤 collimator receive reference plane과 fiber port까지 역추적한다. Return mirror/collimator aperture, angular/lateral mismatch와 round-trip closure residual을 report와 `ViewportScene`에 연결한다. 그 다음 Phase 2.4-R2 return power ledger, R3 single-mode fiber mode overlap, R4 circulator/detector boundary 순서로 진행한다. 독립 receiver `LookAtMate`와 receiver aperture comparison은 실제 shared optical train과 맞지 않으므로 우선순위를 내린다.
 
 ## 검증 기록
+
+- 2026-07-12 UI variant 반복 저장 수정: `tests/test_streamlit_app.py`에서 같은 Scenario ID를 1 deg로 저장한 뒤 2 deg로 다시 적용해 기존 variant YAML이 정상 갱신되는 것을 확인했다. 사용자가 생성한 `configs/ui_runs/baseline_1550nm_ui_variant*.yaml`은 삭제하거나 수정하지 않았다.
+- 관련 UI 테스트: `10 passed in 9.64s`.
+- `python -m pytest -q`: 통과, `138 passed in 27.18s`.
+- `python -W error::DeprecationWarning -W error::UserWarning -m pytest -q`: 통과, `138 passed in 24.85s`.
 
 - 2026-07-10 reciprocal fiber return 방향 수정: `docs/specs/RECIPROCAL_FIBER_RETURN.md`에 target→same scanner→same collimator→same single-mode fiber→circulator/coupler→detector 목표 광로, mode-overlap 식, 단계별 output과 Phase 2.4-R0~R4 구현 순서를 정의했다. 기존 `estimated_received_power_w`는 schema 호환을 위해 유지하되 UI/CLI/plot에서 `Virtual aperture estimate`/`P_virtual_ap`로 표시하고 report warning에 reverse path와 fiber coupling 미구현을 명시했다.
 - `python -m pytest -q`: 통과, `138 passed in 21.44s`.
