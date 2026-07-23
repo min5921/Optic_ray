@@ -1,7 +1,7 @@
 # 시뮬레이션 UI와 Optical Assembly Workspace 개발 계획
 
 - 문서 상태: Draft
-- 마지막 갱신: 2026-07-10
+- 마지막 갱신: 2026-07-15
 - 대상: Optic Ray simulation을 사용자가 쉽게 배치·정렬·실행·분석하기 위한 로컬 UI
 - 기준 구현 상태: Phase 2.3 optical train/return, Phase 3 ideal scanner path, UI Phase A/B/C 첫 interactive Streamlit workspace
 
@@ -61,37 +61,33 @@ UI에서 바꾼 값은 숨겨진 상태로 남으면 안 된다. 모든 placemen
 9. 생성 결과와 cache는 Git에 추가하지 않는다.
 10. UI 기능은 작은 analytical case test를 통과한 뒤 확장한다.
 
-## 3. 현재 계획의 gap
+## 3. 현재 구현과 남은 gap
 
-기존 UI Phase 0.1은 read-only/result dashboard에 가깝다.
+UI Phase 0.1은 처음에는 read-only/result dashboard로 시작했다. 이후 Plotly interactive 3D viewport, component marker 선택, source/scanner/target/receiver와 numeric placement 편집, variant 저장·simulation, optical-head 확대와 첫 `MirrorTargetMate` preview까지 구현했다.
 
-즉, 다음은 가능하다.
+현재 가능한 것:
 
-- project config 선택
-- validate 실행
-- optical-train 실행
-- summary metric 표시
-- warning 표시
-- optical train PNG 표시
-- report YAML 확인
+- project config 선택, validate와 optical-train 실행
+- summary metric, warning, report와 plot 확인
+- 3D orbit·zoom, component 선택과 local guide 확인
+- source, scanner, target, receiver parameter 변경
+- absolute/port placement 숫자 편집
+- mirror normal·reflected ray·target hit·footprint·receiver FOV overlay
+- `MirrorTargetMate` 추천 normal/pose preview와 명시적 적용
+- variant config 저장과 CLI 재현
 
-하지만 이것만으로는 사용자가 원하는 SolidWorks-like placement workflow를 만족하지 못한다.
+아직 SolidWorks-like placement workflow로 보기 어려운 핵심 gap:
 
-UI Phase 0.1이 아직 제공하지 못하는 것:
+- 실제 geometry face picking과 component drag/rotate gizmo
+- 여러 객체의 미반영 편집을 함께 보존하는 project-wide draft
+- validate뿐 아니라 simulation/render 실패까지 포함한 atomic save/rollback
+- 실제 ray-plane/port intersection에 기반한 off-axis·tilt·aperture miss
+- port-to-port snap, coaxial/focal-distance guideline과 persistent constraint list
+- undo/redo와 config diff 기반 history
+- STL mesh import preview, triangle hit와 hit-local footprint
+- reciprocal mirror/collimator/fiber return overlay
 
-- component를 3D 공간에서 선택하기
-- component를 drag/rotate하기
-- position/orientation을 직접 편집하기
-- port-to-port snap
-- optical axis guideline
-- focal distance guideline
-- mirror를 target center에 맞게 회전
-- receiver를 hit point로 정렬
-- placement constraint/mate 목록 관리
-- undo/redo
-- interactive 3D viewport
-
-따라서 UI 개발은 dashboard만 만들고 끝내면 안 된다. 먼저 현재 결과를 쉽게 보는 dashboard를 만들 수는 있지만, 장기 계획에는 optical assembly workspace phase를 명확히 포함해야 한다.
+따라서 현재 UI는 사용 가능한 interactive analytical workspace지만, 자유 배치 결과를 실제 광학계와 동일하다고 해석하지 않는다. 남은 문제와 완료 Gate는 [`specs/IMPLEMENTATION_AUDIT_2026-07-15.md`](specs/IMPLEMENTATION_AUDIT_2026-07-15.md)를 따른다.
 
 ## 4. 진행 규칙과 첫 구현 순서
 
@@ -208,45 +204,43 @@ UI가 추가되어도 기존 명령은 계속 동작해야 한다.
 
 UI 기능은 이 명령들을 우회하지 않고 같은 loader, schema, physics function을 사용해야 한다.
 
-### 4.2 결정된 첫 구현 순서
+### 4.2 완료된 초기 구현 순서
 
-현재 기준으로 결정된 순서는 다음과 같다.
+다음 초기 단계는 완료되었다.
 
 ```text
-1. Viewport data contract
-2. UI MVP 0: 3D optical bench viewer + read-only simulation dashboard
-3. Phase 3 scanner command angle physics
-4. UI 연결: scanner angle에 따른 reflected ray / target hit 변화
-5. Numeric placement editor
-6. Guidelines and snapping
-7. Constraint / mate system
-8. Interactive 3D editor
+1. Viewport data contract와 headless 3D bench viewer
+2. Read-only simulation dashboard
+3. Static scanner command angle physics와 UI overlay
+4. Plotly interactive viewport와 component selection
+5. Numeric placement/parameter variant editor
+6. 첫 MirrorTargetMate preview
 ```
 
-### 4.3 바로 다음 patch의 범위
+Guidelines/snapping, 일반 constraint/mate와 drag/rotate editor는 아직 완료되지 않았다.
 
-다음 patch는 UI MVP 0으로 제한한다.
+### 4.3 현재 안정화 patch의 범위
+
+현재 UI patch는 새 기능 수를 늘리기보다 설계값을 안전하게 보존하고 물리 결과와 정확히 연결하는 `UI-S`로 진행한다.
 
 포함:
 
-- optional UI dependency 정책 결정
-- `ViewportScene` 계열 dataclass 초안
-- 현재 project config에서 viewport scene 생성
-- source/collimator/mirror/target/receiver 표시용 data 생성
-- optical axis, mirror normal, beam path, reflected ray 생성
-- target hit marker, footprint overlay, receiver FOV guide 생성
-- read-only summary dashboard
+- 여러 객체 편집을 보존하는 project-wide draft와 config diff
+- 임시 파일 기반 validate→simulate→render 후 atomic variant replace
+- 반복 저장에도 누적되지 않는 baseline/parent provenance
+- scanner 방향 벡터와 각도 입력의 명확한 구분과 validation message
+- 물리 footprint projection eigenvector를 사용하는 world-space overlay
+- `ViewportScene.schema_version`과 JSON Schema
+- `result_root`, display unit 등 지원 project UI setting 연결
 
 제외:
 
-- drag/rotate gizmo
-- snapping
-- full constraint solver
-- scanner time waveform
-- STL hit detection
-- coherent FMCW
+- drag/rotate gizmo와 geometry face picking
+- full constraint solver와 undo/redo
+- scanner hardware dynamics
+- STL footprint/occlusion과 coherent FMCW
 
-이 순서로 가면 단순 dashboard가 아니라 optical assembly workspace의 뼈대를 먼저 세우면서도, 현재 구현된 Phase 2.3 simulation을 바로 사용자가 볼 수 있게 만들 수 있다.
+`UI-S`는 물리 `Phase 2-S0/S1`과 병행할 수 있다. 그러나 실제 off-axis intersection이 구현되기 전에는 UI 배치 결과를 hardware-accurate assembly prediction이라고 표시하지 않는다.
 
 ### 4.4 현재 구현된 UI MVP 0 slice
 
@@ -1116,17 +1110,9 @@ Files
 - variant config YAML
 ```
 
-## 12. 첫 구현 patch 범위 제안
+## 12. 초기 MVP 완료 기록과 현재 남은 범위
 
-사용자가 원하는 최종 방향은 optical assembly workspace지만, 첫 patch는 너무 크게 잡지 않는다.
-
-추천 첫 patch:
-
-```text
-UI MVP 0 — 3D bench viewer + read-only simulation dashboard
-```
-
-이번에 실제로 완료한 첫 patch:
+Optical Assembly Workspace의 초기 MVP는 다음 범위까지 완료했다.
 
 - `src/lidarsim/ui/assembly/viewport_data.py` 추가
 - `src/lidarsim/visualization/workspace.py` 추가
@@ -1141,16 +1127,17 @@ UI MVP 0 — 3D bench viewer + read-only simulation dashboard
 - README와 USER_MANUAL에 workspace 실행 방법 추가
 - viewport data와 renderer/CLI test 추가
 
-다음 patch로 넘긴 항목:
+이후 Streamlit optional dependency, `src/lidarsim/ui/app.py`, project 선택, validate/simulation action, summary·warning·report, Plotly viewport, numeric variant editor와 `MirrorTargetMate`까지 구현했다.
 
-- `streamlit` optional dependency 추가
-- `src/lidarsim/ui/app.py` 추가
-- project path 입력 widget
-- validate 실행 button
-- optical-train 실행 button
-- summary metric card 표시
-- warning list 표시
-- report YAML path 표시
+현재 안정화와 후속 단계로 넘긴 항목:
+
+- project-wide pending draft와 config diff
+- atomic variant save/simulation transaction
+- stable baseline/parent provenance
+- 실제 off-axis ray-plane/port intersection 결과 표시
+- reciprocal mirror/collimator/fiber return path overlay
+- STL mesh import preview와 closest-hit marker
+- port/coaxial/focal-distance snapping과 constraint list
 
 제외:
 
@@ -1163,7 +1150,7 @@ UI MVP 0 — 3D bench viewer + read-only simulation dashboard
 - STL interactive editor
 - cloud/server deployment
 
-이렇게 시작하면 단순 dashboard가 아니라 optical assembly workspace의 골격을 처음부터 잡을 수 있다.
+상세 우선순위와 완료 Gate는 [`specs/IMPLEMENTATION_AUDIT_2026-07-15.md`](specs/IMPLEMENTATION_AUDIT_2026-07-15.md)를 따른다.
 
 ## 13. 결정된 사항과 이후 결정 항목
 
@@ -1182,16 +1169,24 @@ UI MVP 0 — 3D bench viewer + read-only simulation dashboard
 
 ## 14. 추천 다음 작업
 
-1. 물리 Phase 2.4-R1의 reciprocal center-ray vertical slice
-   - target hit→same scanner mirror→same collimator receive port→fiber return path
-   - mirror/collimator aperture residual과 round-trip closure residual
-   - 계산된 return `RaySegment`를 3D viewport에 overlay
-2. UI Phase C의 reciprocal alignment helper
-   - receiver `LookAtMate` 대신 shared collimator/fiber port와 return ray의 coaxial residual 표시
-   - distance/angle ruler와 port/coaxial guide
-   - preview 적용 전후 return-path residual 비교
-3. UI Phase 0.3 comparison
-   - target distance, mirror/collimator aperture와 fiber alignment sweep
-   - baseline 대비 virtual-aperture intermediate, fiber coupling과 link loss 비교
+1. `Phase 2-S0/S1`과 `UI-S` 안정화
+   - calibration/energy/zero-power/vector contract
+   - 실제 ray-plane/port intersection과 no-teleport miss
+   - project-wide draft, atomic variant run과 stable provenance
+   - footprint world orientation과 `ViewportScene` schema
+2. 물리 `Phase 2.4-R1` reciprocal center-ray vertical slice
+   - target hit→same scanner mirror→same collimator receive plane→fiber port
+   - angular/lateral mismatch와 round-trip closure residual
+   - 계산된 return `RaySegment`와 residual을 3D viewport에 overlay
+3. `Phase 4.1-M1` CPU STL target closest-hit
+   - FreeCAD STL mesh preview, nearest hit point·normal·distance
+   - 2-triangle plane과 `rectangle_plane` parity test
+4. `Phase 2.4-R2→R3→R4`
+   - return mirror/collimator power ledger
+   - single-mode fiber overlap과 coupled power
+   - circulator/coupler와 detector input boundary
+5. 이후 UI 확장
+   - reciprocal coaxial guide, distance/angle ruler와 port snap
+   - component comparison, tolerance, persistent constraint와 drag/rotate gizmo
 
-현재 interactive viewer, numeric editor와 첫 mirror 자동 정렬 preview가 연결되었다. 독립 virtual receiver를 target으로 돌리는 기능은 사용자의 실제 shared optical train을 표현하지 못하므로 우선순위를 내린다. 다음 단계는 [`specs/RECIPROCAL_FIBER_RETURN.md`](specs/RECIPROCAL_FIBER_RETURN.md)의 왕복 geometry를 engine/report에 만든 뒤 같은 결과를 viewport와 guide에 연결하는 것이다.
+현재 interactive viewer, numeric editor와 첫 mirror 자동 정렬 preview는 유지한다. UI 코드는 안정화 물리 작업과 병행할 수 있지만 완료 checkpoint는 [`specs/IMPLEMENTATION_AUDIT_2026-07-15.md`](specs/IMPLEMENTATION_AUDIT_2026-07-15.md)의 Gate 순서를 따른다. 독립 virtual receiver는 회귀 비교용이며 사용자의 최종 shared optical train을 대신하지 않는다.

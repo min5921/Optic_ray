@@ -173,6 +173,20 @@ Port 이름은 광 진행 방향을 고정하는 명령이 아니라 component r
 - reciprocal port traversal과 return-path configuration schema 설계
 - UI에 transmit path와 planned return path를 구분해 표시
 
+상태: architecture, output plane 이름과 virtual-aperture 경고는 문서·report에 반영되었다. Reciprocal path를 machine-readable하게 표현할 receiver schema, 양방향 fiber/collimator port와 return output schema는 아직 남아 있다.
+
+### Phase 2-S — R1 선행 안정화 Gate
+
+- calibration evidence 없이 `calibrated` 또는 overall `pass`를 선언하지 않음
+- component origin 재중심화 대신 공통 ray-plane/port intersection 사용
+- off-axis·tilt·aperture miss를 명시적인 path 상태로 반환
+- 여러 target에서 beam power를 중복 합산하지 않는 nearest-visible hit 정책
+- schema와 runtime의 zero transmission·zero-power 계약 일치
+- scanner axis의 finite/non-zero 의미와 scanner pivot 회전 검증
+- UI project-wide draft, atomic variant run과 stable provenance
+
+이 Gate는 R1에서 같은 geometry primitive를 forward/reverse 양쪽에 사용하기 위한 전제 조건이다. 상세 ID와 완료 기준은 [`IMPLEMENTATION_AUDIT_2026-07-15.md`](IMPLEMENTATION_AUDIT_2026-07-15.md)를 따른다.
+
 ### Phase 2.4-R1 — Reciprocal center-ray geometry
 
 - target hit에서 scanner mirror까지 reverse ray 생성
@@ -181,12 +195,24 @@ Port 이름은 광 진행 방향을 고정하는 명령이 아니라 component r
 - aperture center, axis angle과 round-trip closure residual 보고
 - return path line을 3D viewport에 overlay
 
+### Phase 4.1-M1 — CPU STL target closest-hit MVP
+
+- STL audit parser가 읽은 triangle vertex를 immutable float64 mesh geometry로 보존
+- sidecar unit·placement를 적용한 center-ray/triangle intersection
+- 최근접 양의 hit point, geometric normal, distance, triangle ID와 front/back face 보고
+- 평면 2-triangle STL과 기존 `rectangle_plane`의 hit point·normal·distance 동치 검증
+- viewport에 STL mesh와 hit marker overlay
+- STL triangle을 optical scatterer 하나로 취급하지 않음
+
+이 단계는 R1 이후, R2 전에 수행한다. BVH, full visibility/occlusion, multi-bounce, mesh footprint clipping과 coherent scatterer map은 포함하지 않는다. R2는 우선 rectangle-plane analytical baseline을 유지하고, STL은 확인된 hit-local geometry와 normal만 제공한다.
+
 ### Phase 2.4-R2 — Return optical power ledger
 
 - target radiance에서 mirror가 subtend하는 acceptance 계산
 - return mirror aperture와 reflectivity 적용
 - collimator clear aperture와 reverse transmission 적용
 - 각 plane의 power와 loss를 ledger에 기록
+- rectangle-plane analytical case를 첫 기준으로 유지하며 STL closest-hit만으로 mesh 전체 footprint 또는 BRDF 적분이 완료됐다고 표시하지 않음
 
 ### Phase 2.4-R3 — Single-mode fiber coupling
 
@@ -205,8 +231,15 @@ Port 이름은 광 진행 방향을 고정하는 명령이 아니라 component r
 
 ## 9. 필수 검증
 
+- calibration evidence가 없으면 `calibrated` confidence/hardware readiness 거부
+- off-axis lens·mirror에서 component origin으로 순간이동하지 않고 hit, clipping 또는 miss 보고
+- 여러 target에서 nearest-visible power와 전체 energy ledger가 송신 power를 중복 사용하지 않음
+- zero transmission 또는 완전 aperture rejection에서 유효한 zero-power/terminated path 생성
+- scanner axis zero vector 거부와 pivot 기준 회전 분석값 일치
 - exact retrace: `-d_out`이 같은 mirror에서 `-d_in`으로 반사되는지 검사
 - mirror perturbation: 작은 mirror angle 변화가 round-trip angular residual을 예상대로 바꾸는지 검사
+- STL plane parity: 2-triangle plane과 `rectangle_plane`의 nearest hit point·normal·distance 일치
+- STL hit selection: behind/parallel miss와 여러 triangle 중 최근접 양의 hit 선택
 - aperture rejection: return ray/beam이 mirror 또는 collimator aperture를 벗어나면 결합 파워가 감소하는지 검사
 - aligned mode: 동일한 정규화 Gaussian mode의 `eta_fiber = 1` 검사
 - lateral/angular mismatch: mismatch가 증가하면 coupling이 단조 감소하는지 검사
@@ -229,4 +262,4 @@ Port 이름은 광 진행 방향을 고정하는 명령이 아니라 component r
 
 ## 11. 현재 한계
 
-이 문서는 목표 물리 구조와 구현 계약을 정리한 것이다. 현재 코드에는 Phase 2.4-R1 이후의 reverse mirror/collimator propagation, fiber mode overlap, duplexer와 detector가 아직 구현되어 있지 않다. 기존 virtual aperture 계산을 유지하는 이유는 regression과 수치 비교를 위한 것이며 실제 fiber-coupled hardware prediction을 주장하기 위한 것이 아니다.
+이 문서는 목표 물리 구조와 구현 계약을 정리한 것이다. 현재는 R0의 정직한 output 표기 일부만 반영되어 있고, Phase 2-S 안정화, R1 reverse mirror/collimator center ray, Phase 4.1-M1 STL closest-hit, R2 return power ledger, R3 fiber mode overlap, R4 duplexer와 detector는 아직 구현되어 있지 않다. 기존 virtual aperture 계산을 유지하는 이유는 regression과 수치 비교를 위한 것이며 실제 fiber-coupled hardware prediction을 주장하기 위한 것이 아니다.

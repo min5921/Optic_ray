@@ -6,9 +6,10 @@
 
 1. 현재 상태와 다음 작업을 확인하기 위해 `HANDOFF.md`를 읽는다.
 2. `docs/PROJECT_VISION.md`를 읽고 현재 활성 단계의 범위 안에서 작업한다.
-3. `docs/original/coherent-fmcw-lidar-sim-docs/` 아래의 파일은 보존된 물리·구현 참고 자료로 사용한다.
-4. 편집 전에 `git status --short --branch`를 실행하고 기존 변경을 확인한다.
-5. 현재 작업과 관계없는 변경을 덮어쓰거나 버리지 않는다.
+3. 현재 검수 문제와 실제 착수 순서는 `docs/specs/IMPLEMENTATION_AUDIT_2026-07-15.md`에서 확인한다.
+4. `docs/original/coherent-fmcw-lidar-sim-docs/` 아래의 파일은 보존된 물리·구현 참고 자료로 사용한다.
+5. 편집 전에 `git status --short --branch`를 실행하고 기존 변경을 확인한다.
+6. 현재 작업과 관계없는 변경을 덮어쓰거나 버리지 않는다.
 
 ## 프로젝트 목표
 
@@ -27,7 +28,7 @@
 
 ## 개발 순서와 품질
 
-- `docs/PROJECT_VISION.md`의 단계 순서를 따른다. 현재 목표는 요구사항 확인과 Phase 0이다.
+- `docs/PROJECT_VISION.md`의 단계 순서를 따른다. 현재 목표는 `Phase 2-S0 → Phase 2-S1 → UI-S → Phase 2.4-R1 → Phase 4.1-M1 STL closest-hit → R2 → R3 → R4` 순서이며, 각 Gate는 `docs/specs/IMPLEMENTATION_AUDIT_2026-07-15.md`를 따른다.
 - GPU 가속을 추가하기 전에 올바른 NumPy/CPU 기준 구현을 확립한다.
 - 선택 사항인 GPU package는 기본 runtime 경로에서 제외한다.
 - 동작을 변경할 때마다 test를 추가하거나 갱신한다. 복잡한 scene보다 단순한 analytical case를 먼저 검증한다.

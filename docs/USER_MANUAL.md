@@ -581,6 +581,8 @@ geometry:
   metadata_file: assets/meshes/my_target.stl.yaml
 ```
 
+중요: 현재 `stl_asset`은 unit, bounds, topology, normal, hash와 sidecar metadata 검사까지만 지원한다. Optical train에서는 unsupported target miss로 처리되며 ray-triangle hit, footprint, occlusion과 return power는 아직 계산하지 않는다. CPU STL closest-hit는 `Phase 4.1-M1`에서 구현할 예정이며 상세 Gate는 [`specs/IMPLEMENTATION_AUDIT_2026-07-15.md`](specs/IMPLEMENTATION_AUDIT_2026-07-15.md)를 따른다.
+
 Material는 catalog ID로 교체한다.
 
 ```yaml
@@ -915,12 +917,14 @@ Port placement element에서 바꿀 수 있는 값:
 UI dependency는 core runtime과 분리되어 있다.
 
 ```powershell
-python -m pip install -e ".[ui]"
-lidarsim ui configs/project.yaml
+& .\.venv\Scripts\python.exe -m pip install -e ".[ui]"
+& .\.venv\Scripts\python.exe -m lidarsim.cli ui configs/project.yaml
 
 # Browser를 자동으로 열지 않고 port 지정
-lidarsim ui configs/project.yaml --headless --port 8765
+& .\.venv\Scripts\python.exe -m lidarsim.cli ui configs/project.yaml --headless --port 8765
 ```
+
+이 방식은 PowerShell에서 `Activate.ps1` 실행이 금지되거나 `lidarsim.exe` launcher가 application-control policy로 차단된 경우에도 사용할 수 있다.
 
 CLI는 Streamlit usage-statistics 수집을 끈 상태로 실행하므로 최초 실행 email 입력 prompt를 띄우지 않는다. 이미 해당 prompt에서 대기 중인 이전 process가 있다면 그 terminal에서 `Ctrl+C`로 종료하고 위 명령을 다시 실행한다.
 
@@ -949,6 +953,8 @@ Scanner의 `Static command angle (deg)`가 실제 미러 기계각이다. 값을
 
 값을 바꾸면 inspector 상단 상태가 `편집값이 아직 3D와 config에 반영되지 않았습니다`로 바뀐다. 이 상태에서는 3D와 power metric이 마지막 실행 결과를 계속 표시한다. 상단의 `변경값 반영 · 시뮬레이션`을 눌러야 현재 편집값을 variant YAML로 저장·검증하고 3D와 metric을 다시 계산한다. 실행 중 active project/scenario YAML을 외부 editor에서 수정한 경우에도 config hash 변화가 감지되면 stale session 결과를 버리고 자동 재계산한다.
 
+현재 pending edit는 선택한 객체 하나만 추적한다. Source 값을 바꾼 뒤 적용하지 않고 mirror 등 다른 객체로 이동하면 이전 입력이 저장 대상에서 빠질 수 있으므로, `UI-S` project-wide draft가 구현되기 전에는 객체를 바꾸기 전에 변경값을 적용하거나 원래 값으로 되돌린다.
+
 같은 작업을 반복 수정할 수 있도록 `같은 ID의 기존 UI variant 덮어쓰기`는 기본으로 켜져 있다. 이 옵션은 `configs/ui_runs/` 아래의 해당 작업 사본만 갱신하며 baseline config는 덮어쓰지 않는다. 이전 variant도 별도로 보존하려면 `Scenario ID`를 새 이름으로 바꾼 뒤 실행한다.
 
 `scan_mirror`를 선택하면 `Mirror → Target 정렬` section이 나타난다. 이 preview는 현재 Phase 2 incident center ray와 target rectangle center를 사용해 ideal reflection law를 만족하는 surface normal을 구하고, 현재 mirror pose 대비 residual과 추천 rotation을 표시한다. `추천 pose를 편집값에 적용`은 browser의 quaternion과 `scanner.rotation_axis_world` 편집값만 바꾸며 파일을 쓰지 않는다. 두 값을 함께 바꾸는 이유는 scanner mount pose를 회전할 때 catalog의 local mechanical axis도 world frame에서 같이 회전해야 하기 때문이다. 그 뒤 `변경값 반영 · 시뮬레이션`을 눌러야 값이 variant YAML에 저장되고 새 beam path가 계산된다. 현재 첫 구현은 absolute placement mirror만 적용할 수 있다.
@@ -964,7 +970,7 @@ browser 입력
 → results/ui_runs/<scenario>_<hash>/
 ```
 
-Validation이 실패하면 잘못된 새 variant file은 rollback한다. 성공한 project는 다음처럼 CLI에서 재현할 수 있다.
+Validation이 실패하면 잘못된 새 variant file은 rollback한다. 다만 현재는 simulation/render 실패까지 포함한 완전한 atomic transaction이 아니므로, 중요한 기존 variant를 보존하려면 새 Scenario ID를 사용한다. Full rollback은 `UI-S` 범위다. 성공한 project는 다음처럼 CLI에서 재현할 수 있다.
 
 ```powershell
 lidarsim validate configs/ui_runs/my_variant_project.yaml

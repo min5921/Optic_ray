@@ -19,10 +19,12 @@ Password, API key, login token, `.env`, 가상환경, 사용자 계정의 `.code
 git clone <PRIVATE_REPOSITORY_URL> Optic_ray_project
 Set-Location Optic_ray_project
 py -m venv .venv
-.\.venv\Scripts\Activate.ps1
-python -m pip install --upgrade pip
-python -m pip install -e ".[dev]"
+& .\.venv\Scripts\python.exe -m pip install --upgrade pip
+& .\.venv\Scripts\python.exe -m pip install -e ".[dev,ui]"
+& .\.venv\Scripts\python.exe -m lidarsim.cli validate .\configs\project.yaml
 ```
+
+위 명령은 PowerShell execution policy 때문에 `Activate.ps1`이 차단되는 PC에서도 동작한다. `lidarsim.exe`가 application-control policy로 차단되면 계속 `& .\.venv\Scripts\python.exe -m lidarsim.cli <command>` 형식을 사용한다. Script 실행이 허용된 PC에서는 `.\.venv\Scripts\Activate.ps1`로 활성화한 뒤 짧은 `lidarsim <command>`를 사용해도 된다.
 
 복제한 folder를 Codex에서 연다. 기존 대화를 사용할 수 있으면 다시 열고, 그렇지 않다면 다음 요청으로 시작한다.
 

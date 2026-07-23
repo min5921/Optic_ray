@@ -12,6 +12,8 @@
 
 실제 수신 구조와 다음 물리 구현 순서는 [`docs/specs/RECIPROCAL_FIBER_RETURN.md`](docs/specs/RECIPROCAL_FIBER_RETURN.md)에 정의한다. 기준은 `target → same scanner mirror → same collimator → same single-mode fiber → circulator/coupler → detector`이며, 현재 virtual aperture 계산은 이 경로가 구현되기 전의 분석·회귀 검증용 중간값이다.
 
+2026-07-15 전체 검수에서 확정한 보완 문제, 완료 조건과 실제 착수 순서는 [`docs/specs/IMPLEMENTATION_AUDIT_2026-07-15.md`](docs/specs/IMPLEMENTATION_AUDIT_2026-07-15.md)를 따른다. 현재 순서는 `Phase 2-S0 → Phase 2-S1 → UI-S → reciprocal R1 → CPU STL closest-hit → R2 → R3 → R4`다.
+
 파장, 광원, 광학 부품, 배치, scanner, STL geometry, 재질, 수신기 설정, output과 비교 experiment를 변경하는 자세한 방법은 [`docs/USER_MANUAL.md`](docs/USER_MANUAL.md)를 참고한다.
 
 사용자 친화적인 로컬 simulation dashboard 개발 계획은 [`docs/UI_SIMULATION_DASHBOARD.md`](docs/UI_SIMULATION_DASHBOARD.md)에 정리한다.
@@ -26,24 +28,26 @@ Phase 2의 vertical slice로 source에서 ideal thin-lens collimator를 지나 s
 
 ```powershell
 py -m venv .venv
-.\.venv\Scripts\Activate.ps1
-python -m pip install -e ".[dev,ui]"
-lidarsim validate configs/project.yaml
-lidarsim placement configs/project.yaml
-lidarsim report configs/project.yaml
-lidarsim view configs/project.yaml
-lidarsim review configs/project.yaml
-lidarsim beam configs/project.yaml
-lidarsim optical-train configs/project.yaml
-lidarsim scanner-sweep configs/project.yaml --angles-deg -5 0 5 --output results/scanner_sweep.yaml
-lidarsim scanner-path configs/project.yaml --samples 11 --output results/scanner_path.yaml
-lidarsim workspace configs/project.yaml --output results/ui_workspace.png --write-scene results/ui_workspace_scene.yaml
-lidarsim dashboard configs/project.yaml --output results/ui_dashboard.html
-lidarsim dashboard configs/project.yaml --output results/ui_dashboard_with_path.html --include-scanner-path --scanner-path-samples 11
-lidarsim placement-variant configs/project.yaml --element scan_mirror --scenario-id mirror_shift --translation-m 0.1 0 0
-lidarsim ui configs/project.yaml
-python -m pytest -q
+& .\.venv\Scripts\python.exe -m pip install --upgrade pip
+& .\.venv\Scripts\python.exe -m pip install -e ".[dev,ui]"
+& .\.venv\Scripts\python.exe -m lidarsim.cli validate configs/project.yaml
+& .\.venv\Scripts\python.exe -m lidarsim.cli placement configs/project.yaml
+& .\.venv\Scripts\python.exe -m lidarsim.cli report configs/project.yaml
+& .\.venv\Scripts\python.exe -m lidarsim.cli view configs/project.yaml
+& .\.venv\Scripts\python.exe -m lidarsim.cli review configs/project.yaml
+& .\.venv\Scripts\python.exe -m lidarsim.cli beam configs/project.yaml
+& .\.venv\Scripts\python.exe -m lidarsim.cli optical-train configs/project.yaml
+& .\.venv\Scripts\python.exe -m lidarsim.cli scanner-sweep configs/project.yaml --angles-deg -5 0 5 --output results/scanner_sweep.yaml
+& .\.venv\Scripts\python.exe -m lidarsim.cli scanner-path configs/project.yaml --samples 11 --output results/scanner_path.yaml
+& .\.venv\Scripts\python.exe -m lidarsim.cli workspace configs/project.yaml --output results/ui_workspace.png --write-scene results/ui_workspace_scene.yaml
+& .\.venv\Scripts\python.exe -m lidarsim.cli dashboard configs/project.yaml --output results/ui_dashboard.html
+& .\.venv\Scripts\python.exe -m lidarsim.cli dashboard configs/project.yaml --output results/ui_dashboard_with_path.html --include-scanner-path --scanner-path-samples 11
+& .\.venv\Scripts\python.exe -m lidarsim.cli placement-variant configs/project.yaml --element scan_mirror --scenario-id mirror_shift --translation-m 0.1 0 0
+& .\.venv\Scripts\python.exe -m lidarsim.cli ui configs/project.yaml
+& .\.venv\Scripts\python.exe -m pytest -q
 ```
+
+이 실행법은 `Activate.ps1` execution policy와 `lidarsim.exe` application-control 문제를 피한다. Script 실행이 허용된 PC에서는 가상환경 활성화 후 짧은 `lidarsim ...` 명령을 사용해도 된다.
 
 `validate`는 단위가 포함된 물리량을 SI/radian으로 변환하고, 알 수 없는 field, 음수 크기, wavelength validity 위반, 잘못된 catalog·port reference와 resolve할 수 없는 placement를 거부하며 재현 가능한 물리 configuration SHA-256을 출력한다. `placement`는 active scenario의 component·port world position, optical axis와 interface를 계산한다.
 
@@ -63,9 +67,9 @@ python -m pytest -q
 
 `placement-variant`는 baseline scenario를 직접 덮어쓰지 않고, 숫자로 지정한 placement 변경을 별도 scenario/project YAML로 저장한다. Absolute placement element에는 `--translation-m`, `--quaternion-wxyz`를 사용할 수 있고, port placement element에는 `--axial-gap-m`, `--transverse-offset-m`, `--clocking-rad`, `--angular-misalignment-rad`를 사용할 수 있다. 생성된 variant project는 다시 `validate`, `workspace`, `dashboard` 명령으로 실행한다. Loader는 repository schema root를 상위 directory에서 탐색하므로 `configs/ui_runs/` 같은 하위 directory도 지원한다.
 
-`lidarsim ui`는 Streamlit browser에서 Plotly 기반 interactive 3D optical bench를 연다. Orbit·zoom, component marker 선택, guide toggle, beam/reflected ray, target hit·footprint, receiver FOV를 한 화면에서 확인하고 선택한 객체의 값만 편집한다. 입력값이 현재 3D와 다르면 inspector 상단에 미반영 경고가 나타나며 `변경값 반영 · 시뮬레이션`으로 variant 저장·검증·재계산을 한 번에 실행한다. 실행 중 active config 파일의 hash가 바뀌어도 이전 session 결과를 재사용하지 않고 자동 갱신한다. `scan_mirror`를 선택하면 `MirrorTargetMate`가 현재 center ray를 target center로 보내기 위한 normal·pose와 angle residual을 미리 보여주며, 사용자가 적용한 뒤 저장할 때만 absolute placement quaternion과 일관된 `scanner.rotation_axis_world`로 기록한다. 파장·출력, scanner, target, receiver, 호환 component와 numeric placement 변경은 baseline을 수정하지 않고 `configs/ui_runs/` variant YAML로 저장하고 validation을 통과한 경우에만 `results/ui_runs/` bundle을 생성한다. Drag/rotate gizmo, undo/redo, port/coaxial snap과 persistent constraint solver는 아직 없다.
+`lidarsim ui`는 Streamlit browser에서 Plotly 기반 interactive 3D optical bench를 연다. Orbit·zoom, component marker 선택, guide toggle, beam/reflected ray, target hit·footprint, receiver FOV를 한 화면에서 확인하고 선택한 객체의 값만 편집한다. 입력값이 현재 3D와 다르면 inspector 상단에 미반영 경고가 나타나며 `변경값 반영 · 시뮬레이션`으로 variant 저장·검증·재계산을 실행한다. 실행 중 active config 파일의 hash가 바뀌어도 이전 session 결과를 재사용하지 않고 자동 갱신한다. `scan_mirror`를 선택하면 `MirrorTargetMate`가 현재 center ray를 target center로 보내기 위한 normal·pose와 angle residual을 미리 보여주며, 사용자가 적용한 뒤 저장할 때만 absolute placement quaternion과 일관된 `scanner.rotation_axis_world`로 기록한다. 파장·출력, scanner, target, receiver, 호환 component와 numeric placement 변경은 baseline을 수정하지 않고 `configs/ui_runs/` variant YAML로 저장한다. 현재 pending edit는 선택 객체 하나만 추적하고 simulation/render까지 완전한 atomic transaction은 아니므로, 객체를 바꾸기 전에 적용하거나 취소해야 한다. Project-wide draft와 full rollback은 `UI-S` 보완 범위다. Drag/rotate gizmo, undo/redo, port/coaxial snap과 persistent constraint solver도 아직 없다.
 
-Phase 1 결과는 numerical check가 통과해도 실제 측정으로 calibration되지 않았다면 전체 상태를 `warning`, hardware readiness를 `analytical_only`로 표시한다. Fiber MFD의 정의와 catalog nominal override 여부도 configuration에 명시해야 한다.
+현재 analytical report는 numerical check가 통과해도 실제 측정으로 calibration되지 않았다면 hardware prediction으로 해석하지 않는다. Calibration evidence gate가 구현되기 전에는 config의 `model_purpose`나 report의 `calibrated/pass` label만으로 측정 보정 완료를 판단하지 않는다. Fiber MFD의 정의와 catalog nominal override 여부도 configuration에 명시해야 한다.
 
 실제 STL 또는 measurement sidecar를 추가한 뒤에는 다음 명령으로 독립 검증할 수 있다.
 
@@ -73,6 +77,8 @@ Phase 1 결과는 numerical check가 통과해도 실제 측정으로 calibratio
 lidarsim inspect-mesh assets/meshes/my_target.stl.yaml
 lidarsim inspect-measurement assets/measurements/my_data.measurement.yaml
 ```
+
+`inspect-mesh`는 STL의 unit, bounds, topology, normal, hash와 sidecar metadata를 검사하는 명령이다. 현재 STL ray-triangle hit, footprint, occlusion 또는 return simulation은 아니다. 해당 기능은 `Phase 4.1-M1` CPU STL closest-hit에서 구현한다.
 
 ## 여러 컴퓨터에서 작업하기
 
@@ -139,19 +145,17 @@ range/intensity/speckle image
 권장 순서:
 
 ```text
-FMCW single target
-→ Gaussian beam + M²
-→ lens/ABCD/aperture
-→ rough surface speckle
-→ receiver aperture
-→ scanner dynamics
-→ scanner-driven speckle decorrelation
-→ backend abstraction
-→ CuPy batch FFT
-→ STL visible patch
-→ material model
-→ car/mirror/retroreflector scene
-→ full-frame GPU acceleration
+Phase 2-S0: calibration / energy / zero-power / schema contract
+→ Phase 2-S1: actual ray-plane/port intersection and scanner pivot
+→ UI-S: project-wide draft / atomic variant / stable provenance
+→ Phase 2.4-R1: reciprocal center ray
+→ Phase 4.1-M1: CPU STL target closest hit
+→ Phase 2.4-R2: return mirror/collimator power ledger
+→ Phase 2.4-R3: single-mode fiber coupling
+→ Phase 2.4-R4: duplexer and detector input boundary
+→ calibrated scanner dynamics and material/BRDF expansion
+→ coherent field / speckle / FMCW
+→ large-scene acceleration and optional GPU backend
 ```
 
 ## 중요 규칙

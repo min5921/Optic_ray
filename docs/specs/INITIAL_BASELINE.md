@@ -17,13 +17,16 @@
 - Absolute·port-to-port component placement
 - One-axis flat-mirror scanner
 - Flat diffuse target
-- Virtual monostatic circular receiver aperture
-- Receiver aperture에 도달하는 optical power
-- Matplotlib validation plot과 PyVista 3D layout viewer
-- YAML sidecar metadata를 가진 FreeCAD-exported STL geometry
+- 회귀 검증용 virtual monostatic circular receiver aperture
+- Virtual aperture plane에 도달하는 analytical optical power
+- Matplotlib validation plot과 Plotly interactive 3D layout viewer
+- 검사·preview metadata용 YAML sidecar를 가진 FreeCAD-exported STL geometry
 
 후속 범위:
 
+- 동일 scanner/collimator를 통과하는 reciprocal center ray와 return power ledger
+- CPU STL ray-triangle closest-hit, footprint와 visibility
+- Single-mode fiber overlap, circulator/coupler와 detector input plane
 - Area top-hat diffraction
 - 전체 CAD constraint solver
 - 일반적인 Zemax·CODE V import
