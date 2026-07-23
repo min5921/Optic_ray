@@ -246,7 +246,12 @@ def intersect_rectangle_plane(
     )
 
 
-def evaluate_target_footprints(project: Any, beam: BeamState) -> tuple[Any, ...]:
+def evaluate_target_footprints(
+    project: Any,
+    beam: BeamState,
+    *,
+    blocked_reason: str | None = None,
+) -> tuple[Any, ...]:
     """Active scenario targets를 읽고 rectangle-plane footprint들을 평가한다."""
 
     from lidarsim.scene.footprint import estimate_rectangle_plane_footprint
@@ -272,6 +277,30 @@ def evaluate_target_footprints(project: Any, beam: BeamState) -> tuple[Any, ...]
                 width_m=1.0,
                 height_m=1.0,
                 assumptions=("STL/CAD target hit detection은 이번 Phase 2.2 patch 범위 밖입니다.",),
+            )
+            footprints.append(estimate_rectangle_plane_footprint(beam, intersection))
+            continue
+        if blocked_reason is not None:
+            center = _vec3(geometry["center_m"], name="target center_m")
+            normal_input = _vec3(geometry["normal"], name="target normal input")
+            normal = normalize_vector(normal_input, name="target normal")
+            width_axis, height_axis = rectangle_plane_axes(normal)
+            intersection = _miss(
+                target_id=target_id,
+                material_ref=material_ref,
+                geometry_type=geometry_type,
+                reason=f"upstream_optical_train_terminated:{blocked_reason}",
+                center=center,
+                normal_input=normal_input,
+                normal=normal,
+                width_axis=width_axis,
+                height_axis=height_axis,
+                width_m=_positive(geometry["width_m"], name="target width_m"),
+                height_m=_positive(geometry["height_m"], name="target height_m"),
+                assumptions=(
+                    "Upstream optical train termination 때문에 target intersection을 "
+                    "평가하지 않습니다.",
+                ),
             )
             footprints.append(estimate_rectangle_plane_footprint(beam, intersection))
             continue

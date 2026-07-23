@@ -14,7 +14,7 @@
 
 2026-07-15 전체 검수에서 확정한 보완 문제, 완료 조건과 실제 착수 순서는 [`docs/specs/IMPLEMENTATION_AUDIT_2026-07-15.md`](docs/specs/IMPLEMENTATION_AUDIT_2026-07-15.md)를 따른다. 현재 순서는 `Phase 2-S0 → Phase 2-S1 → UI-S → reciprocal R1 → CPU STL closest-hit → R2 → R3 → R4`다.
 
-2026-07-23 Phase 2-S0 Gate를 완료했다. 보정 근거 gate, 0 W 전파, 방향 벡터 입력/정규화 report, q-ABCD 지원 범위, nearest-visible target energy와 strict component/material/Phase 2/ViewportScene schema가 현재 기준 계약이다. 다음 단계는 Phase 2-S1 실제 배치 geometry다.
+2026-07-23 Phase 2-S0 Gate를 완료했다. 보정 근거 gate, 0 W 전파, 방향 벡터 입력/정규화 report, q-ABCD 지원 범위, nearest-visible target energy와 strict component/material/Phase 2/ViewportScene schema가 현재 기준 계약이다. Phase 2-S1 geometry checkpoint에서는 collimator·mirror의 실제 ray-plane hit, no-teleport aperture miss, off-axis ideal-lens chief ray와 scanner pivot 회전을 구현했다. 남은 S1 작업은 target roll/단면 정책과 quadrature 수렴 판정이다.
 
 파장, 광원, 광학 부품, 배치, scanner, STL geometry, 재질, 수신기 설정, output과 비교 experiment를 변경하는 자세한 방법은 [`docs/USER_MANUAL.md`](docs/USER_MANUAL.md)를 참고한다.
 
@@ -26,7 +26,7 @@
 
 Phase 0.1의 검증 기반 위에 NumPy/float64 Gaussian Beam Engine을 구현했다. 현재 point·elliptical·line Gaussian의 자유공간 전파, M², q-parameter, second moment, power-normalized irradiance와 PNG 시각화를 지원한다.
 
-Phase 2의 vertical slice로 source에서 ideal thin-lens collimator를 지나 scanner mirror에서 정지 반사되고, rectangle-plane target footprint와 첫 Lambertian virtual-aperture return까지 계산한다. `lidarsim optical-train`은 free-space propagation, thin-lens ABCD transform, centered circular aperture clipping, static flat-mirror reflection, static scanner command angle, mirror aperture clipping, catalog transmission/reflectivity, target footprint, 분석용 virtual-aperture power와 link budget을 YAML/PNG로 저장한다. 이 값은 reverse scanner/collimator traversal 또는 fiber-coupled power가 아니다. Phase 3 reference helper는 static angle sweep과 ideal forward-line scanner path를 지원한다. Reciprocal return train, single-mode fiber coupling, calibrated scanner dynamics, STL hit detection, BRDF, detector noise와 coherent FMCW는 후속 Phase 범위다.
+Phase 2의 vertical slice로 source에서 ideal thin-lens collimator를 지나 scanner mirror에서 정지 반사되고, rectangle-plane target footprint와 첫 Lambertian virtual-aperture return까지 계산한다. `lidarsim optical-train`은 free-space propagation, thin-lens ABCD transform, 실제 부품 평면 hit와 projected aperture clipping, off-axis ideal-lens chief ray, static flat-mirror reflection, pivot 기준 static scanner command angle, catalog transmission/reflectivity, target footprint, 분석용 virtual-aperture power와 link budget을 YAML/PNG로 저장한다. 부품 평면이 뒤에 있거나 평행하고 center ray가 clear aperture를 놓치면 component origin으로 광선을 옮기지 않고 0 W `terminated` 경로로 보고한다. 이 값은 reverse scanner/collimator traversal 또는 fiber-coupled power가 아니다. Phase 3 reference helper는 static angle sweep과 ideal forward-line scanner path를 지원한다. Reciprocal return train, single-mode fiber coupling, calibrated scanner dynamics, STL hit detection, BRDF, detector noise와 coherent FMCW는 후속 Phase 범위다.
 
 ```powershell
 py -m venv .venv

@@ -448,6 +448,13 @@ scanner:
 
 현재 구현된 `static_command_angle_rad`는 한 순간의 scanner command angle을 뜻한다. 이 값은 mirror normal과 aperture axes를 `rotation_axis_world` 기준으로 회전시켜 reflected ray와 target hit 위치를 바꾼다. Flat mirror에서는 mechanical angle 변화에 대해 reflected optical angle이 약 2배로 변한다. `optical-train`은 이 정적 pose 하나만 계산하며, frequency 기반 ideal sample은 `scanner-path`에서 계산한다. Dynamic lag와 jitter는 두 명령 모두 아직 계산하지 않는다.
 
+현재 optical train은 catalog의 `mechanical.pivot_local_m`을 world frame으로 변환한 실제 pivot을 기준으로 mirror surface origin, normal과 aperture axes를 함께 회전한다. Collimator와 mirror에는 center ray와 실제 component surface plane의 교차점을 사용한다. 따라서 transverse offset을 주면 다음처럼 결과가 구분된다.
+
+- Center ray가 clear aperture 안에 있으면 실제 hit point와 aperture-center decenter를 사용해 clipping과 방향을 계산한다.
+- Center ray가 aperture를 놓치거나 plane과 평행하거나 뒤쪽에서만 교차하면 component origin으로 광선을 강제로 옮기지 않는다.
+- 이 경우 report의 `optical_train.terminated`와 `termination`에 원인·plane·intersection이 기록되고 downstream target/receiver power는 0 W가 된다.
+- Ideal thin lens의 off-axis 방향 변화는 paraxial chief-ray 근사다. 실제 lens prescription, aberration, diffraction과 mechanical STL surface는 아직 광학 계산에 사용하지 않는다.
+
 Degree 입력이 허용되는 UI가 생기더라도 effective config에는 radian으로 변환된 값을 저장한다.
 
 여러 정적 angle을 비교할 때는 baseline YAML을 반복해서 직접 수정하지 말고 `scanner-sweep`을 사용한다.

@@ -180,6 +180,129 @@ def test_phase2_train_reflects_from_scanner_mirror_with_power_ledger(project_roo
         abs=1e-12,
     )
     assert train.component_reports[1]["aperture_status"] == "pass"
+    assert train.terminated is False
+    assert train.termination is None
+    assert train.component_reports[0]["interaction_point_world_m"] == pytest.approx(
+        [0.0, 0.0, -0.08]
+    )
+    assert train.component_reports[1]["interaction_point_world_m"] == pytest.approx(
+        [0.0, 0.0, 0.0],
+        abs=1e-12,
+    )
+
+
+def test_collimator_decenter_uses_actual_hit_and_changes_chief_ray(
+    copied_project: Path,
+) -> None:
+    scenario_path = copied_project.parent / "baseline_1550nm.yaml"
+    scenario = yaml.safe_load(scenario_path.read_text(encoding="utf-8"))
+    scenario["optical_assembly"]["elements"][1]["placement"][
+        "transverse_offset_m"
+    ] = ["1 mm", "0 mm"]
+    scenario_path.write_text(
+        yaml.safe_dump(scenario, sort_keys=False),
+        encoding="utf-8",
+    )
+    project = load_project(copied_project)
+
+    train = propagate_transmitter_train(project)
+    collimator = train.component_reports[0]
+    mirror = train.component_reports[1]
+
+    assert train.terminated is False
+    assert collimator["aperture_center_world_m"] == pytest.approx(
+        [0.001, 0.0, -0.08]
+    )
+    assert collimator["interaction_point_world_m"] == pytest.approx(
+        [0.0, 0.0, -0.08]
+    )
+    assert collimator["beam_center_u_m"] == pytest.approx(-0.001)
+    assert collimator["output_chief_ray_direction"][0] > 0.0
+    assert mirror["interaction_point_world_m"] != pytest.approx([0.0, 0.0, 0.0])
+    assert train.final_state.state.origin_m == pytest.approx(
+        mirror["interaction_point_world_m"]
+    )
+
+
+def test_clear_aperture_miss_terminates_without_center_teleport(
+    copied_project: Path,
+) -> None:
+    scenario_path = copied_project.parent / "baseline_1550nm.yaml"
+    scenario = yaml.safe_load(scenario_path.read_text(encoding="utf-8"))
+    scenario["optical_assembly"]["elements"][1]["placement"][
+        "transverse_offset_m"
+    ] = ["20 mm", "0 mm"]
+    scenario_path.write_text(
+        yaml.safe_dump(scenario, sort_keys=False),
+        encoding="utf-8",
+    )
+    project = load_project(copied_project)
+
+    train = propagate_transmitter_train(project)
+    report = build_phase2_optical_train_report(project, train)
+
+    assert train.terminated is True
+    assert train.termination is not None
+    assert train.termination["element_id"] == "collimator"
+    assert train.termination["reason"] == "center_ray_outside_clear_aperture"
+    assert train.termination["beam_center_u_m"] == pytest.approx(-0.02)
+    assert train.final_state.label == "collimator.terminated"
+    assert train.final_state.state.origin_m == pytest.approx([0.0, 0.0, -0.08])
+    assert train.final_state.state.origin_m != pytest.approx([0.02, 0.0, -0.08])
+    assert train.final_state.state.power_w == 0.0
+    assert train.power_ledger[-1].mechanism == "component_geometric_miss"
+    assert report.summary["optical_train_status"] == "terminated"
+    assert report.summary["target_hit_count"] == 0
+    assert report.target_footprints[0]["miss_reason"].startswith(
+        "upstream_optical_train_terminated"
+    )
+    SchemaStore.load(copied_project.parent.parent / "schemas").validate(
+        report.to_dict(),
+        "phase2_optical_train_report.schema.json",
+        source="terminated Phase 2 report",
+    )
+
+
+def test_scanner_command_rotates_surface_origin_about_catalog_pivot(
+    copied_project: Path,
+) -> None:
+    component_path = (
+        copied_project.parent.parent
+        / "catalog"
+        / "components"
+        / "custom"
+        / "ideal_scan_mirror_20mm.yaml"
+    )
+    component = yaml.safe_load(component_path.read_text(encoding="utf-8"))
+    component["mechanical"]["pivot_local_m"] = ["10 mm", "0 mm", "0 mm"]
+    component_path.write_text(
+        yaml.safe_dump(component, sort_keys=False),
+        encoding="utf-8",
+    )
+    scenario_path = copied_project.parent / "baseline_1550nm.yaml"
+    scenario = yaml.safe_load(scenario_path.read_text(encoding="utf-8"))
+    scenario["scanner"]["static_command_angle_rad"] = "5 deg"
+    scenario_path.write_text(
+        yaml.safe_dump(scenario, sort_keys=False),
+        encoding="utf-8",
+    )
+    project = load_project(copied_project)
+
+    train = propagate_transmitter_train(project)
+    mirror = train.component_reports[1]
+    angle = math.radians(5.0)
+    expected_origin = [
+        0.01 * (1.0 - math.cos(angle)),
+        0.0,
+        0.01 * math.sin(angle),
+    ]
+
+    assert mirror["scanner_pivot_world_m"] == pytest.approx([0.01, 0.0, 0.0])
+    assert mirror["surface_origin_world_m"] == pytest.approx(expected_origin)
+    assert mirror["interaction_point_world_m"] == pytest.approx(
+        train.final_state.state.origin_m
+    )
+    assert mirror["surface_origin_world_m"] != pytest.approx([0.0, 0.0, 0.0])
 
 
 def test_phase2_zero_component_transmission_is_schema_valid(

@@ -18,6 +18,8 @@ class MirrorClipResult:
 
     clear_width_m: float
     clear_height_m: float
+    beam_center_u_m: float
+    beam_center_v_m: float
     incidence_cosine: float
     incidence_angle_rad: float
     transmission_fraction: float
@@ -34,6 +36,8 @@ class MirrorClipResult:
         return {
             "clear_width_m": self.clear_width_m,
             "clear_height_m": self.clear_height_m,
+            "beam_center_u_m": self.beam_center_u_m,
+            "beam_center_v_m": self.beam_center_v_m,
             "incidence_cosine": self.incidence_cosine,
             "incidence_angle_rad": self.incidence_angle_rad,
             "incidence_angle_convention": "angle_from_surface_normal_radians",
@@ -84,6 +88,8 @@ def rectangular_mirror_clip(
     aperture_y_axis: Iterable[float],
     clear_width_m: float,
     clear_height_m: float,
+    beam_center_u_m: float = 0.0,
+    beam_center_v_m: float = 0.0,
     quadrature_order: int = 80,
     integration_extent_radii: float = 6.0,
 ) -> MirrorClipResult:
@@ -94,6 +100,10 @@ def rectangular_mirror_clip(
     y_axis = normalize_vector(aperture_y_axis, name="mirror aperture y axis")
     width = _positive(clear_width_m, name="clear_width_m")
     height = _positive(clear_height_m, name="clear_height_m")
+    center_u = float(beam_center_u_m)
+    center_v = float(beam_center_v_m)
+    if not math.isfinite(center_u) or not math.isfinite(center_v):
+        raise ValueError("Mirror beam center aperture 좌표는 유한해야 합니다.")
     order = int(quadrature_order)
     if order < 16:
         raise ValueError("quadrature_order는 16 이상이어야 합니다.")
@@ -122,10 +132,10 @@ def rectangular_mirror_clip(
     metric_inverse = np.linalg.pinv(metric)
     radius_u = math.sqrt(max(float(metric_inverse[0, 0]), 0.0))
     radius_v = math.sqrt(max(float(metric_inverse[1, 1]), 0.0))
-    u_min = max(-0.5 * width, -extent * max(radius_u, 1e-15))
-    u_max = min(0.5 * width, extent * max(radius_u, 1e-15))
-    v_min = max(-0.5 * height, -extent * max(radius_v, 1e-15))
-    v_max = min(0.5 * height, extent * max(radius_v, 1e-15))
+    u_min = max(-0.5 * width, center_u - extent * max(radius_u, 1e-15))
+    u_max = min(0.5 * width, center_u + extent * max(radius_u, 1e-15))
+    v_min = max(-0.5 * height, center_v - extent * max(radius_v, 1e-15))
+    v_max = min(0.5 * height, center_v + extent * max(radius_v, 1e-15))
     if u_min >= u_max or v_min >= v_max:
         fraction = 0.0
         output_power = 0.0
@@ -133,6 +143,8 @@ def rectangular_mirror_clip(
         return MirrorClipResult(
             clear_width_m=width,
             clear_height_m=height,
+            beam_center_u_m=center_u,
+            beam_center_v_m=center_v,
             incidence_cosine=incidence_cosine,
             incidence_angle_rad=math.acos(min(max(incidence_cosine, 0.0), 1.0)),
             transmission_fraction=fraction,
@@ -151,7 +163,10 @@ def rectangular_mirror_clip(
     wu = 0.5 * (u_max - u_min) * weights
     wv = 0.5 * (v_max - v_min) * weights
     uu, vv = np.meshgrid(u, v, indexing="xy")
-    surface_points = uu[..., None] * x_axis + vv[..., None] * y_axis
+    surface_points = (
+        (uu - center_u)[..., None] * x_axis
+        + (vv - center_v)[..., None] * y_axis
+    )
     beam_x = np.tensordot(surface_points, beam.transverse_x_axis, axes=([-1], [0]))
     beam_y = np.tensordot(surface_points, beam.transverse_y_axis, axes=([-1], [0]))
     integration_beam = beam if beam.power_w > 0.0 else replace(beam, power_w=1.0)
@@ -167,6 +182,8 @@ def rectangular_mirror_clip(
     return MirrorClipResult(
         clear_width_m=width,
         clear_height_m=height,
+        beam_center_u_m=center_u,
+        beam_center_v_m=center_v,
         incidence_cosine=incidence_cosine,
         incidence_angle_rad=math.acos(min(max(incidence_cosine, 0.0), 1.0)),
         transmission_fraction=fraction,
@@ -191,6 +208,8 @@ def interact_flat_mirror(
     clear_width_m: float,
     clear_height_m: float,
     power_reflectivity: float,
+    beam_center_u_m: float = 0.0,
+    beam_center_v_m: float = 0.0,
     quadrature_order: int = 80,
 ) -> MirrorInteractionResult:
     """현재 plane의 beam을 ideal flat mirror에서 반사시킨다."""
@@ -208,6 +227,8 @@ def interact_flat_mirror(
         aperture_y_axis=aperture_y_axis,
         clear_width_m=clear_width_m,
         clear_height_m=clear_height_m,
+        beam_center_u_m=beam_center_u_m,
+        beam_center_v_m=beam_center_v_m,
         quadrature_order=quadrature_order,
     )
     total_transmission = clip.transmission_fraction * reflectivity

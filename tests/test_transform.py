@@ -5,7 +5,7 @@ import math
 import numpy as np
 import pytest
 
-from lidarsim.geometry import RigidTransform
+from lidarsim.geometry import RigidTransform, intersect_ray_plane
 
 
 def test_rigid_transform_composition_and_inverse() -> None:
@@ -44,3 +44,32 @@ def test_normal_is_renormalized() -> None:
     transform = RigidTransform.from_axis_angle((0.0, 1.0, 0.0), math.pi / 2.0)
 
     assert transform.transform_normal((0.0, 0.0, 5.0)) == pytest.approx((1.0, 0.0, 0.0))
+
+
+def test_ray_plane_intersection_reports_hit_parallel_and_behind() -> None:
+    hit = intersect_ray_plane(
+        [0.0, 0.0, 0.0],
+        [0.0, 0.0, 2.0],
+        [0.0, 0.0, 1.0],
+        [0.0, 0.0, 1.0],
+    )
+    parallel = intersect_ray_plane(
+        [0.0, 0.0, 0.0],
+        [1.0, 0.0, 0.0],
+        [0.0, 0.0, 1.0],
+        [0.0, 0.0, 1.0],
+    )
+    behind = intersect_ray_plane(
+        [0.0, 0.0, 0.0],
+        [0.0, 0.0, 1.0],
+        [0.0, 0.0, -1.0],
+        [0.0, 0.0, 1.0],
+    )
+
+    assert hit.hit is True
+    assert hit.distance_m == pytest.approx(1.0)
+    assert hit.point_m == pytest.approx([0.0, 0.0, 1.0])
+    assert parallel.hit is False
+    assert parallel.miss_reason == "parallel_to_plane"
+    assert behind.hit is False
+    assert behind.miss_reason == "intersection_behind_ray"

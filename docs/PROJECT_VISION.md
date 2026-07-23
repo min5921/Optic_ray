@@ -907,7 +907,7 @@ Phase 2-S0 신뢰도·계약 안정화
 
 `UI-S`는 `Phase 2-S0/S1`과 병행할 수 있지만, 각 단계의 완료 선언과 checkpoint는 위 Gate 순서를 따른다. 상세 문제 ID, 영향과 완료 조건은 [`specs/IMPLEMENTATION_AUDIT_2026-07-15.md`](specs/IMPLEMENTATION_AUDIT_2026-07-15.md)에 기록한다. Phase 2.2 target footprint와 Phase 2.3 virtual-aperture return은 Phase 4·5 기능을 앞당겨 검증한 vertical slice이며 Phase 4·5 전체 완료를 뜻하지 않는다.
 
-2026-07-23 Phase 2-S0 Gate를 완료했다. Calibration evidence, zero-power, scenario 방향 벡터, Phase 2 `gaussian_m2` 지원 경계, nearest-visible target energy ownership과 strict component/material/report/viewport schema가 regression test를 통과했다. 다음 활성 단계는 실제 ray-plane/port 교차와 no-teleport miss를 시작하는 Phase 2-S1이다.
+2026-07-23 Phase 2-S0 Gate를 완료했다. Calibration evidence, zero-power, scenario 방향 벡터, Phase 2 `gaussian_m2` 지원 경계, nearest-visible target energy ownership과 strict component/material/report/viewport schema가 regression test를 통과했다. Phase 2-S1의 첫 geometry checkpoint에서 collimator·mirror 실제 ray-plane hit, no-teleport miss, off-axis ideal-lens chief ray와 scanner pivot 회전을 완료했다. 다음 활성 작업은 target width-axis/단면 정책과 mirror·footprint quadrature 수렴 판정이다.
 
 ### Phase 0 — Contract, Configuration, Coordinate와 Viewer Skeleton
 
@@ -966,6 +966,8 @@ Phase 2 vertical slice 상태 (2026-07-10): `src/lidarsim/optics/`에 determinan
 - UI의 project-wide draft, atomic variant run, stable provenance와 footprint world orientation을 보강한다.
 
 완료 조건: calibration gate, zero-power, nearest-visible target energy, off-axis lens/mirror miss·clipping, scanner pivot과 UI rollback/draft analytical regression이 모두 통과한다. 이 Gate 전에는 numeric placement 결과를 실제 자유 배치 광학계의 정확한 예측이라고 표시하지 않는다.
+
+2026-07-23 S1 geometry checkpoint: 공통 ray-plane 교차를 사용해 collimator·mirror의 실제 interaction point를 계산한다. Plane parallel/behind와 clear-aperture center-ray miss는 광선을 component origin으로 순간 이동시키지 않고 명시적 `terminated` 상태와 0 W ledger로 종료한다. Collimator decenter는 projected aperture 적분과 paraxial chief-ray 방향에 반영하며 scanner command는 catalog pivot 기준으로 surface frame 전체를 회전한다. Target roll/one-sided policy와 수치 적분 수렴 Gate는 아직 진행 중이다.
 
 ### Phase 3 — User-defined Scanner
 

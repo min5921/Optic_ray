@@ -3,13 +3,19 @@
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any
 
 import numpy as np
 
 from lidarsim.beam import BeamState, build_source_beam
-from lidarsim.geometry import AssemblyPlacement, resolve_assembly
+from lidarsim.geometry import (
+    AssemblyPlacement,
+    RayPlaneIntersection,
+    RigidTransform,
+    intersect_ray_plane,
+    resolve_assembly,
+)
 from lidarsim.geometry.transform import normalize_vector
 from lidarsim.optics.abcd import ABCDMatrix, apply_abcd_to_beam
 from lidarsim.optics.aperture import ApertureClipResult, circular_aperture_clip
@@ -83,6 +89,8 @@ class OpticalTrainResult:
     power_ledger: tuple[PowerLedgerEntry, ...]
     component_reports: tuple[dict[str, Any], ...]
     unsupported_elements: tuple[dict[str, Any], ...]
+    terminated: bool
+    termination: dict[str, Any] | None
     warnings: tuple[str, ...]
 
     @property
@@ -113,6 +121,8 @@ class OpticalTrainResult:
             "power_ledger": [entry.to_dict() for entry in self.power_ledger],
             "component_reports": list(self.component_reports),
             "unsupported_elements": list(self.unsupported_elements),
+            "terminated": self.terminated,
+            "termination": self.termination,
             "warnings": list(self.warnings),
         }
 
@@ -150,15 +160,6 @@ def _input_reference_plane(element: Any) -> tuple[str | None, Any, str]:
     return None, element.T_world_from_component, "component_origin"
 
 
-def _axial_distance_to_port(beam: BeamState, port_transform: Any) -> tuple[float, float]:
-    delta = port_transform.translation_m - beam.origin_m
-    axial = float(np.dot(delta, beam.direction))
-    transverse = float(np.linalg.norm(delta - axial * beam.direction))
-    if axial < -1e-12:
-        raise ValueError("다음 optical element가 현재 beam 진행 방향의 뒤쪽에 있습니다.")
-    return max(axial, 0.0), transverse
-
-
 def _append_free_space(
     *,
     current: BeamState,
@@ -186,6 +187,97 @@ def _append_free_space(
     return propagated
 
 
+def _local_plane_coordinates(
+    point_m: Any,
+    plane_origin_m: Any,
+    x_axis: Any,
+    y_axis: Any,
+) -> tuple[float, float]:
+    offset = np.asarray(point_m, dtype=np.float64) - np.asarray(
+        plane_origin_m,
+        dtype=np.float64,
+    )
+    return (
+        float(np.dot(offset, normalize_vector(x_axis, name="plane x axis"))),
+        float(np.dot(offset, normalize_vector(y_axis, name="plane y axis"))),
+    )
+
+
+def _terminate_path(
+    *,
+    current: BeamState,
+    optical_path_id: str,
+    element_id: str,
+    component_ref: str,
+    component_type: str,
+    reason: str,
+    intersection: RayPlaneIntersection | None,
+    plane_origin_m: Any,
+    plane_normal: Any,
+    beam_center_u_m: float | None,
+    beam_center_v_m: float | None,
+    states: list[BeamPlane],
+    ledger: list[PowerLedgerEntry],
+    warnings: list[str],
+) -> tuple[BeamState, dict[str, Any]]:
+    zero_state = replace(
+        current,
+        power_w=0.0,
+        accumulated_transmission=0.0,
+    )
+    ledger.append(
+        PowerLedgerEntry(
+            optical_path_id=optical_path_id,
+            element_id=element_id,
+            component_ref=component_ref,
+            mechanism="component_geometric_miss",
+            input_power_w=current.power_w,
+            output_power_w=0.0,
+            loss_w=current.power_w,
+            loss_db=None,
+            transmission_fraction=0.0,
+            model_source="ray_plane_and_clear_aperture_center_hit",
+            warning=(
+                "Declared optical path에서 벗어난 power를 0 W terminated state로 "
+                "기록합니다. 흡수·산란 위치는 계산하지 않습니다."
+            ),
+        )
+    )
+    states.append(
+        BeamPlane(
+            label=f"{element_id}.terminated",
+            element_id=element_id,
+            component_ref=component_ref,
+            port_id=None,
+            plane_role="terminated_path",
+            distance_along_path_m=zero_state.optical_path_length_m,
+            state=zero_state,
+        )
+    )
+    warning = (
+        f"{element_id}에서 optical path가 종료되었습니다: {reason}. "
+        "Beam을 component origin으로 재배치하지 않습니다."
+    )
+    warnings.append(warning)
+    termination = {
+        "element_id": element_id,
+        "component_ref": component_ref,
+        "component_type": component_type,
+        "reason": reason,
+        "last_beam_origin_m": current.origin_m.tolist(),
+        "plane_origin_world_m": np.asarray(plane_origin_m, dtype=np.float64).tolist(),
+        "plane_normal_world": normalize_vector(
+            plane_normal,
+            name="termination plane normal",
+        ).tolist(),
+        "beam_center_u_m": beam_center_u_m,
+        "beam_center_v_m": beam_center_v_m,
+        "intersection": None if intersection is None else intersection.to_dict(),
+        "warning": warning,
+    }
+    return zero_state, termination
+
+
 def _collimator_report(
     *,
     optical_path_id: str,
@@ -193,9 +285,15 @@ def _collimator_report(
     component_ref: str,
     component: Any,
     before_lens: BeamState,
-    output_origin_m: Any,
-    output_direction: Any,
+    aperture_center_m: Any,
+    surface_normal: Any,
+    aperture_x_axis: Any,
+    aperture_y_axis: Any,
+    beam_center_u_m: float,
+    beam_center_v_m: float,
+    output_axis: Any,
     output_x_axis: Any,
+    output_y_axis: Any,
     ledger: list[PowerLedgerEntry],
 ) -> tuple[BeamState, dict[str, Any]]:
     optical = component["optical"]
@@ -206,6 +304,11 @@ def _collimator_report(
     aperture = circular_aperture_clip(
         before_lens,
         aperture_diameter_m=float(optical["clear_aperture_diameter_m"]),
+        surface_normal=surface_normal,
+        aperture_x_axis=aperture_x_axis,
+        aperture_y_axis=aperture_y_axis,
+        beam_center_u_m=beam_center_u_m,
+        beam_center_v_m=beam_center_v_m,
     )
     after_aperture_power = aperture.output_power_w
     ledger.append(
@@ -245,13 +348,30 @@ def _collimator_report(
     )
 
     total_transmission = aperture.transmission_fraction * surface_transmission
-    lens = ABCDMatrix.thin_lens(float(optical["effective_focal_length_m"]))
+    focal_length = float(optical["effective_focal_length_m"])
+    lens = ABCDMatrix.thin_lens(focal_length)
+    axis = normalize_vector(output_axis, name="collimator output axis")
+    x_axis = normalize_vector(output_x_axis, name="collimator output x axis")
+    y_axis = normalize_vector(output_y_axis, name="collimator output y axis")
+    axial_cosine = float(np.dot(before_lens.direction, axis))
+    if axial_cosine <= 1.0e-12:
+        raise ValueError(
+            "Collimator chief-ray transform은 output port +axis 방향 입사만 지원합니다."
+        )
+    slope_x = float(np.dot(before_lens.direction, x_axis)) / axial_cosine
+    slope_y = float(np.dot(before_lens.direction, y_axis)) / axial_cosine
+    output_slope_x = slope_x - float(beam_center_u_m) / focal_length
+    output_slope_y = slope_y - float(beam_center_v_m) / focal_length
+    chief_ray_output_direction = normalize_vector(
+        axis + output_slope_x * x_axis + output_slope_y * y_axis,
+        name="thin-lens output chief ray",
+    )
     after_lens = apply_abcd_to_beam(
         before_lens,
         lens,
-        origin_m=output_origin_m,
-        direction=output_direction,
-        transverse_x_axis=output_x_axis,
+        origin_m=before_lens.origin_m,
+        direction=chief_ray_output_direction,
+        transverse_x_axis=x_axis,
         power_transmission=total_transmission,
     )
     report = {
@@ -260,17 +380,28 @@ def _collimator_report(
         "component_type": str(component["component_type"]),
         "model": model,
         "model_level": str(component["model_level"]),
+        "ray_model": "paraxial_thin_lens_chief_ray",
         "abcd_matrix": lens.as_nested_list(),
-        "effective_focal_length_m": float(optical["effective_focal_length_m"]),
+        "effective_focal_length_m": focal_length,
         "clear_aperture_diameter_m": float(optical["clear_aperture_diameter_m"]),
+        "aperture_center_world_m": np.asarray(
+            aperture_center_m,
+            dtype=np.float64,
+        ).tolist(),
+        "interaction_point_world_m": before_lens.origin_m.tolist(),
+        "beam_center_u_m": float(beam_center_u_m),
+        "beam_center_v_m": float(beam_center_v_m),
+        "incident_direction": before_lens.direction.tolist(),
+        "output_chief_ray_direction": chief_ray_output_direction.tolist(),
         "aperture_clip": aperture.to_dict(),
         "power_transmission": surface_transmission,
         "input_beam_state": before_lens.to_dict(),
         "output_beam_state": after_lens.to_dict(),
         "assumptions": [
             "Ideal zero-thickness thin lens입니다.",
-            "Beam center가 aperture 중심과 일치한다고 가정합니다.",
-            "Aberration, diffraction, coating spectral curve와 decenter/tilt sensitivity는 계산하지 않습니다.",
+            "Center ray는 실제 input port plane과 교차하고 local decenter에 paraxial thin-lens ray law를 적용합니다.",
+            "Tilted surface의 circular aperture power는 surface-projected numerical quadrature로 계산합니다.",
+            "Aberration, diffraction과 coating spectral curve는 계산하지 않습니다.",
         ],
     }
     return after_lens, report
@@ -311,27 +442,88 @@ def _rotate_vector_about_axis(vector: Any, axis: Any, angle_rad: float) -> np.nd
     )
 
 
+@dataclass(frozen=True, slots=True)
+class _ScannerSurfacePose:
+    command_angle_rad: float
+    rotation_axis_world: np.ndarray
+    pivot_world_m: np.ndarray
+    surface_origin_world_m: np.ndarray
+    surface_normal_world: np.ndarray
+    aperture_x_axis_world: np.ndarray
+    aperture_y_axis_world: np.ndarray
+
+
 def _scanner_static_pose(
     scenario: Any,
     *,
     element_id: str,
+    element: Any,
+    component: Any,
     normal: np.ndarray,
     aperture_x: np.ndarray,
     aperture_y: np.ndarray,
-) -> tuple[float, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+) -> _ScannerSurfacePose:
     scanner = scenario.get("scanner", {})
+    component_origin = np.asarray(
+        element.T_world_from_component.translation_m,
+        dtype=np.float64,
+    )
+    pivot_local = component["mechanical"].get("pivot_local_m", (0.0, 0.0, 0.0))
+    pivot_world = np.asarray(
+        element.T_world_from_component.transform_point(pivot_local),
+        dtype=np.float64,
+    )
     if str(scanner.get("element_id", "")) != element_id:
-        return 0.0, np.zeros(3, dtype=np.float64), normal, aperture_x, aperture_y
+        inactive_axis = normalize_vector(
+            scanner.get("rotation_axis_world", aperture_y),
+            name="scanner rotation axis",
+        )
+        return _ScannerSurfacePose(
+            command_angle_rad=0.0,
+            rotation_axis_world=inactive_axis,
+            pivot_world_m=pivot_world,
+            surface_origin_world_m=component_origin,
+            surface_normal_world=normal,
+            aperture_x_axis_world=aperture_x,
+            aperture_y_axis_world=aperture_y,
+        )
     command_angle = float(scanner.get("static_command_angle_rad", 0.0))
     rotation_axis = normalize_vector(scanner["rotation_axis_world"], name="scanner rotation axis")
     if abs(command_angle) <= 1e-15:
-        return command_angle, rotation_axis, normal, aperture_x, aperture_y
-    return (
-        command_angle,
-        rotation_axis,
-        _rotate_vector_about_axis(normal, rotation_axis, command_angle),
-        _rotate_vector_about_axis(aperture_x, rotation_axis, command_angle),
-        _rotate_vector_about_axis(aperture_y, rotation_axis, command_angle),
+        return _ScannerSurfacePose(
+            command_angle_rad=command_angle,
+            rotation_axis_world=rotation_axis,
+            pivot_world_m=pivot_world,
+            surface_origin_world_m=component_origin,
+            surface_normal_world=normal,
+            aperture_x_axis_world=aperture_x,
+            aperture_y_axis_world=aperture_y,
+        )
+    rotation = np.asarray(
+        RigidTransform.from_axis_angle(rotation_axis, command_angle).rotation,
+        dtype=np.float64,
+    )
+    rotated_origin = pivot_world + rotation @ (component_origin - pivot_world)
+    return _ScannerSurfacePose(
+        command_angle_rad=command_angle,
+        rotation_axis_world=rotation_axis,
+        pivot_world_m=pivot_world,
+        surface_origin_world_m=rotated_origin,
+        surface_normal_world=_rotate_vector_about_axis(
+            normal,
+            rotation_axis,
+            command_angle,
+        ),
+        aperture_x_axis_world=_rotate_vector_about_axis(
+            aperture_x,
+            rotation_axis,
+            command_angle,
+        ),
+        aperture_y_axis_world=_rotate_vector_about_axis(
+            aperture_y,
+            rotation_axis,
+            command_angle,
+        ),
     )
 
 
@@ -343,7 +535,10 @@ def _scanner_mirror_report(
     component_ref: str,
     component: Any,
     element: Any,
+    surface_pose: _ScannerSurfacePose,
     before_mirror: BeamState,
+    beam_center_u_m: float,
+    beam_center_v_m: float,
     ledger: list[PowerLedgerEntry],
 ) -> tuple[BeamState, dict[str, Any]]:
     optical = component["optical"]
@@ -351,23 +546,17 @@ def _scanner_mirror_report(
     if surface_model != "flat_mirror":
         raise ValueError(f"지원하지 않는 scanner_mirror surface_model입니다: {surface_model!r}")
 
-    normal, aperture_x, aperture_y = _mirror_aperture_axes(element, component)
-    command_angle, rotation_axis, normal, aperture_x, aperture_y = _scanner_static_pose(
-        scenario,
-        element_id=element_id,
-        normal=normal,
-        aperture_x=aperture_x,
-        aperture_y=aperture_y,
-    )
     interaction = interact_flat_mirror(
         before_mirror,
-        surface_origin_m=element.T_world_from_component.translation_m,
-        surface_normal=normal,
-        aperture_x_axis=aperture_x,
-        aperture_y_axis=aperture_y,
+        surface_origin_m=before_mirror.origin_m,
+        surface_normal=surface_pose.surface_normal_world,
+        aperture_x_axis=surface_pose.aperture_x_axis_world,
+        aperture_y_axis=surface_pose.aperture_y_axis_world,
         clear_width_m=float(optical["clear_width_m"]),
         clear_height_m=float(optical["clear_height_m"]),
         power_reflectivity=float(optical["power_reflectivity"]),
+        beam_center_u_m=beam_center_u_m,
+        beam_center_v_m=beam_center_v_m,
     )
     clip = interaction.aperture_clip
     after_clip_power = clip.output_power_w
@@ -414,11 +603,16 @@ def _scanner_mirror_report(
         "model_level": str(component["model_level"]),
         "incident_direction": before_mirror.direction.tolist(),
         "scanner_pose_model": "static_command_angle",
-        "scanner_command_angle_rad": command_angle,
+        "scanner_command_angle_rad": surface_pose.command_angle_rad,
         "scanner_rotation_axis_input_world": [
             float(value) for value in scenario["scanner"]["rotation_axis_world"]
         ],
-        "scanner_rotation_axis_world": rotation_axis.tolist(),
+        "scanner_rotation_axis_world": surface_pose.rotation_axis_world.tolist(),
+        "scanner_pivot_world_m": surface_pose.pivot_world_m.tolist(),
+        "surface_origin_world_m": surface_pose.surface_origin_world_m.tolist(),
+        "interaction_point_world_m": before_mirror.origin_m.tolist(),
+        "beam_center_u_m": float(beam_center_u_m),
+        "beam_center_v_m": float(beam_center_v_m),
         "surface_normal_world": interaction.surface_normal.tolist(),
         "aperture_x_axis_world": interaction.aperture_x_axis.tolist(),
         "aperture_y_axis_world": interaction.aperture_y_axis.tolist(),
@@ -435,9 +629,9 @@ def _scanner_mirror_report(
         "input_beam_state": before_mirror.to_dict(),
         "output_beam_state": interaction.output_beam.to_dict(),
         "assumptions": [
-            "Ideal flat mirror에 static scanner command angle만 적용합니다.",
+            "Ideal flat mirror에 catalog pivot 기준 static scanner command angle을 적용합니다.",
             "Dynamic lag, jitter, waveform sampling과 scanner time path는 아직 적용하지 않습니다.",
-            "Beam center가 mirror component origin과 aperture 중심을 지난다고 가정합니다.",
+            "Beam center ray의 실제 rotated surface-plane hit와 aperture local coordinate를 사용합니다.",
             "Diffraction, edge scattering, coating spectral curve와 polarization은 계산하지 않습니다.",
         ],
         "warnings": [
@@ -490,51 +684,139 @@ def propagate_transmitter_train(
     component_reports: list[dict[str, Any]] = []
     unsupported: list[dict[str, Any]] = []
     warnings: list[str] = []
+    termination: dict[str, Any] | None = None
 
     for element_id in sequence[1:]:
         element = resolved_assembly[element_id]
         component = project.catalog[element.component_ref].data
-        input_port, input_transform, plane_role = _input_reference_plane(element)
-        distance, transverse_error = _axial_distance_to_port(current, input_transform)
-        if transverse_error > 1e-9:
-            reference = f"{element_id}.{input_port}" if input_port is not None else f"{element_id}.origin"
-            warnings.append(
-                f"{reference} plane이 beam axis에서 {transverse_error:.3e} m 벗어나 있습니다."
-            )
-        if distance > 0.0:
-            current = _append_free_space(
-                current=current,
-                distance_m=distance,
-                optical_path_id=optical_path_id,
-                element_id=element_id,
-                component_ref=element.component_ref,
-                ledger=ledger,
-            )
-        states.append(
-            BeamPlane(
-                label=f"{element_id}.{input_port}" if input_port is not None else f"{element_id}.origin",
-                element_id=element_id,
-                component_ref=element.component_ref,
-                port_id=input_port,
-                plane_role=plane_role,
-                distance_along_path_m=current.optical_path_length_m,
-                state=current,
-            )
-        )
-
         component_type = str(component["component_type"])
+        if component_type not in {"collimator", "scanner_mirror"}:
+            unsupported.append(
+                {
+                    "element_id": element_id,
+                    "component_ref": element.component_ref,
+                    "component_type": component_type,
+                    "reason": (
+                        "Phase 2 reference train은 ideal collimator와 static flat "
+                        "scanner mirror interaction만 지원합니다."
+                    ),
+                }
+            )
+            break
+
         if component_type == "collimator":
+            input_port, input_transform, plane_role = _input_reference_plane(element)
+            plane_origin = input_transform.translation_m
+            plane_normal = input_transform.rotation[:, 2]
+            intersection = intersect_ray_plane(
+                current.origin_m,
+                current.direction,
+                plane_origin,
+                plane_normal,
+            )
+            if not intersection.hit:
+                current, termination = _terminate_path(
+                    current=current,
+                    optical_path_id=optical_path_id,
+                    element_id=element_id,
+                    component_ref=element.component_ref,
+                    component_type=component_type,
+                    reason=str(intersection.miss_reason),
+                    intersection=intersection,
+                    plane_origin_m=plane_origin,
+                    plane_normal=plane_normal,
+                    beam_center_u_m=None,
+                    beam_center_v_m=None,
+                    states=states,
+                    ledger=ledger,
+                    warnings=warnings,
+                )
+                break
+            assert intersection.distance_m is not None
+            assert intersection.point_m is not None
+            if intersection.distance_m > 0.0:
+                current = _append_free_space(
+                    current=current,
+                    distance_m=intersection.distance_m,
+                    optical_path_id=optical_path_id,
+                    element_id=element_id,
+                    component_ref=element.component_ref,
+                    ledger=ledger,
+                )
+            current = replace(current, origin_m=intersection.point_m)
+            center_u, center_v = _local_plane_coordinates(
+                intersection.point_m,
+                plane_origin,
+                input_transform.rotation[:, 0],
+                input_transform.rotation[:, 1],
+            )
+            states.append(
+                BeamPlane(
+                    label=f"{element_id}.{input_port}",
+                    element_id=element_id,
+                    component_ref=element.component_ref,
+                    port_id=input_port,
+                    plane_role=plane_role,
+                    distance_along_path_m=current.optical_path_length_m,
+                    state=current,
+                )
+            )
+            aperture_radius = 0.5 * float(
+                component["optical"]["clear_aperture_diameter_m"]
+            )
+            if math.hypot(center_u, center_v) > aperture_radius + 1.0e-12:
+                current, termination = _terminate_path(
+                    current=current,
+                    optical_path_id=optical_path_id,
+                    element_id=element_id,
+                    component_ref=element.component_ref,
+                    component_type=component_type,
+                    reason="center_ray_outside_clear_aperture",
+                    intersection=intersection,
+                    plane_origin_m=plane_origin,
+                    plane_normal=plane_normal,
+                    beam_center_u_m=center_u,
+                    beam_center_v_m=center_v,
+                    states=states,
+                    ledger=ledger,
+                    warnings=warnings,
+                )
+                break
             output_port = _preferred_port(element, "output")
             output_transform = element.world_from_port(output_port)
+            if float(np.dot(current.direction, output_transform.rotation[:, 2])) <= 1.0e-12:
+                current, termination = _terminate_path(
+                    current=current,
+                    optical_path_id=optical_path_id,
+                    element_id=element_id,
+                    component_ref=element.component_ref,
+                    component_type=component_type,
+                    reason="unsupported_backside_collimator_incidence",
+                    intersection=intersection,
+                    plane_origin_m=plane_origin,
+                    plane_normal=plane_normal,
+                    beam_center_u_m=center_u,
+                    beam_center_v_m=center_v,
+                    states=states,
+                    ledger=ledger,
+                    warnings=warnings,
+                )
+                break
             current, report = _collimator_report(
                 optical_path_id=optical_path_id,
                 element_id=element_id,
                 component_ref=element.component_ref,
                 component=component,
                 before_lens=current,
-                output_origin_m=output_transform.translation_m,
-                output_direction=output_transform.rotation[:, 2],
+                aperture_center_m=plane_origin,
+                surface_normal=plane_normal,
+                aperture_x_axis=input_transform.rotation[:, 0],
+                aperture_y_axis=input_transform.rotation[:, 1],
+                beam_center_u_m=center_u,
+                beam_center_v_m=center_v,
+                output_axis=output_transform.rotation[:, 2],
                 output_x_axis=output_transform.rotation[:, 0],
+                output_y_axis=output_transform.rotation[:, 1],
                 ledger=ledger,
             )
             component_reports.append(report)
@@ -552,6 +834,92 @@ def propagate_transmitter_train(
             continue
 
         if component_type == "scanner_mirror":
+            normal, aperture_x, aperture_y = _mirror_aperture_axes(element, component)
+            surface_pose = _scanner_static_pose(
+                scenario,
+                element_id=element_id,
+                element=element,
+                component=component,
+                normal=normal,
+                aperture_x=aperture_x,
+                aperture_y=aperture_y,
+            )
+            intersection = intersect_ray_plane(
+                current.origin_m,
+                current.direction,
+                surface_pose.surface_origin_world_m,
+                surface_pose.surface_normal_world,
+            )
+            if not intersection.hit:
+                current, termination = _terminate_path(
+                    current=current,
+                    optical_path_id=optical_path_id,
+                    element_id=element_id,
+                    component_ref=element.component_ref,
+                    component_type=component_type,
+                    reason=str(intersection.miss_reason),
+                    intersection=intersection,
+                    plane_origin_m=surface_pose.surface_origin_world_m,
+                    plane_normal=surface_pose.surface_normal_world,
+                    beam_center_u_m=None,
+                    beam_center_v_m=None,
+                    states=states,
+                    ledger=ledger,
+                    warnings=warnings,
+                )
+                break
+            assert intersection.distance_m is not None
+            assert intersection.point_m is not None
+            if intersection.distance_m > 0.0:
+                current = _append_free_space(
+                    current=current,
+                    distance_m=intersection.distance_m,
+                    optical_path_id=optical_path_id,
+                    element_id=element_id,
+                    component_ref=element.component_ref,
+                    ledger=ledger,
+                )
+            current = replace(current, origin_m=intersection.point_m)
+            center_u, center_v = _local_plane_coordinates(
+                intersection.point_m,
+                surface_pose.surface_origin_world_m,
+                surface_pose.aperture_x_axis_world,
+                surface_pose.aperture_y_axis_world,
+            )
+            states.append(
+                BeamPlane(
+                    label=f"{element_id}.surface",
+                    element_id=element_id,
+                    component_ref=element.component_ref,
+                    port_id=None,
+                    plane_role="mirror_surface_input",
+                    distance_along_path_m=current.optical_path_length_m,
+                    state=current,
+                )
+            )
+            half_width = 0.5 * float(component["optical"]["clear_width_m"])
+            half_height = 0.5 * float(component["optical"]["clear_height_m"])
+            if (
+                abs(center_u) > half_width + 1.0e-12
+                or abs(center_v) > half_height + 1.0e-12
+            ):
+                current, termination = _terminate_path(
+                    current=current,
+                    optical_path_id=optical_path_id,
+                    element_id=element_id,
+                    component_ref=element.component_ref,
+                    component_type=component_type,
+                    reason="center_ray_outside_clear_aperture",
+                    intersection=intersection,
+                    plane_origin_m=surface_pose.surface_origin_world_m,
+                    plane_normal=surface_pose.surface_normal_world,
+                    beam_center_u_m=center_u,
+                    beam_center_v_m=center_v,
+                    states=states,
+                    ledger=ledger,
+                    warnings=warnings,
+                )
+                break
             current, report = _scanner_mirror_report(
                 scenario=scenario,
                 optical_path_id=optical_path_id,
@@ -559,7 +927,10 @@ def propagate_transmitter_train(
                 component_ref=element.component_ref,
                 component=component,
                 element=element,
+                surface_pose=surface_pose,
                 before_mirror=current,
+                beam_center_u_m=center_u,
+                beam_center_v_m=center_v,
                 ledger=ledger,
             )
             component_reports.append(report)
@@ -581,19 +952,6 @@ def propagate_transmitter_train(
             )
             continue
 
-        unsupported.append(
-            {
-                "element_id": element_id,
-                "component_ref": element.component_ref,
-                "component_type": component_type,
-                "reason": (
-                    "Phase 2 first vertical slice는 source→ideal thin-lens collimator와 "
-                    "다음 component origin까지의 free-space propagation만 계산합니다."
-                ),
-            }
-        )
-        break
-
     return OpticalTrainResult(
         optical_path_id=optical_path_id,
         element_sequence=sequence,
@@ -601,5 +959,7 @@ def propagate_transmitter_train(
         power_ledger=tuple(ledger),
         component_reports=tuple(component_reports),
         unsupported_elements=tuple(unsupported),
+        terminated=termination is not None,
+        termination=termination,
         warnings=tuple(warnings),
     )

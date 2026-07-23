@@ -74,6 +74,7 @@
       "additionalProperties": false,
       "required": [
         "overall_status",
+        "optical_train_status",
         "optical_path_id",
         "final_plane",
         "final_radius_x_m",
@@ -96,6 +97,7 @@
       ],
       "properties": {
         "overall_status": { "enum": ["pass", "warning", "fail"] },
+        "optical_train_status": { "enum": ["completed", "terminated"] },
         "optical_path_id": { "type": "string" },
         "final_plane": { "type": "string" },
         "final_radius_x_m": { "type": "number", "exclusiveMinimum": 0.0 },
@@ -290,7 +292,8 @@
             "circular_aperture_clipping",
             "component_power_transmission",
             "mirror_rectangular_aperture",
-            "mirror_reflectivity"
+            "mirror_reflectivity",
+            "component_geometric_miss"
           ]
         },
         "input_power_w": { "type": "number", "minimum": 0.0 },
@@ -313,18 +316,29 @@
         "aperture_radius_m",
         "beam_radius_x_m",
         "beam_radius_y_m",
+        "beam_center_u_m",
+        "beam_center_v_m",
+        "incidence_cosine",
         "transmission_fraction",
         "clipped_fraction",
         "input_power_w",
         "output_power_w",
         "loss_w",
         "loss_db",
+        "quadrature_order",
         "method"
       ],
       "properties": {
         "aperture_radius_m": { "type": "number", "exclusiveMinimum": 0.0 },
         "beam_radius_x_m": { "type": "number", "exclusiveMinimum": 0.0 },
         "beam_radius_y_m": { "type": "number", "exclusiveMinimum": 0.0 },
+        "beam_center_u_m": { "type": "number" },
+        "beam_center_v_m": { "type": "number" },
+        "incidence_cosine": {
+          "type": "number",
+          "minimum": 0.0,
+          "maximum": 1.0
+        },
         "transmission_fraction": {
           "type": "number",
           "minimum": 0.0,
@@ -339,6 +353,10 @@
         "output_power_w": { "type": "number", "minimum": 0.0 },
         "loss_w": { "type": "number", "minimum": 0.0 },
         "loss_db": { "type": ["number", "null"], "minimum": 0.0 },
+        "quadrature_order": {
+          "type": ["integer", "null"],
+          "minimum": 16
+        },
         "method": { "type": "string" }
       }
     },
@@ -348,6 +366,8 @@
       "required": [
         "clear_width_m",
         "clear_height_m",
+        "beam_center_u_m",
+        "beam_center_v_m",
         "incidence_cosine",
         "incidence_angle_rad",
         "incidence_angle_convention",
@@ -364,6 +384,8 @@
       "properties": {
         "clear_width_m": { "type": "number", "exclusiveMinimum": 0.0 },
         "clear_height_m": { "type": "number", "exclusiveMinimum": 0.0 },
+        "beam_center_u_m": { "type": "number" },
+        "beam_center_v_m": { "type": "number" },
         "incidence_cosine": { "type": "number", "minimum": 0.0, "maximum": 1.0 },
         "incidence_angle_rad": {
           "type": "number",
@@ -401,9 +423,16 @@
         "component_type",
         "model",
         "model_level",
+        "ray_model",
         "abcd_matrix",
         "effective_focal_length_m",
         "clear_aperture_diameter_m",
+        "aperture_center_world_m",
+        "interaction_point_world_m",
+        "beam_center_u_m",
+        "beam_center_v_m",
+        "incident_direction",
+        "output_chief_ray_direction",
         "aperture_clip",
         "power_transmission",
         "input_beam_state",
@@ -416,6 +445,7 @@
         "component_type": { "const": "collimator" },
         "model": { "const": "ideal_thin_lens" },
         "model_level": { "type": "string" },
+        "ray_model": { "const": "paraxial_thin_lens_chief_ray" },
         "abcd_matrix": {
           "type": "array",
           "minItems": 2,
@@ -435,6 +465,12 @@
           "type": "number",
           "exclusiveMinimum": 0.0
         },
+        "aperture_center_world_m": { "$ref": "#/$defs/vec3" },
+        "interaction_point_world_m": { "$ref": "#/$defs/vec3" },
+        "beam_center_u_m": { "type": "number" },
+        "beam_center_v_m": { "type": "number" },
+        "incident_direction": { "$ref": "#/$defs/vec3" },
+        "output_chief_ray_direction": { "$ref": "#/$defs/vec3" },
         "aperture_clip": { "$ref": "#/$defs/circularApertureClip" },
         "power_transmission": {
           "type": "number",
@@ -461,6 +497,11 @@
         "scanner_command_angle_rad",
         "scanner_rotation_axis_input_world",
         "scanner_rotation_axis_world",
+        "scanner_pivot_world_m",
+        "surface_origin_world_m",
+        "interaction_point_world_m",
+        "beam_center_u_m",
+        "beam_center_v_m",
         "surface_normal_world",
         "aperture_x_axis_world",
         "aperture_y_axis_world",
@@ -491,6 +532,11 @@
         "scanner_command_angle_rad": { "type": "number" },
         "scanner_rotation_axis_input_world": { "$ref": "#/$defs/vec3" },
         "scanner_rotation_axis_world": { "$ref": "#/$defs/vec3" },
+        "scanner_pivot_world_m": { "$ref": "#/$defs/vec3" },
+        "surface_origin_world_m": { "$ref": "#/$defs/vec3" },
+        "interaction_point_world_m": { "$ref": "#/$defs/vec3" },
+        "beam_center_u_m": { "type": "number" },
+        "beam_center_v_m": { "type": "number" },
         "surface_normal_world": { "$ref": "#/$defs/vec3" },
         "aperture_x_axis_world": { "$ref": "#/$defs/vec3" },
         "aperture_y_axis_world": { "$ref": "#/$defs/vec3" },
@@ -535,6 +581,71 @@
         "reason": { "type": "string" }
       }
     },
+    "termination": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "element_id",
+        "component_ref",
+        "component_type",
+        "reason",
+        "last_beam_origin_m",
+        "plane_origin_world_m",
+        "plane_normal_world",
+        "beam_center_u_m",
+        "beam_center_v_m",
+        "intersection",
+        "warning"
+      ],
+      "properties": {
+        "element_id": { "type": "string" },
+        "component_ref": { "type": "string" },
+        "component_type": { "type": "string" },
+        "reason": { "type": "string" },
+        "last_beam_origin_m": { "$ref": "#/$defs/vec3" },
+        "plane_origin_world_m": { "$ref": "#/$defs/vec3" },
+        "plane_normal_world": { "$ref": "#/$defs/vec3" },
+        "beam_center_u_m": { "type": ["number", "null"] },
+        "beam_center_v_m": { "type": ["number", "null"] },
+        "intersection": {
+          "oneOf": [
+            { "type": "null" },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "hit",
+                "miss_reason",
+                "distance_m",
+                "point_m",
+                "ray_direction",
+                "plane_origin_m",
+                "plane_normal",
+                "denominator",
+                "epsilon"
+              ],
+              "properties": {
+                "hit": { "type": "boolean" },
+                "miss_reason": { "type": ["string", "null"] },
+                "distance_m": { "type": ["number", "null"], "minimum": 0.0 },
+                "point_m": {
+                  "oneOf": [
+                    { "type": "null" },
+                    { "$ref": "#/$defs/vec3" }
+                  ]
+                },
+                "ray_direction": { "$ref": "#/$defs/vec3" },
+                "plane_origin_m": { "$ref": "#/$defs/vec3" },
+                "plane_normal": { "$ref": "#/$defs/vec3" },
+                "denominator": { "type": "number" },
+                "epsilon": { "type": "number", "exclusiveMinimum": 0.0 }
+              }
+            }
+          ]
+        },
+        "warning": { "type": "string" }
+      }
+    },
     "opticalTrain": {
       "type": "object",
       "additionalProperties": false,
@@ -545,6 +656,8 @@
         "power_ledger",
         "component_reports",
         "unsupported_elements",
+        "terminated",
+        "termination",
         "warnings"
       ],
       "properties": {
@@ -575,6 +688,13 @@
         "unsupported_elements": {
           "type": "array",
           "items": { "$ref": "#/$defs/unsupportedElement" }
+        },
+        "terminated": { "type": "boolean" },
+        "termination": {
+          "oneOf": [
+            { "type": "null" },
+            { "$ref": "#/$defs/termination" }
+          ]
         },
         "warnings": { "$ref": "#/$defs/stringArray" }
       }

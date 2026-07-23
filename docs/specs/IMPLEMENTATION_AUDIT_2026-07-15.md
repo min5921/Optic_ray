@@ -69,6 +69,14 @@ python -W error::DeprecationWarning -W error::UserWarning -m pytest -q
 | `S1-TARGET-01` | Rectangle target은 normal 주위 roll을 명시할 수 없고 backside 양면 가정과 return cosine 처리가 일치하지 않는다. | 직사각형 target 방향과 뒷면 return 해석이 모호하다. | target width axis 또는 quaternion contract를 추가하고 one-sided/two-sided material 정책을 geometry와 radiometry에서 동일하게 적용한다. |
 | `S1-NUM-01` | Mirror aperture와 target footprint quadrature에 refined-order convergence 판정이 없다. | 극단적인 clipping과 grazing incidence에서 수치 오차를 신뢰하기 어렵다. | base/refined order 결과와 relative residual을 report하고 tolerance 초과 시 warning/fail을 반환한다. |
 
+2026-07-23 geometry checkpoint:
+
+- `S1-GEO-01` 완료: 공통 float64 ray-plane 교차를 collimator와 scanner mirror에 적용했다. 실제 positive hit까지 전파하며 component origin으로 beam을 재배치하지 않는다. 평면 평행·뒤쪽 교차·clear aperture center-ray miss는 원래 광로에서 명시적인 `terminated` 0 W 상태와 `component_geometric_miss` ledger를 만든다.
+- Off-axis collimator는 실제 interaction point와 aperture center의 local decenter를 사용해 projected circular aperture를 적분하고, ideal paraxial thin-lens chief-ray slope 변화를 적용한다.
+- `S1-GEO-02` 완료: scanner command rotation은 catalog `mechanical.pivot_local_m`을 world frame으로 변환한 pivot을 기준으로 surface origin, normal과 rectangular aperture axes를 함께 회전한다.
+- Baseline, 1 mm collimator decenter, 20 mm aperture miss와 nonzero scanner pivot analytical regression을 통과했다.
+- 남은 Phase 2-S1 Gate는 `S1-TARGET-01`과 `S1-NUM-01`이다.
+
 ### 3.3 UI-S — 편집·시각화 안정화
 
 | ID | 문제 | 영향 | 완료 조건 |

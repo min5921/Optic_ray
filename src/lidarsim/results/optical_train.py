@@ -280,7 +280,15 @@ def build_phase2_optical_train_report(
     """Phase 2 first vertical-slice train report를 만든다."""
 
     train = result or propagate_transmitter_train(project)
-    footprints = evaluate_target_footprints(project, train.final_state.state)
+    footprints = evaluate_target_footprints(
+        project,
+        train.final_state.state,
+        blocked_reason=(
+            None
+            if train.termination is None
+            else str(train.termination["reason"])
+        ),
+    )
     receiver_returns = estimate_receiver_returns(project, footprints)
     final_state = train.final_state
     q_check = _q_check(train)
@@ -330,6 +338,7 @@ def build_phase2_optical_train_report(
         },
         summary={
             "overall_status": overall_status,
+            "optical_train_status": "terminated" if train.terminated else "completed",
             "optical_path_id": train.optical_path_id,
             "final_plane": final_state.label,
             "final_radius_x_m": final_state.state.radius_x_m,
