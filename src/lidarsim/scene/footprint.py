@@ -25,7 +25,11 @@ class TargetFootprint:
     projected_radius_v_m: float | None
     approximate_footprint_area_m2: float | None
     peak_irradiance_w_m2: float | None
+    candidate_estimated_power_on_target_w: float
     estimated_power_on_target_w: float
+    visibility_status: str
+    contributes_to_scene_energy: bool
+    occluded_by_target_id: str | None
     clipped_by_target_bounds: bool
     quadrature_order: int
     integration_extent_radii: float
@@ -72,7 +76,13 @@ class TargetFootprint:
             "projected_radius_v_m": self.projected_radius_v_m,
             "approximate_footprint_area_m2": self.approximate_footprint_area_m2,
             "peak_irradiance_w_m2": self.peak_irradiance_w_m2,
+            "candidate_estimated_power_on_target_w": (
+                self.candidate_estimated_power_on_target_w
+            ),
             "estimated_power_on_target_w": self.estimated_power_on_target_w,
+            "visibility_status": self.visibility_status,
+            "contributes_to_scene_energy": self.contributes_to_scene_energy,
+            "occluded_by_target_id": self.occluded_by_target_id,
             "clipped_by_target_bounds": self.clipped_by_target_bounds,
             "quadrature_order": self.quadrature_order,
             "integration_extent_radii": self.integration_extent_radii,
@@ -192,7 +202,11 @@ def estimate_rectangle_plane_footprint(
             projected_radius_v_m=None,
             approximate_footprint_area_m2=None,
             peak_irradiance_w_m2=None,
+            candidate_estimated_power_on_target_w=0.0,
             estimated_power_on_target_w=0.0,
+            visibility_status="miss",
+            contributes_to_scene_energy=False,
+            occluded_by_target_id=None,
             clipped_by_target_bounds=False,
             quadrature_order=order,
             integration_extent_radii=extent,
@@ -245,7 +259,11 @@ def estimate_rectangle_plane_footprint(
         projected_radius_v_m=radius_v,
         approximate_footprint_area_m2=area,
         peak_irradiance_w_m2=peak_surface,
+        candidate_estimated_power_on_target_w=power_on_target,
         estimated_power_on_target_w=power_on_target,
+        visibility_status="candidate_unresolved",
+        contributes_to_scene_energy=False,
+        occluded_by_target_id=None,
         clipped_by_target_bounds=clipped,
         quadrature_order=order,
         integration_extent_radii=extent,

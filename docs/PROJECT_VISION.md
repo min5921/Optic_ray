@@ -907,7 +907,7 @@ Phase 2-S0 신뢰도·계약 안정화
 
 `UI-S`는 `Phase 2-S0/S1`과 병행할 수 있지만, 각 단계의 완료 선언과 checkpoint는 위 Gate 순서를 따른다. 상세 문제 ID, 영향과 완료 조건은 [`specs/IMPLEMENTATION_AUDIT_2026-07-15.md`](specs/IMPLEMENTATION_AUDIT_2026-07-15.md)에 기록한다. Phase 2.2 target footprint와 Phase 2.3 virtual-aperture return은 Phase 4·5 기능을 앞당겨 검증한 vertical slice이며 Phase 4·5 전체 완료를 뜻하지 않는다.
 
-2026-07-23 기준 Phase 2-S0의 calibration evidence gate, zero-power 계약, scenario 방향 벡터 계약과 Phase 2 `gaussian_m2` 지원 경계가 완료되었다. S0 완료 선언 전 남은 항목은 nearest-visible target energy ownership과 strict component/material/report/viewport schema다.
+2026-07-23 Phase 2-S0 Gate를 완료했다. Calibration evidence, zero-power, scenario 방향 벡터, Phase 2 `gaussian_m2` 지원 경계, nearest-visible target energy ownership과 strict component/material/report/viewport schema가 regression test를 통과했다. 다음 활성 단계는 실제 ray-plane/port 교차와 no-teleport miss를 시작하는 Phase 2-S1이다.
 
 ### Phase 0 — Contract, Configuration, Coordinate와 Viewer Skeleton
 

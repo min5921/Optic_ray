@@ -378,6 +378,42 @@ def test_unknown_component_catalog_field_is_rejected(copied_project: Path) -> No
     assert any("Additional properties" in item.message for item in captured.value.diagnostics)
 
 
+def test_unknown_nested_component_optical_field_is_rejected(
+    copied_project: Path,
+) -> None:
+    component_path = (
+        copied_project.parent.parent
+        / "catalog"
+        / "components"
+        / "custom"
+        / "ideal_collimator_f20.yaml"
+    )
+    component = _read_yaml(component_path)
+    component["optical"]["effective_focal_lenght_m"] = "20 mm"
+    _write_yaml(component_path, component)
+
+    with pytest.raises(ConfigValidationError, match="Additional properties"):
+        load_project(copied_project)
+
+
+def test_unknown_nested_material_optical_field_is_rejected(
+    copied_project: Path,
+) -> None:
+    material_path = (
+        copied_project.parent.parent
+        / "catalog"
+        / "materials"
+        / "custom"
+        / "diffuse_gray_020.yaml"
+    )
+    material = _read_yaml(material_path)
+    material["optical"]["hemispherical_reflectivty"] = 0.2
+    _write_yaml(material_path, material)
+
+    with pytest.raises(ConfigValidationError, match="Additional properties"):
+        load_project(copied_project)
+
+
 def test_scanner_axis_must_lie_in_mirror_surface(copied_project: Path) -> None:
     component_path = (
         copied_project.parent.parent

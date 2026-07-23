@@ -157,6 +157,35 @@ def estimate_lambertian_receiver_return(
             warnings=tuple(warnings),
         )
 
+    if not footprint.contributes_to_scene_energy and footprint.visibility_status.startswith(
+        "occluded"
+    ):
+        warnings.append(
+            f"Target은 {footprint.occluded_by_target_id!r} 뒤에 가려져 receiver return에 "
+            "기여하지 않습니다."
+        )
+        return ReceiverReturn(
+            target_id=footprint.target_id,
+            material_ref=footprint.material_ref,
+            material_model=material_model,
+            material_reflectivity=None,
+            receiver_architecture=architecture,
+            receiver_direction_input=receiver_direction_input,
+            receiver_direction=receiver_direction_resolved,
+            receiver_aperture_area_m2=aperture_area,
+            receiver_distance_m=None,
+            receiver_fov_status="occluded",
+            receiver_axis_angle_rad=None,
+            receiver_axis_cosine=None,
+            target_to_receiver_cosine=None,
+            estimated_power_on_target_w=0.0,
+            estimated_received_power_w=0.0,
+            link_loss_db=None,
+            status="occluded_by_nearer_target",
+            assumptions=tuple(assumptions),
+            warnings=tuple(warnings),
+        )
+
     if material_model != "lambertian":
         warnings.append(f"지원하지 않는 material optical.model입니다: {material_model!r}")
         return ReceiverReturn(

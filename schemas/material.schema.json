@@ -12,7 +12,7 @@
     "model_level": { "enum": ["ideal", "parametric", "measured"] },
     "optical": {
       "type": "object",
-      "additionalProperties": true,
+      "additionalProperties": false,
       "required": ["model", "wavelength_m"],
       "properties": {
         "model": { "type": "string" },

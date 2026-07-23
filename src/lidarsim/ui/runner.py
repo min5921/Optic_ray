@@ -94,6 +94,11 @@ def run_ui_simulation(
     )
     scene = build_viewport_scene(project, report=report)
     scene_data = scene.to_dict()
+    schemas.validate(
+        scene_data,
+        "viewport_scene.schema.json",
+        source="generated UI viewport scene",
+    )
 
     if output_directory is None:
         root = find_project_root(project.project_path)

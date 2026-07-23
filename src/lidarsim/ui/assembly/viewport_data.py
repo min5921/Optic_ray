@@ -309,9 +309,11 @@ class ViewportScene:
     constraints: tuple[PlacementConstraint, ...]
     placement_edits: tuple[PlacementEdit, ...]
     warnings: tuple[str, ...]
+    schema_version: int = 1
 
     def to_dict(self) -> dict[str, Any]:
         return {
+            "schema_version": self.schema_version,
             "project_id": self.project_id,
             "scenario_id": self.scenario_id,
             "config_hash": self.config_hash,

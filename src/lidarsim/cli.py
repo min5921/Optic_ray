@@ -873,6 +873,12 @@ def _workspace(args: argparse.Namespace) -> int:
         report = build_phase2_optical_train_report(project)
         scene = build_viewport_scene(project, report=report)
         scene_data = scene.to_dict()
+        schemas = SchemaStore.load(schema_directory_for_project(project.project_path))
+        schemas.validate(
+            scene_data,
+            "viewport_scene.schema.json",
+            source="generated workspace viewport scene",
+        )
         if args.write_scene is not None:
             scene_path = _write_yaml_report(args.write_scene, scene_data)
         else:
@@ -910,6 +916,11 @@ def _dashboard(args: argparse.Namespace) -> int:
             source="generated Phase 2 dashboard report",
         )
         scene = build_viewport_scene(project, report=report)
+        schemas.validate(
+            scene.to_dict(),
+            "viewport_scene.schema.json",
+            source="generated dashboard viewport scene",
+        )
         html_path = args.output.resolve()
         report_target = args.report or html_path.with_name(f"{html_path.stem}_phase2_report.yaml")
         scene_target = args.write_scene or html_path.with_name(f"{html_path.stem}_viewport_scene.yaml")

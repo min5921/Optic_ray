@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any, Iterable
 
 import numpy as np
@@ -285,4 +285,48 @@ def evaluate_target_footprints(project: Any, beam: BeamState) -> tuple[Any, ...]
             height_m=geometry["height_m"],
         )
         footprints.append(estimate_rectangle_plane_footprint(beam, intersection))
-    return tuple(footprints)
+    visible_candidates = [
+        (index, footprint)
+        for index, footprint in enumerate(footprints)
+        if footprint.hit and footprint.intersection.distance_to_target_m is not None
+    ]
+    if not visible_candidates:
+        return tuple(footprints)
+
+    visible_index, visible = min(
+        visible_candidates,
+        key=lambda item: (
+            float(item[1].intersection.distance_to_target_m),
+            str(item[1].target_id),
+        ),
+    )
+    resolved: list[Any] = []
+    for index, footprint in enumerate(footprints):
+        if not footprint.hit:
+            resolved.append(footprint)
+            continue
+        if index == visible_index:
+            resolved.append(
+                replace(
+                    footprint,
+                    visibility_status="visible_nearest",
+                    contributes_to_scene_energy=True,
+                    occluded_by_target_id=None,
+                )
+            )
+            continue
+        resolved.append(
+            replace(
+                footprint,
+                estimated_power_on_target_w=0.0,
+                visibility_status="occluded_by_nearer_target",
+                contributes_to_scene_energy=False,
+                occluded_by_target_id=str(visible.target_id),
+                warnings=(
+                    *footprint.warnings,
+                    f"Center ray의 더 가까운 target {visible.target_id!r}에 가려져 "
+                    "scene energy contribution을 0으로 둡니다.",
+                ),
+            )
+        )
+    return tuple(resolved)

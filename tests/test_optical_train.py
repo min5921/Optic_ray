@@ -10,6 +10,7 @@ import yaml
 from lidarsim.beam import BeamState
 from lidarsim.config import load_project
 from lidarsim.config.schema import SchemaStore
+from lidarsim.errors import ConfigValidationError
 from lidarsim.optics import (
     ABCDMatrix,
     apply_abcd_to_beam,
@@ -257,6 +258,58 @@ def test_nonunit_scenario_directions_preserve_input_and_report_normalization(
     assert receiver["receiver_direction"] == pytest.approx([1.0, 0.0, 0.0])
 
 
+def test_multiple_collinear_targets_only_nearest_owns_scene_energy(
+    copied_project: Path,
+) -> None:
+    scenario_path = copied_project.parent / "baseline_1550nm.yaml"
+    scenario = yaml.safe_load(scenario_path.read_text(encoding="utf-8"))
+    near = scenario["scene"]["targets"][0]
+    near["id"] = "near_target"
+    near["geometry"]["center_m"] = ["10 m", "0 m", "0 m"]
+    far = {
+        "id": "far_target",
+        "geometry": {
+            "type": "rectangle_plane",
+            "center_m": ["12 m", "0 m", "0 m"],
+            "normal": [-1.0, 0.0, 0.0],
+            "width_m": "4 m",
+            "height_m": "4 m",
+        },
+        "material_ref": near["material_ref"],
+    }
+    scenario["scene"]["targets"] = [far, near]
+    scenario_path.write_text(
+        yaml.safe_dump(scenario, sort_keys=False),
+        encoding="utf-8",
+    )
+    project = load_project(copied_project)
+
+    report = build_phase2_optical_train_report(project)
+    footprints = {
+        item["target_id"]: item for item in report.target_footprints
+    }
+    returns = {
+        item["target_id"]: item for item in report.receiver_return["returns"]
+    }
+    ledger = report.scene_energy_ledger
+
+    assert footprints["near_target"]["visibility_status"] == "visible_nearest"
+    assert footprints["near_target"]["contributes_to_scene_energy"] is True
+    assert footprints["near_target"]["estimated_power_on_target_w"] > 0.0
+    assert footprints["far_target"]["visibility_status"] == "occluded_by_nearer_target"
+    assert footprints["far_target"]["occluded_by_target_id"] == "near_target"
+    assert footprints["far_target"]["candidate_estimated_power_on_target_w"] > 0.0
+    assert footprints["far_target"]["estimated_power_on_target_w"] == 0.0
+    assert returns["far_target"]["status"] == "occluded_by_nearer_target"
+    assert returns["far_target"]["estimated_received_power_w"] == 0.0
+    assert ledger["total_contributing_power_on_target_w"] <= ledger["input_beam_power_w"]
+    assert ledger["oversubscription_residual_w"] == 0.0
+    assert ledger["status"] == "pass"
+    assert report.summary["estimated_power_on_target_w"] == pytest.approx(
+        footprints["near_target"]["estimated_power_on_target_w"]
+    )
+
+
 def test_scanner_static_command_angle_steers_reflected_ray(copied_project: Path) -> None:
     scenario_path = copied_project.parent / "baseline_1550nm.yaml"
     scenario = yaml.safe_load(scenario_path.read_text(encoding="utf-8"))
@@ -311,6 +364,19 @@ def test_phase2_report_is_schema_valid(project_root: Path) -> None:
         for assumption in report.receiver_return["assumptions"]
     )
     assert report.analytical_checks["external_validation_status"] == "not_evaluated"
+
+
+def test_phase2_report_schema_rejects_nested_component_typo(project_root: Path) -> None:
+    project = load_project(project_root / "configs" / "project.yaml")
+    payload = build_phase2_optical_train_report(project).to_dict()
+    payload["optical_train"]["component_reports"][0]["focal_lenght_typo"] = 0.02
+
+    with pytest.raises(ConfigValidationError, match="not valid under any"):
+        SchemaStore.load(project_root / "schemas").validate(
+            payload,
+            "phase2_optical_train_report.schema.json",
+            source="invalid Phase 2 report",
+        )
 
 
 def test_phase2_optical_train_view_writes_png(project_root: Path, tmp_path: Path) -> None:

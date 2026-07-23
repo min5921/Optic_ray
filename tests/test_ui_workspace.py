@@ -7,6 +7,8 @@ import pytest
 import yaml
 
 from lidarsim.config import load_project
+from lidarsim.config.schema import SchemaStore
+from lidarsim.errors import ConfigValidationError
 from lidarsim.ui import build_viewport_scene
 from lidarsim.visualization import render_viewport_scene
 
@@ -35,10 +37,30 @@ def test_viewport_scene_round_trips_as_yaml(project_root: Path) -> None:
     payload = yaml.safe_load(yaml.safe_dump(scene.to_dict(), sort_keys=False))
 
     assert payload["project_id"] == "optic_ray_default"
+    assert payload["schema_version"] == 1
     assert payload["scenario_id"] == "baseline_1550nm"
     assert payload["model_scope"] == "source_to_static_mirror_rectangle_target_lambertian_virtual_aperture"
     assert payload["placement_edits"] == []
     assert payload["constraints"] == []
+
+
+def test_viewport_scene_is_strict_schema_valid(project_root: Path) -> None:
+    project = load_project(project_root / "configs" / "project.yaml")
+    payload = build_viewport_scene(project).to_dict()
+    schemas = SchemaStore.load(project_root / "schemas")
+
+    schemas.validate(
+        payload,
+        "viewport_scene.schema.json",
+        source="test viewport scene",
+    )
+    payload["components"][0]["typo_origin"] = [0.0, 0.0, 0.0]
+    with pytest.raises(ConfigValidationError, match="Additional properties"):
+        schemas.validate(
+            payload,
+            "viewport_scene.schema.json",
+            source="invalid viewport scene",
+        )
 
 
 def test_viewport_component_frames_match_physical_directions(project_root: Path) -> None:

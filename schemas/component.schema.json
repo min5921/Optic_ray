@@ -63,6 +63,7 @@
         "properties": {
           "optical": {
             "type": "object",
+            "additionalProperties": false,
             "required": ["source_model", "wavelength_m", "optical_power_w"],
             "properties": {
               "source_model": { "type": "string" },
@@ -86,6 +87,7 @@
         "properties": {
           "optical": {
             "type": "object",
+            "additionalProperties": false,
             "required": ["model", "design_wavelength_m", "effective_focal_length_m", "clear_aperture_diameter_m", "power_transmission"],
             "properties": {
               "model": { "type": "string" },
@@ -105,6 +107,7 @@
         "properties": {
           "optical": {
             "type": "object",
+            "additionalProperties": false,
             "required": ["surface_model", "clear_width_m", "clear_height_m", "power_reflectivity"],
             "properties": {
               "surface_model": { "type": "string" },

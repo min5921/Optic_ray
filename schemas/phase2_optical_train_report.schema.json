@@ -4,14 +4,61 @@
   "title": "Optic Ray Phase 2 Optical Train Report",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schema_version", "report_type", "manifest", "summary", "accuracy", "model", "optical_train", "target_footprints", "receiver_return", "analytical_checks"],
+  "required": [
+    "schema_version",
+    "report_type",
+    "manifest",
+    "summary",
+    "accuracy",
+    "model",
+    "optical_train",
+    "target_footprints",
+    "scene_energy_ledger",
+    "receiver_return",
+    "analytical_checks"
+  ],
   "properties": {
     "schema_version": { "const": 1 },
     "report_type": { "const": "phase2_optical_train" },
+    "manifest": { "$ref": "#/$defs/manifest" },
+    "summary": { "$ref": "#/$defs/summary" },
+    "accuracy": { "$ref": "#/$defs/accuracy" },
+    "model": { "$ref": "#/$defs/model" },
+    "optical_train": { "$ref": "#/$defs/opticalTrain" },
+    "target_footprints": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/targetFootprint" }
+    },
+    "scene_energy_ledger": { "$ref": "#/$defs/sceneEnergyLedger" },
+    "receiver_return": { "$ref": "#/$defs/receiverReturnSection" },
+    "analytical_checks": { "$ref": "#/$defs/analyticalChecks" }
+  },
+  "$defs": {
+    "vec3": {
+      "type": "array",
+      "minItems": 3,
+      "maxItems": 3,
+      "items": { "type": "number" }
+    },
+    "nullableNumber": {
+      "type": ["number", "null"]
+    },
+    "stringArray": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
     "manifest": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["project_id", "scenario_id", "config_hash", "created_at_utc", "software_version", "backend", "real_dtype"],
+      "required": [
+        "project_id",
+        "scenario_id",
+        "config_hash",
+        "created_at_utc",
+        "software_version",
+        "backend",
+        "real_dtype"
+      ],
       "properties": {
         "project_id": { "$ref": "common.schema.json#/$defs/identifier" },
         "scenario_id": { "$ref": "common.schema.json#/$defs/identifier" },
@@ -25,7 +72,28 @@
     "summary": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["overall_status", "optical_path_id", "final_plane", "final_radius_x_m", "final_radius_y_m", "final_power_w", "total_transmission", "total_loss_w", "total_loss_db", "processed_component_count", "unsupported_element_count", "target_hit_count", "estimated_power_on_target_w", "estimated_received_power_w", "link_loss_db", "q_parameter_status", "energy_ledger_status", "aperture_status", "target_footprint_status", "receiver_return_status"],
+      "required": [
+        "overall_status",
+        "optical_path_id",
+        "final_plane",
+        "final_radius_x_m",
+        "final_radius_y_m",
+        "final_power_w",
+        "total_transmission",
+        "total_loss_w",
+        "total_loss_db",
+        "processed_component_count",
+        "unsupported_element_count",
+        "target_hit_count",
+        "estimated_power_on_target_w",
+        "estimated_received_power_w",
+        "link_loss_db",
+        "q_parameter_status",
+        "energy_ledger_status",
+        "aperture_status",
+        "target_footprint_status",
+        "receiver_return_status"
+      ],
       "properties": {
         "overall_status": { "enum": ["pass", "warning", "fail"] },
         "optical_path_id": { "type": "string" },
@@ -52,151 +120,990 @@
     "accuracy": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["model_purpose", "accuracy_mode", "hardware_readiness", "confidence_level", "calibration_status", "calibration_evidence", "scope", "assumptions", "warnings"],
+      "required": [
+        "model_purpose",
+        "accuracy_mode",
+        "hardware_readiness",
+        "confidence_level",
+        "calibration_status",
+        "calibration_evidence",
+        "scope",
+        "assumptions",
+        "warnings"
+      ],
       "properties": {
-        "model_purpose": { "enum": ["analytical_regression", "bench_template", "calibrated_hardware"] },
-        "accuracy_mode": { "enum": ["relative_design", "absolute_radiometric", "coherent_fmcw"] },
-        "hardware_readiness": { "enum": ["analytical_only", "bench_template", "calibrated"] },
-        "confidence_level": { "enum": ["comparative", "engineering_estimate", "calibrated"] },
+        "model_purpose": {
+          "enum": ["analytical_regression", "bench_template", "calibrated_hardware"]
+        },
+        "accuracy_mode": {
+          "enum": ["relative_design", "absolute_radiometric", "coherent_fmcw"]
+        },
+        "hardware_readiness": {
+          "enum": ["analytical_only", "bench_template", "calibrated"]
+        },
+        "confidence_level": {
+          "enum": ["comparative", "engineering_estimate", "calibrated"]
+        },
         "calibration_status": { "enum": ["uncalibrated", "calibrated"] },
-        "calibration_evidence": { "type": ["object", "null"] },
-        "scope": { "const": "source_to_static_mirror_rectangle_target_lambertian_virtual_aperture" },
-        "assumptions": { "type": "array", "items": { "type": "string" } },
-        "warnings": { "type": "array", "items": { "type": "string" } }
+        "calibration_evidence": {
+          "oneOf": [
+            { "type": "null" },
+            { "$ref": "scenario.schema.json#/properties/calibration_evidence" }
+          ]
+        },
+        "scope": {
+          "const": "source_to_static_mirror_rectangle_target_lambertian_virtual_aperture"
+        },
+        "assumptions": { "$ref": "#/$defs/stringArray" },
+        "warnings": { "$ref": "#/$defs/stringArray" }
       }
     },
     "model": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["propagation_model", "radius_definition", "validity", "limitations"],
+      "required": [
+        "propagation_model",
+        "radius_definition",
+        "validity",
+        "limitations"
+      ],
       "properties": {
-        "propagation_model": { "const": "gaussian_q_abcd_plus_analytical_radiometry" },
+        "propagation_model": {
+          "const": "gaussian_q_abcd_plus_analytical_radiometry"
+        },
         "radius_definition": { "const": "1/e^2 irradiance radius" },
         "validity": { "type": "string" },
-        "limitations": { "type": "array", "items": { "type": "string" } }
+        "limitations": { "$ref": "#/$defs/stringArray" }
       }
     },
-    "optical_train": {
+    "beamState": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["optical_path_id", "element_sequence", "states", "power_ledger", "component_reports", "unsupported_elements", "warnings"],
+      "required": [
+        "time_s",
+        "origin_m",
+        "direction",
+        "transverse_x_axis",
+        "transverse_y_axis",
+        "wavelength_m",
+        "power_w",
+        "profile_kind",
+        "propagation_model",
+        "waist_radius_x_m",
+        "waist_radius_y_m",
+        "m2_x",
+        "m2_y",
+        "rayleigh_range_x_m",
+        "rayleigh_range_y_m",
+        "divergence_x_rad",
+        "divergence_y_rad",
+        "distance_from_waist_m",
+        "radius_x_m",
+        "radius_y_m",
+        "polarization",
+        "optical_path_length_m",
+        "accumulated_transmission",
+        "source_component_id",
+        "source_component_ref",
+        "optical_path_id"
+      ],
+      "properties": {
+        "time_s": { "type": "number" },
+        "origin_m": { "$ref": "#/$defs/vec3" },
+        "direction": { "$ref": "#/$defs/vec3" },
+        "transverse_x_axis": { "$ref": "#/$defs/vec3" },
+        "transverse_y_axis": { "$ref": "#/$defs/vec3" },
+        "wavelength_m": { "type": "number", "exclusiveMinimum": 0.0 },
+        "power_w": { "type": "number", "minimum": 0.0 },
+        "profile_kind": {
+          "enum": ["circular_gaussian", "elliptical_gaussian", "line_gaussian"]
+        },
+        "propagation_model": { "const": "gaussian_m2" },
+        "waist_radius_x_m": { "type": "number", "exclusiveMinimum": 0.0 },
+        "waist_radius_y_m": { "type": "number", "exclusiveMinimum": 0.0 },
+        "m2_x": { "type": "number", "minimum": 1.0 },
+        "m2_y": { "type": "number", "minimum": 1.0 },
+        "rayleigh_range_x_m": { "type": "number", "exclusiveMinimum": 0.0 },
+        "rayleigh_range_y_m": { "type": "number", "exclusiveMinimum": 0.0 },
+        "divergence_x_rad": { "type": "number", "exclusiveMinimum": 0.0 },
+        "divergence_y_rad": { "type": "number", "exclusiveMinimum": 0.0 },
+        "distance_from_waist_m": { "type": "number" },
+        "radius_x_m": { "type": "number", "exclusiveMinimum": 0.0 },
+        "radius_y_m": { "type": "number", "exclusiveMinimum": 0.0 },
+        "polarization": { "type": "string" },
+        "optical_path_length_m": { "type": "number", "minimum": 0.0 },
+        "accumulated_transmission": {
+          "type": "number",
+          "minimum": 0.0,
+          "maximum": 1.0
+        },
+        "source_component_id": { "type": ["string", "null"] },
+        "source_component_ref": { "type": ["string", "null"] },
+        "optical_path_id": { "type": ["string", "null"] }
+      }
+    },
+    "beamPlane": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "label",
+        "element_id",
+        "component_ref",
+        "port_id",
+        "plane_role",
+        "distance_along_path_m",
+        "beam_state"
+      ],
+      "properties": {
+        "label": { "type": "string" },
+        "element_id": { "type": "string" },
+        "component_ref": { "type": "string" },
+        "port_id": { "type": ["string", "null"] },
+        "plane_role": { "type": "string" },
+        "distance_along_path_m": { "type": "number", "minimum": 0.0 },
+        "beam_state": { "$ref": "#/$defs/beamState" }
+      }
+    },
+    "powerLedgerEntry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "optical_path_id",
+        "element_id",
+        "component_ref",
+        "mechanism",
+        "input_power_w",
+        "output_power_w",
+        "loss_w",
+        "loss_db",
+        "transmission_fraction",
+        "model_source",
+        "warning"
+      ],
       "properties": {
         "optical_path_id": { "type": "string" },
-        "element_sequence": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
+        "element_id": { "type": "string" },
+        "component_ref": { "type": "string" },
+        "mechanism": {
+          "enum": [
+            "free_space_propagation",
+            "circular_aperture_clipping",
+            "component_power_transmission",
+            "mirror_rectangular_aperture",
+            "mirror_reflectivity"
+          ]
+        },
+        "input_power_w": { "type": "number", "minimum": 0.0 },
+        "output_power_w": { "type": "number", "minimum": 0.0 },
+        "loss_w": { "type": "number", "minimum": 0.0 },
+        "loss_db": { "type": ["number", "null"], "minimum": 0.0 },
+        "transmission_fraction": {
+          "type": "number",
+          "minimum": 0.0,
+          "maximum": 1.0
+        },
+        "model_source": { "type": "string" },
+        "warning": { "type": ["string", "null"] }
+      }
+    },
+    "circularApertureClip": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "aperture_radius_m",
+        "beam_radius_x_m",
+        "beam_radius_y_m",
+        "transmission_fraction",
+        "clipped_fraction",
+        "input_power_w",
+        "output_power_w",
+        "loss_w",
+        "loss_db",
+        "method"
+      ],
+      "properties": {
+        "aperture_radius_m": { "type": "number", "exclusiveMinimum": 0.0 },
+        "beam_radius_x_m": { "type": "number", "exclusiveMinimum": 0.0 },
+        "beam_radius_y_m": { "type": "number", "exclusiveMinimum": 0.0 },
+        "transmission_fraction": {
+          "type": "number",
+          "minimum": 0.0,
+          "maximum": 1.0
+        },
+        "clipped_fraction": {
+          "type": "number",
+          "minimum": 0.0,
+          "maximum": 1.0
+        },
+        "input_power_w": { "type": "number", "minimum": 0.0 },
+        "output_power_w": { "type": "number", "minimum": 0.0 },
+        "loss_w": { "type": "number", "minimum": 0.0 },
+        "loss_db": { "type": ["number", "null"], "minimum": 0.0 },
+        "method": { "type": "string" }
+      }
+    },
+    "mirrorApertureClip": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "clear_width_m",
+        "clear_height_m",
+        "incidence_cosine",
+        "incidence_angle_rad",
+        "incidence_angle_convention",
+        "transmission_fraction",
+        "clipped_fraction",
+        "input_power_w",
+        "output_power_w",
+        "loss_w",
+        "loss_db",
+        "status",
+        "quadrature_order",
+        "method"
+      ],
+      "properties": {
+        "clear_width_m": { "type": "number", "exclusiveMinimum": 0.0 },
+        "clear_height_m": { "type": "number", "exclusiveMinimum": 0.0 },
+        "incidence_cosine": { "type": "number", "minimum": 0.0, "maximum": 1.0 },
+        "incidence_angle_rad": {
+          "type": "number",
+          "minimum": 0.0,
+          "maximum": 1.5707963267948966
+        },
+        "incidence_angle_convention": {
+          "const": "angle_from_surface_normal_radians"
+        },
+        "transmission_fraction": {
+          "type": "number",
+          "minimum": 0.0,
+          "maximum": 1.0
+        },
+        "clipped_fraction": {
+          "type": "number",
+          "minimum": 0.0,
+          "maximum": 1.0
+        },
+        "input_power_w": { "type": "number", "minimum": 0.0 },
+        "output_power_w": { "type": "number", "minimum": 0.0 },
+        "loss_w": { "type": "number", "minimum": 0.0 },
+        "loss_db": { "type": ["number", "null"], "minimum": 0.0 },
+        "status": { "enum": ["pass", "warning", "fail"] },
+        "quadrature_order": { "type": "integer", "minimum": 16 },
+        "method": { "type": "string" }
+      }
+    },
+    "collimatorReport": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "element_id",
+        "component_ref",
+        "component_type",
+        "model",
+        "model_level",
+        "abcd_matrix",
+        "effective_focal_length_m",
+        "clear_aperture_diameter_m",
+        "aperture_clip",
+        "power_transmission",
+        "input_beam_state",
+        "output_beam_state",
+        "assumptions"
+      ],
+      "properties": {
+        "element_id": { "type": "string" },
+        "component_ref": { "type": "string" },
+        "component_type": { "const": "collimator" },
+        "model": { "const": "ideal_thin_lens" },
+        "model_level": { "type": "string" },
+        "abcd_matrix": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 2,
+          "items": {
+            "type": "array",
+            "minItems": 2,
+            "maxItems": 2,
+            "items": { "type": "number" }
+          }
+        },
+        "effective_focal_length_m": {
+          "type": "number",
+          "exclusiveMinimum": 0.0
+        },
+        "clear_aperture_diameter_m": {
+          "type": "number",
+          "exclusiveMinimum": 0.0
+        },
+        "aperture_clip": { "$ref": "#/$defs/circularApertureClip" },
+        "power_transmission": {
+          "type": "number",
+          "minimum": 0.0,
+          "maximum": 1.0
+        },
+        "input_beam_state": { "$ref": "#/$defs/beamState" },
+        "output_beam_state": { "$ref": "#/$defs/beamState" },
+        "assumptions": { "$ref": "#/$defs/stringArray" }
+      }
+    },
+    "mirrorReport": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "element_id",
+        "component_ref",
+        "component_type",
+        "model",
+        "surface_model",
+        "model_level",
+        "incident_direction",
+        "scanner_pose_model",
+        "scanner_command_angle_rad",
+        "scanner_rotation_axis_input_world",
+        "scanner_rotation_axis_world",
+        "surface_normal_world",
+        "aperture_x_axis_world",
+        "aperture_y_axis_world",
+        "reflected_direction",
+        "reflected_direction_world",
+        "incidence_angle_rad",
+        "incidence_angle_convention",
+        "clear_width_m",
+        "clear_height_m",
+        "aperture_status",
+        "aperture_transmission_fraction",
+        "aperture_clip",
+        "power_reflectivity",
+        "input_beam_state",
+        "output_beam_state",
+        "assumptions",
+        "warnings"
+      ],
+      "properties": {
+        "element_id": { "type": "string" },
+        "component_ref": { "type": "string" },
+        "component_type": { "const": "scanner_mirror" },
+        "model": { "const": "flat_mirror" },
+        "surface_model": { "const": "flat_mirror" },
+        "model_level": { "type": "string" },
+        "incident_direction": { "$ref": "#/$defs/vec3" },
+        "scanner_pose_model": { "const": "static_command_angle" },
+        "scanner_command_angle_rad": { "type": "number" },
+        "scanner_rotation_axis_input_world": { "$ref": "#/$defs/vec3" },
+        "scanner_rotation_axis_world": { "$ref": "#/$defs/vec3" },
+        "surface_normal_world": { "$ref": "#/$defs/vec3" },
+        "aperture_x_axis_world": { "$ref": "#/$defs/vec3" },
+        "aperture_y_axis_world": { "$ref": "#/$defs/vec3" },
+        "reflected_direction": { "$ref": "#/$defs/vec3" },
+        "reflected_direction_world": { "$ref": "#/$defs/vec3" },
+        "incidence_angle_rad": {
+          "type": "number",
+          "minimum": 0.0,
+          "maximum": 1.5707963267948966
+        },
+        "incidence_angle_convention": {
+          "const": "angle_from_surface_normal_radians"
+        },
+        "clear_width_m": { "type": "number", "exclusiveMinimum": 0.0 },
+        "clear_height_m": { "type": "number", "exclusiveMinimum": 0.0 },
+        "aperture_status": { "enum": ["pass", "warning", "fail"] },
+        "aperture_transmission_fraction": {
+          "type": "number",
+          "minimum": 0.0,
+          "maximum": 1.0
+        },
+        "aperture_clip": { "$ref": "#/$defs/mirrorApertureClip" },
+        "power_reflectivity": {
+          "type": "number",
+          "minimum": 0.0,
+          "maximum": 1.0
+        },
+        "input_beam_state": { "$ref": "#/$defs/beamState" },
+        "output_beam_state": { "$ref": "#/$defs/beamState" },
+        "assumptions": { "$ref": "#/$defs/stringArray" },
+        "warnings": { "$ref": "#/$defs/stringArray" }
+      }
+    },
+    "unsupportedElement": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["element_id", "component_ref", "component_type", "reason"],
+      "properties": {
+        "element_id": { "type": "string" },
+        "component_ref": { "type": "string" },
+        "component_type": { "type": "string" },
+        "reason": { "type": "string" }
+      }
+    },
+    "opticalTrain": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "optical_path_id",
+        "element_sequence",
+        "states",
+        "power_ledger",
+        "component_reports",
+        "unsupported_elements",
+        "warnings"
+      ],
+      "properties": {
+        "optical_path_id": { "type": "string" },
+        "element_sequence": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string" }
+        },
         "states": {
           "type": "array",
           "minItems": 1,
-          "items": {
-            "type": "object",
-            "additionalProperties": false,
-            "required": ["label", "element_id", "component_ref", "port_id", "plane_role", "distance_along_path_m", "beam_state"],
-            "properties": {
-              "label": { "type": "string" },
-              "element_id": { "type": "string" },
-              "component_ref": { "type": "string" },
-              "port_id": { "type": ["string", "null"] },
-              "plane_role": { "type": "string" },
-              "distance_along_path_m": { "type": "number", "minimum": 0.0 },
-              "beam_state": { "type": "object", "additionalProperties": true }
-            }
-          }
+          "items": { "$ref": "#/$defs/beamPlane" }
         },
         "power_ledger": {
           "type": "array",
+          "items": { "$ref": "#/$defs/powerLedgerEntry" }
+        },
+        "component_reports": {
+          "type": "array",
           "items": {
-            "type": "object",
-            "additionalProperties": false,
-            "required": ["optical_path_id", "element_id", "component_ref", "mechanism", "input_power_w", "output_power_w", "loss_w", "loss_db", "transmission_fraction", "model_source", "warning"],
-            "properties": {
-              "optical_path_id": { "type": "string" },
-              "element_id": { "type": "string" },
-              "component_ref": { "type": "string" },
-              "mechanism": { "type": "string" },
-              "input_power_w": { "type": "number", "minimum": 0.0 },
-              "output_power_w": { "type": "number", "minimum": 0.0 },
-              "loss_w": { "type": "number", "minimum": 0.0 },
-              "loss_db": { "type": ["number", "null"], "minimum": 0.0 },
-              "transmission_fraction": { "type": "number", "minimum": 0.0, "maximum": 1.0 },
-              "model_source": { "type": "string" },
-              "warning": { "type": ["string", "null"] }
-            }
+            "oneOf": [
+              { "$ref": "#/$defs/collimatorReport" },
+              { "$ref": "#/$defs/mirrorReport" }
+            ]
           }
         },
-        "component_reports": { "type": "array", "items": { "type": "object", "additionalProperties": true } },
-        "unsupported_elements": { "type": "array", "items": { "type": "object", "additionalProperties": true } },
-        "warnings": { "type": "array", "items": { "type": "string" } }
+        "unsupported_elements": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/unsupportedElement" }
+        },
+        "warnings": { "$ref": "#/$defs/stringArray" }
       }
     },
-    "target_footprints": {
-      "type": "array",
-      "items": {
-        "type": "object",
-        "additionalProperties": true,
-        "required": ["target_id", "material_ref", "hit", "estimated_power_on_target_w", "assumptions", "warnings"],
-        "properties": {
-          "target_id": { "type": "string" },
-          "material_ref": { "type": "string" },
-          "hit": { "type": "boolean" },
-          "estimated_power_on_target_w": { "type": "number", "minimum": 0.0 },
-          "assumptions": { "type": "array", "items": { "type": "string" } },
-          "warnings": { "type": "array", "items": { "type": "string" } }
-        }
-      }
-    },
-    "receiver_return": {
+    "targetIntersection": {
       "type": "object",
-      "additionalProperties": true,
-      "required": ["model", "returns", "total_estimated_received_power_w", "total_estimated_power_on_target_w", "total_link_loss_db", "assumptions"],
+      "additionalProperties": false,
+      "required": [
+        "target_id",
+        "material_ref",
+        "geometry_type",
+        "hit",
+        "miss_reason",
+        "hit_center_m",
+        "distance_to_target_m",
+        "incidence_angle_rad",
+        "incidence_angle_convention",
+        "incidence_cosine",
+        "local_coordinates_m",
+        "target_center_m",
+        "target_normal_input",
+        "target_normal",
+        "width_axis_world",
+        "height_axis_world",
+        "width_m",
+        "height_m",
+        "assumptions",
+        "warnings"
+      ],
+      "properties": {
+        "target_id": { "type": "string" },
+        "material_ref": { "type": "string" },
+        "geometry_type": { "type": "string" },
+        "hit": { "type": "boolean" },
+        "miss_reason": { "type": ["string", "null"] },
+        "hit_center_m": {
+          "oneOf": [
+            { "type": "null" },
+            { "$ref": "#/$defs/vec3" }
+          ]
+        },
+        "distance_to_target_m": {
+          "type": ["number", "null"],
+          "exclusiveMinimum": 0.0
+        },
+        "incidence_angle_rad": {
+          "type": ["number", "null"],
+          "minimum": 0.0,
+          "maximum": 1.5707963267948966
+        },
+        "incidence_angle_convention": {
+          "const": "angle_from_surface_normal_radians"
+        },
+        "incidence_cosine": {
+          "type": ["number", "null"],
+          "minimum": 0.0,
+          "maximum": 1.0
+        },
+        "local_coordinates_m": {
+          "oneOf": [
+            { "type": "null" },
+            {
+              "type": "array",
+              "minItems": 2,
+              "maxItems": 2,
+              "items": { "type": "number" }
+            }
+          ]
+        },
+        "target_center_m": { "$ref": "#/$defs/vec3" },
+        "target_normal_input": { "$ref": "#/$defs/vec3" },
+        "target_normal": { "$ref": "#/$defs/vec3" },
+        "width_axis_world": { "$ref": "#/$defs/vec3" },
+        "height_axis_world": { "$ref": "#/$defs/vec3" },
+        "width_m": { "type": "number", "exclusiveMinimum": 0.0 },
+        "height_m": { "type": "number", "exclusiveMinimum": 0.0 },
+        "assumptions": { "$ref": "#/$defs/stringArray" },
+        "warnings": { "$ref": "#/$defs/stringArray" }
+      }
+    },
+    "targetFootprint": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "target_id",
+        "material_ref",
+        "hit",
+        "miss_reason",
+        "hit_center_m",
+        "distance_to_target_m",
+        "incidence_angle_rad",
+        "incidence_angle_convention",
+        "local_coordinates_m",
+        "beam_radius_x_m",
+        "beam_radius_y_m",
+        "projected_footprint_major_radius_m",
+        "projected_footprint_minor_radius_m",
+        "projected_radius_u_m",
+        "projected_radius_v_m",
+        "approximate_footprint_area_m2",
+        "peak_irradiance_w_m2",
+        "candidate_estimated_power_on_target_w",
+        "estimated_power_on_target_w",
+        "visibility_status",
+        "contributes_to_scene_energy",
+        "occluded_by_target_id",
+        "clipped_by_target_bounds",
+        "quadrature_order",
+        "integration_extent_radii",
+        "method",
+        "target_intersection",
+        "assumptions",
+        "warnings"
+      ],
+      "properties": {
+        "target_id": { "type": "string" },
+        "material_ref": { "type": "string" },
+        "hit": { "type": "boolean" },
+        "miss_reason": { "type": ["string", "null"] },
+        "hit_center_m": {
+          "oneOf": [
+            { "type": "null" },
+            { "$ref": "#/$defs/vec3" }
+          ]
+        },
+        "distance_to_target_m": {
+          "type": ["number", "null"],
+          "exclusiveMinimum": 0.0
+        },
+        "incidence_angle_rad": {
+          "type": ["number", "null"],
+          "minimum": 0.0,
+          "maximum": 1.5707963267948966
+        },
+        "incidence_angle_convention": {
+          "const": "angle_from_surface_normal_radians"
+        },
+        "local_coordinates_m": {
+          "oneOf": [
+            { "type": "null" },
+            {
+              "type": "array",
+              "minItems": 2,
+              "maxItems": 2,
+              "items": { "type": "number" }
+            }
+          ]
+        },
+        "beam_radius_x_m": {
+          "type": ["number", "null"],
+          "exclusiveMinimum": 0.0
+        },
+        "beam_radius_y_m": {
+          "type": ["number", "null"],
+          "exclusiveMinimum": 0.0
+        },
+        "projected_footprint_major_radius_m": {
+          "type": ["number", "null"],
+          "exclusiveMinimum": 0.0
+        },
+        "projected_footprint_minor_radius_m": {
+          "type": ["number", "null"],
+          "exclusiveMinimum": 0.0
+        },
+        "projected_radius_u_m": {
+          "type": ["number", "null"],
+          "exclusiveMinimum": 0.0
+        },
+        "projected_radius_v_m": {
+          "type": ["number", "null"],
+          "exclusiveMinimum": 0.0
+        },
+        "approximate_footprint_area_m2": {
+          "type": ["number", "null"],
+          "exclusiveMinimum": 0.0
+        },
+        "peak_irradiance_w_m2": {
+          "type": ["number", "null"],
+          "minimum": 0.0
+        },
+        "candidate_estimated_power_on_target_w": {
+          "type": "number",
+          "minimum": 0.0
+        },
+        "estimated_power_on_target_w": {
+          "type": "number",
+          "minimum": 0.0
+        },
+        "visibility_status": {
+          "enum": [
+            "visible_nearest",
+            "occluded_by_nearer_target",
+            "candidate_unresolved",
+            "miss"
+          ]
+        },
+        "contributes_to_scene_energy": { "type": "boolean" },
+        "occluded_by_target_id": { "type": ["string", "null"] },
+        "clipped_by_target_bounds": { "type": "boolean" },
+        "quadrature_order": { "type": "integer", "minimum": 16 },
+        "integration_extent_radii": {
+          "type": "number",
+          "exclusiveMinimum": 0.0
+        },
+        "method": { "type": "string" },
+        "target_intersection": { "$ref": "#/$defs/targetIntersection" },
+        "assumptions": { "$ref": "#/$defs/stringArray" },
+        "warnings": { "$ref": "#/$defs/stringArray" }
+      }
+    },
+    "sceneEnergyEntry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "target_id",
+        "hit",
+        "visibility_status",
+        "candidate_power_on_target_w",
+        "contributing_power_on_target_w",
+        "contributes_to_scene_energy",
+        "occluded_by_target_id"
+      ],
+      "properties": {
+        "target_id": { "type": "string" },
+        "hit": { "type": "boolean" },
+        "visibility_status": { "type": "string" },
+        "candidate_power_on_target_w": { "type": "number", "minimum": 0.0 },
+        "contributing_power_on_target_w": {
+          "type": "number",
+          "minimum": 0.0
+        },
+        "contributes_to_scene_energy": { "type": "boolean" },
+        "occluded_by_target_id": { "type": ["string", "null"] }
+      }
+    },
+    "sceneEnergyLedger": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "policy",
+        "input_beam_power_w",
+        "entries",
+        "total_contributing_power_on_target_w",
+        "unintercepted_or_unmodeled_power_w",
+        "oversubscription_residual_w",
+        "tolerance_w",
+        "status",
+        "assumptions"
+      ],
+      "properties": {
+        "policy": {
+          "const": "nearest_positive_center_ray_hit_is_opaque_visible_target"
+        },
+        "input_beam_power_w": { "type": "number", "minimum": 0.0 },
+        "entries": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/sceneEnergyEntry" }
+        },
+        "total_contributing_power_on_target_w": {
+          "type": "number",
+          "minimum": 0.0
+        },
+        "unintercepted_or_unmodeled_power_w": {
+          "type": "number",
+          "minimum": 0.0
+        },
+        "oversubscription_residual_w": {
+          "type": "number",
+          "minimum": 0.0
+        },
+        "tolerance_w": { "type": "number", "exclusiveMinimum": 0.0 },
+        "status": { "enum": ["pass", "fail"] },
+        "assumptions": { "$ref": "#/$defs/stringArray" }
+      }
+    },
+    "receiverReturn": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "target_id",
+        "material_ref",
+        "material_model",
+        "material_reflectivity",
+        "receiver_architecture",
+        "receiver_direction_input",
+        "receiver_direction",
+        "receiver_aperture_area_m2",
+        "receiver_distance_m",
+        "receiver_fov_status",
+        "receiver_axis_angle_rad",
+        "receiver_axis_cosine",
+        "target_to_receiver_cosine",
+        "estimated_power_on_target_w",
+        "estimated_received_power_w",
+        "link_loss_db",
+        "status",
+        "assumptions",
+        "warnings"
+      ],
+      "properties": {
+        "target_id": { "type": "string" },
+        "material_ref": { "type": "string" },
+        "material_model": { "type": "string" },
+        "material_reflectivity": {
+          "type": ["number", "null"],
+          "minimum": 0.0,
+          "maximum": 1.0
+        },
+        "receiver_architecture": { "type": "string" },
+        "receiver_direction_input": { "$ref": "#/$defs/vec3" },
+        "receiver_direction": { "$ref": "#/$defs/vec3" },
+        "receiver_aperture_area_m2": {
+          "type": "number",
+          "exclusiveMinimum": 0.0
+        },
+        "receiver_distance_m": {
+          "type": ["number", "null"],
+          "minimum": 0.0
+        },
+        "receiver_fov_status": { "type": "string" },
+        "receiver_axis_angle_rad": {
+          "type": ["number", "null"],
+          "minimum": 0.0,
+          "maximum": 3.141592653589793
+        },
+        "receiver_axis_cosine": {
+          "type": ["number", "null"],
+          "minimum": -1.0,
+          "maximum": 1.0
+        },
+        "target_to_receiver_cosine": {
+          "type": ["number", "null"],
+          "minimum": 0.0,
+          "maximum": 1.0
+        },
+        "estimated_power_on_target_w": {
+          "type": "number",
+          "minimum": 0.0
+        },
+        "estimated_received_power_w": {
+          "type": "number",
+          "minimum": 0.0
+        },
+        "link_loss_db": { "type": ["number", "null"], "minimum": 0.0 },
+        "status": { "type": "string" },
+        "assumptions": { "$ref": "#/$defs/stringArray" },
+        "warnings": { "$ref": "#/$defs/stringArray" }
+      }
+    },
+    "receiverReturnSection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "model",
+        "returns",
+        "total_estimated_received_power_w",
+        "total_estimated_power_on_target_w",
+        "total_link_loss_db",
+        "assumptions"
+      ],
       "properties": {
         "model": { "const": "lambertian_small_footprint_receiver_aperture" },
         "returns": {
           "type": "array",
-          "items": {
-            "type": "object",
-            "additionalProperties": true,
-            "required": ["target_id", "material_ref", "material_model", "receiver_fov_status", "estimated_power_on_target_w", "estimated_received_power_w", "status", "assumptions", "warnings"],
-            "properties": {
-              "target_id": { "type": "string" },
-              "material_ref": { "type": "string" },
-              "material_model": { "type": "string" },
-              "receiver_fov_status": { "type": "string" },
-              "estimated_power_on_target_w": { "type": "number", "minimum": 0.0 },
-              "estimated_received_power_w": { "type": "number", "minimum": 0.0 },
-              "status": { "type": "string" },
-              "assumptions": { "type": "array", "items": { "type": "string" } },
-              "warnings": { "type": "array", "items": { "type": "string" } }
-            }
-          }
+          "items": { "$ref": "#/$defs/receiverReturn" }
         },
-        "total_estimated_received_power_w": { "type": "number", "minimum": 0.0 },
-        "total_estimated_power_on_target_w": { "type": "number", "minimum": 0.0 },
-        "total_link_loss_db": { "type": ["number", "null"], "minimum": 0.0 },
-        "assumptions": { "type": "array", "items": { "type": "string" } }
+        "total_estimated_received_power_w": {
+          "type": "number",
+          "minimum": 0.0
+        },
+        "total_estimated_power_on_target_w": {
+          "type": "number",
+          "minimum": 0.0
+        },
+        "total_link_loss_db": {
+          "type": ["number", "null"],
+          "minimum": 0.0
+        },
+        "assumptions": { "$ref": "#/$defs/stringArray" }
       }
     },
-    "analytical_checks": {
+    "qCheck": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["check_scope", "q_parameter", "energy_ledger", "aperture_fraction", "target_footprint", "receiver_return", "external_validation_status"],
+      "required": [
+        "checked_elements",
+        "max_relative_error",
+        "tolerance",
+        "status",
+        "message"
+      ],
       "properties": {
-        "check_scope": { "const": "internal_consistency_only" },
-        "q_parameter": { "$ref": "#/$defs/statusCheck" },
-        "energy_ledger": { "$ref": "#/$defs/statusCheck" },
-        "aperture_fraction": { "$ref": "#/$defs/statusCheck" },
-        "target_footprint": { "$ref": "#/$defs/statusCheck" },
-        "receiver_return": { "$ref": "#/$defs/statusCheck" },
-        "external_validation_status": { "const": "not_evaluated" }
+        "checked_elements": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "max_relative_error": { "type": "number", "minimum": 0.0 },
+        "tolerance": { "type": "number", "exclusiveMinimum": 0.0 },
+        "status": { "enum": ["pass", "fail"] },
+        "message": { "type": "string" }
       }
-    }
-  },
-  "$defs": {
-    "statusCheck": {
+    },
+    "trainEnergyCheck": {
       "type": "object",
-      "additionalProperties": true,
-      "required": ["status", "message"],
+      "additionalProperties": false,
+      "required": [
+        "max_power_residual_w",
+        "tolerance_w",
+        "status",
+        "message"
+      ],
       "properties": {
+        "max_power_residual_w": { "type": "number", "minimum": 0.0 },
+        "tolerance_w": { "type": "number", "exclusiveMinimum": 0.0 },
+        "status": { "enum": ["pass", "fail"] },
+        "message": { "type": "string" }
+      }
+    },
+    "apertureCheck": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "checked_apertures",
+        "minimum_transmission_fraction",
+        "status",
+        "message"
+      ],
+      "properties": {
+        "checked_apertures": { "type": "integer", "minimum": 0 },
+        "minimum_transmission_fraction": {
+          "type": ["number", "null"],
+          "minimum": 0.0,
+          "maximum": 1.0
+        },
+        "status": { "enum": ["pass", "fail"] },
+        "message": { "type": "string" }
+      }
+    },
+    "targetCheck": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "target_count",
+        "hit_count",
+        "visible_contributing_target_count",
+        "visible_target_id",
+        "total_estimated_power_on_target_w",
+        "status",
+        "message"
+      ],
+      "properties": {
+        "target_count": { "type": "integer", "minimum": 0 },
+        "hit_count": { "type": "integer", "minimum": 0 },
+        "visible_contributing_target_count": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "visible_target_id": { "type": ["string", "null"] },
+        "total_estimated_power_on_target_w": {
+          "type": "number",
+          "minimum": 0.0
+        },
         "status": { "enum": ["pass", "warning", "fail"] },
         "message": { "type": "string" }
+      }
+    },
+    "receiverCheck": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "return_count",
+        "positive_return_count",
+        "total_estimated_received_power_w",
+        "status",
+        "message"
+      ],
+      "properties": {
+        "return_count": { "type": "integer", "minimum": 0 },
+        "positive_return_count": { "type": "integer", "minimum": 0 },
+        "total_estimated_received_power_w": {
+          "type": "number",
+          "minimum": 0.0
+        },
+        "status": { "enum": ["pass", "warning", "fail"] },
+        "message": { "type": "string" }
+      }
+    },
+    "sceneEnergyCheck": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "message",
+        "oversubscription_residual_w",
+        "tolerance_w"
+      ],
+      "properties": {
+        "status": { "enum": ["pass", "fail"] },
+        "message": { "type": "string" },
+        "oversubscription_residual_w": {
+          "type": "number",
+          "minimum": 0.0
+        },
+        "tolerance_w": { "type": "number", "exclusiveMinimum": 0.0 }
+      }
+    },
+    "analyticalChecks": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "check_scope",
+        "q_parameter",
+        "energy_ledger",
+        "aperture_fraction",
+        "target_footprint",
+        "scene_energy_ledger",
+        "receiver_return",
+        "external_validation_status"
+      ],
+      "properties": {
+        "check_scope": { "const": "internal_consistency_only" },
+        "q_parameter": { "$ref": "#/$defs/qCheck" },
+        "energy_ledger": { "$ref": "#/$defs/trainEnergyCheck" },
+        "aperture_fraction": { "$ref": "#/$defs/apertureCheck" },
+        "target_footprint": { "$ref": "#/$defs/targetCheck" },
+        "scene_energy_ledger": { "$ref": "#/$defs/sceneEnergyCheck" },
+        "receiver_return": { "$ref": "#/$defs/receiverCheck" },
+        "external_validation_status": { "const": "not_evaluated" }
       }
     }
   }

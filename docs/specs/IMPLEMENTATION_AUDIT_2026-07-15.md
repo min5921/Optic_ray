@@ -56,7 +56,9 @@ python -W error::DeprecationWarning -W error::UserWarning -m pytest -q
 - `S0-POWER-01` 완료: `BeamState`, ABCD transmission, mirror clipping/reflectivity와 Phase 2 schema가 0 W를 같은 유효 상태로 처리한다.
 - `S0-CONFIG-01` 완료: scenario 방향 벡터를 load 단계에서 finite/non-zero 검사하고 non-unit 입력은 warning과 함께 정규화한다. Scanner, target, receiver report에는 원래 입력과 정규화된 vector를 함께 기록한다.
 - `S0-MODEL-01` 완료: Phase 2 q-ABCD optical train은 `gaussian_m2`만 명시적으로 지원하며 `second_moment`를 암묵적으로 q 경로에 넣지 않는다.
-- 남은 S0 Gate: `S0-ENERGY-01`, `S0-SCHEMA-01`.
+- `S0-ENERGY-01` 완료: 여러 rectangle-plane 후보 hit를 모두 보존하되 단일 center ray에서 가장 가까운 positive hit 하나만 opaque visible target으로 scene energy와 receiver return에 기여한다. `scene_energy_ledger`가 후보/기여 power와 oversubscription residual을 구분한다.
+- `S0-SCHEMA-01` 완료: 현재 실행 경로의 component/material 중첩 optical field와 Phase 2 report를 strict schema로 검증한다. `ViewportScene`은 `schema_version: 1`과 별도 `viewport_scene.schema.json`을 가지며 CLI/UI runner가 저장 전에 검증한다.
+- Phase 2-S0 Gate 완료. 다음 활성 단계는 Phase 2-S1이다.
 
 ### 3.2 Phase 2-S1 — 실제 배치 geometry 안정화
 

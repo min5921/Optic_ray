@@ -34,7 +34,7 @@
         "radius_y_m": { "type": "number", "exclusiveMinimum": 0.0 },
         "divergence_x_rad": { "type": "number", "exclusiveMinimum": 0.0 },
         "divergence_y_rad": { "type": "number", "exclusiveMinimum": 0.0 },
-        "power_w": { "type": "number", "exclusiveMinimum": 0.0 },
+        "power_w": { "type": "number", "minimum": 0.0 },
         "profile_power_status": { "enum": ["pass", "fail"] },
         "internal_consistency_status": { "enum": ["pass", "fail"] },
         "paraxial_validity_status": { "enum": ["pass", "warning"] }
@@ -169,7 +169,7 @@
         "transverse_x_axis": { "$ref": "common.schema.json#/$defs/vec3" },
         "transverse_y_axis": { "$ref": "common.schema.json#/$defs/vec3" },
         "wavelength_m": { "type": "number", "exclusiveMinimum": 0.0 },
-        "power_w": { "type": "number", "exclusiveMinimum": 0.0 },
+        "power_w": { "type": "number", "minimum": 0.0 },
         "profile_kind": { "type": "string" },
         "propagation_model": { "type": "string" },
         "waist_radius_x_m": { "type": "number", "exclusiveMinimum": 0.0 },

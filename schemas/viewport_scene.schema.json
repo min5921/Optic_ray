@@ -1,0 +1,282 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://optic-ray.local/schemas/viewport_scene.schema.json",
+  "title": "Optic Ray Viewport Scene",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "project_id",
+    "scenario_id",
+    "config_hash",
+    "model_scope",
+    "components",
+    "ports",
+    "guides",
+    "rays",
+    "footprints",
+    "constraints",
+    "placement_edits",
+    "warnings"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "project_id": { "$ref": "common.schema.json#/$defs/identifier" },
+    "scenario_id": { "$ref": "common.schema.json#/$defs/identifier" },
+    "config_hash": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "model_scope": { "type": "string", "minLength": 1 },
+    "components": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/viewportComponent" }
+    },
+    "ports": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/viewportPort" }
+    },
+    "guides": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/guideLine" }
+    },
+    "rays": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/raySegment" }
+    },
+    "footprints": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/footprintOverlay" }
+    },
+    "constraints": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/placementConstraint" }
+    },
+    "placement_edits": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/placementEdit" }
+    },
+    "warnings": {
+      "type": "array",
+      "items": { "type": "string" }
+    }
+  },
+  "$defs": {
+    "vec3": {
+      "type": "array",
+      "minItems": 3,
+      "maxItems": 3,
+      "items": { "type": "number" }
+    },
+    "mat3": {
+      "type": "array",
+      "minItems": 3,
+      "maxItems": 3,
+      "items": {
+        "type": "array",
+        "minItems": 3,
+        "maxItems": 3,
+        "items": { "type": "number" }
+      }
+    },
+    "viewportComponent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "element_id",
+        "component_ref",
+        "component_type",
+        "model_level",
+        "origin_world_m",
+        "rotation_world_from_component",
+        "bounds_m",
+        "display_role",
+        "selectable",
+        "editable"
+      ],
+      "properties": {
+        "element_id": { "type": "string", "minLength": 1 },
+        "component_ref": { "type": "string", "minLength": 1 },
+        "component_type": { "type": "string", "minLength": 1 },
+        "model_level": { "type": "string", "minLength": 1 },
+        "origin_world_m": { "$ref": "#/$defs/vec3" },
+        "rotation_world_from_component": { "$ref": "#/$defs/mat3" },
+        "bounds_m": {
+          "oneOf": [
+            { "type": "null" },
+            {
+              "type": "array",
+              "minItems": 2,
+              "maxItems": 2,
+              "items": { "$ref": "#/$defs/vec3" }
+            }
+          ]
+        },
+        "display_role": { "type": "string", "minLength": 1 },
+        "selectable": { "type": "boolean" },
+        "editable": { "type": "boolean" }
+      }
+    },
+    "viewportPort": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "element_id",
+        "port_id",
+        "role",
+        "interface_type",
+        "reference_plane",
+        "origin_world_m",
+        "axis_world",
+        "transverse_x_world",
+        "clear_aperture_m"
+      ],
+      "properties": {
+        "element_id": { "type": "string", "minLength": 1 },
+        "port_id": { "type": "string", "minLength": 1 },
+        "role": { "type": "string", "minLength": 1 },
+        "interface_type": { "type": "string", "minLength": 1 },
+        "reference_plane": { "type": "string", "minLength": 1 },
+        "origin_world_m": { "$ref": "#/$defs/vec3" },
+        "axis_world": { "$ref": "#/$defs/vec3" },
+        "transverse_x_world": { "$ref": "#/$defs/vec3" },
+        "clear_aperture_m": { "type": ["number", "null"], "minimum": 0.0 }
+      }
+    },
+    "guideLine": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "guide_id",
+        "guide_type",
+        "start_m",
+        "end_m",
+        "color",
+        "label",
+        "enabled",
+        "source"
+      ],
+      "properties": {
+        "guide_id": { "type": "string", "minLength": 1 },
+        "guide_type": { "type": "string", "minLength": 1 },
+        "start_m": { "$ref": "#/$defs/vec3" },
+        "end_m": { "$ref": "#/$defs/vec3" },
+        "color": { "type": "string", "minLength": 1 },
+        "label": { "type": "string" },
+        "enabled": { "type": "boolean" },
+        "source": { "type": "string", "minLength": 1 }
+      }
+    },
+    "raySegment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "segment_id",
+        "start_m",
+        "end_m",
+        "direction",
+        "optical_path_id",
+        "source_element_id",
+        "target_element_id",
+        "power_w",
+        "radius_start_m",
+        "radius_end_m",
+        "length_m",
+        "status",
+        "label"
+      ],
+      "properties": {
+        "segment_id": { "type": "string", "minLength": 1 },
+        "start_m": { "$ref": "#/$defs/vec3" },
+        "end_m": { "$ref": "#/$defs/vec3" },
+        "direction": { "$ref": "#/$defs/vec3" },
+        "optical_path_id": { "type": "string", "minLength": 1 },
+        "source_element_id": { "type": "string", "minLength": 1 },
+        "target_element_id": { "type": ["string", "null"] },
+        "power_w": { "type": "number", "minimum": 0.0 },
+        "radius_start_m": { "type": ["number", "null"], "exclusiveMinimum": 0.0 },
+        "radius_end_m": { "type": ["number", "null"], "exclusiveMinimum": 0.0 },
+        "length_m": { "type": "number", "minimum": 0.0 },
+        "status": { "type": "string", "minLength": 1 },
+        "label": { "type": "string" }
+      }
+    },
+    "footprintOverlay": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "target_id",
+        "hit_center_m",
+        "normal",
+        "major_radius_m",
+        "minor_radius_m",
+        "orientation_axis_world",
+        "area_m2",
+        "power_on_target_w",
+        "clipped_by_target_bounds",
+        "status"
+      ],
+      "properties": {
+        "target_id": { "type": "string", "minLength": 1 },
+        "hit_center_m": { "$ref": "#/$defs/vec3" },
+        "normal": { "$ref": "#/$defs/vec3" },
+        "major_radius_m": { "type": "number", "exclusiveMinimum": 0.0 },
+        "minor_radius_m": { "type": "number", "exclusiveMinimum": 0.0 },
+        "orientation_axis_world": { "$ref": "#/$defs/vec3" },
+        "area_m2": { "type": "number", "exclusiveMinimum": 0.0 },
+        "power_on_target_w": { "type": "number", "minimum": 0.0 },
+        "clipped_by_target_bounds": { "type": "boolean" },
+        "status": { "type": "string", "minLength": 1 }
+      }
+    },
+    "placementConstraint": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "constraint_id",
+        "constraint_type",
+        "enabled",
+        "source_ref",
+        "target_ref",
+        "parameters",
+        "residual",
+        "status",
+        "warnings"
+      ],
+      "properties": {
+        "constraint_id": { "type": "string", "minLength": 1 },
+        "constraint_type": { "type": "string", "minLength": 1 },
+        "enabled": { "type": "boolean" },
+        "source_ref": { "type": "string", "minLength": 1 },
+        "target_ref": { "type": "string", "minLength": 1 },
+        "parameters": { "type": "object", "additionalProperties": true },
+        "residual": { "type": ["number", "null"] },
+        "status": { "type": "string", "minLength": 1 },
+        "warnings": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "placementEdit": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "edit_id",
+        "element_id",
+        "edit_type",
+        "before_transform",
+        "after_transform",
+        "source",
+        "timestamp",
+        "validation_status",
+        "serialized_config_patch"
+      ],
+      "properties": {
+        "edit_id": { "type": "string", "minLength": 1 },
+        "element_id": { "type": "string", "minLength": 1 },
+        "edit_type": { "type": "string", "minLength": 1 },
+        "before_transform": { "type": "object", "additionalProperties": true },
+        "after_transform": { "type": "object", "additionalProperties": true },
+        "source": { "type": "string", "minLength": 1 },
+        "timestamp": { "type": ["string", "null"] },
+        "validation_status": { "type": "string", "minLength": 1 },
+        "serialized_config_patch": { "type": "object", "additionalProperties": true }
+      }
+    }
+  }
+}

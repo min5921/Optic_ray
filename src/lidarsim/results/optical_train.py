@@ -27,6 +27,7 @@ class Phase2OpticalTrainReport:
     model: dict[str, Any]
     optical_train: dict[str, Any]
     target_footprints: tuple[dict[str, Any], ...]
+    scene_energy_ledger: dict[str, Any]
     receiver_return: dict[str, Any]
     analytical_checks: dict[str, Any]
 
@@ -40,6 +41,7 @@ class Phase2OpticalTrainReport:
             "model": deep_thaw(self.model),
             "optical_train": deep_thaw(self.optical_train),
             "target_footprints": deep_thaw(self.target_footprints),
+            "scene_energy_ledger": deep_thaw(self.scene_energy_ledger),
             "receiver_return": deep_thaw(self.receiver_return),
             "analytical_checks": deep_thaw(self.analytical_checks),
         }
@@ -118,16 +120,71 @@ def _aperture_check(result: OpticalTrainResult) -> dict[str, Any]:
 def _target_footprint_check(footprints: tuple[TargetFootprint, ...]) -> dict[str, Any]:
     hit_count = sum(1 for footprint in footprints if footprint.hit)
     powers = [footprint.estimated_power_on_target_w for footprint in footprints]
+    contributing = [
+        footprint for footprint in footprints if footprint.contributes_to_scene_energy
+    ]
     finite = all(math.isfinite(power) and power >= 0.0 for power in powers)
-    status = "pass" if hit_count > 0 and finite else "warning" if finite else "fail"
+    unique_visible = len(contributing) <= 1
+    status = (
+        "fail"
+        if not finite or not unique_visible
+        else "pass"
+        if contributing
+        else "warning"
+    )
     return {
         "target_count": len(footprints),
         "hit_count": hit_count,
-        "max_estimated_power_on_target_w": max(powers, default=0.0),
+        "visible_contributing_target_count": len(contributing),
+        "visible_target_id": contributing[0].target_id if contributing else None,
+        "total_estimated_power_on_target_w": sum(powers),
         "status": status,
         "message": (
-            "Rectangle-plane target hit, projected Gaussian footprint와 intercepted power를 검사합니다."
+            "Rectangle-plane 후보 hit와 nearest-visible target energy ownership을 검사합니다."
         ),
+    }
+
+
+def _scene_energy_ledger(
+    final_power_w: float,
+    footprints: tuple[TargetFootprint, ...],
+) -> dict[str, Any]:
+    entries = [
+        {
+            "target_id": footprint.target_id,
+            "hit": footprint.hit,
+            "visibility_status": footprint.visibility_status,
+            "candidate_power_on_target_w": (
+                footprint.candidate_estimated_power_on_target_w
+            ),
+            "contributing_power_on_target_w": footprint.estimated_power_on_target_w,
+            "contributes_to_scene_energy": footprint.contributes_to_scene_energy,
+            "occluded_by_target_id": footprint.occluded_by_target_id,
+        }
+        for footprint in footprints
+    ]
+    total = sum(
+        footprint.estimated_power_on_target_w
+        for footprint in footprints
+        if footprint.contributes_to_scene_energy
+    )
+    oversubscription = max(total - float(final_power_w), 0.0)
+    tolerance = max(ENERGY_LEDGER_TOLERANCE_W, abs(float(final_power_w)) * 1.0e-12)
+    return {
+        "policy": "nearest_positive_center_ray_hit_is_opaque_visible_target",
+        "input_beam_power_w": float(final_power_w),
+        "entries": entries,
+        "total_contributing_power_on_target_w": total,
+        "unintercepted_or_unmodeled_power_w": max(float(final_power_w) - total, 0.0),
+        "oversubscription_residual_w": oversubscription,
+        "tolerance_w": tolerance,
+        "status": "pass" if oversubscription <= tolerance else "fail",
+        "assumptions": [
+            "모든 rectangle-plane 후보 교차는 report에 보존합니다.",
+            "현재 단일 center ray visibility에서는 가장 가까운 positive hit 하나를 opaque visible target으로 선택합니다.",
+            "더 먼 hit의 후보 footprint geometry는 보존하지만 target/receiver scene energy는 0으로 둡니다.",
+            "Beam footprint 일부가 서로 다른 target에 나뉘는 면적 visibility 적분은 아직 계산하지 않습니다.",
+        ],
     }
 
 
@@ -162,7 +219,7 @@ def _receiver_return_section(returns: tuple[ReceiverReturn, ...]) -> dict[str, A
         "total_estimated_power_on_target_w": total_power_on_target,
         "total_link_loss_db": link_loss,
         "assumptions": [
-            "각 target footprint를 독립 small-footprint Lambertian patch로 근사합니다.",
+            "Nearest visible target footprint만 small-footprint Lambertian patch로 계산합니다.",
             "estimated_received_power_w는 기존 schema 이름이며 현재는 virtual aperture plane의 값입니다.",
             "동일 scanner/collimator의 역방향 광로와 single-mode fiber mode coupling은 계산하지 않습니다.",
             "Occlusion, BRDF lobe, detector response, coherent sum과 speckle은 계산하지 않습니다.",
@@ -230,6 +287,7 @@ def build_phase2_optical_train_report(
     energy_check = _energy_check(train)
     aperture_check = _aperture_check(train)
     target_check = _target_footprint_check(footprints)
+    scene_ledger = _scene_energy_ledger(train.final_state.state.power_w, footprints)
     receiver_check = _receiver_return_check(receiver_returns)
     accuracy = _accuracy(project, train, footprints, receiver_returns)
     timestamp = (created_at or datetime.now(UTC)).astimezone(UTC)
@@ -244,6 +302,7 @@ def build_phase2_optical_train_report(
         aperture_check["status"],
         target_check["status"],
         receiver_check["status"],
+        scene_ledger["status"],
     ]
     overall_status = (
         "fail"
@@ -282,7 +341,9 @@ def build_phase2_optical_train_report(
             "processed_component_count": len(train.component_reports),
             "unsupported_element_count": len(train.unsupported_elements),
             "target_hit_count": target_check["hit_count"],
-            "estimated_power_on_target_w": target_check["max_estimated_power_on_target_w"],
+            "estimated_power_on_target_w": target_check[
+                "total_estimated_power_on_target_w"
+            ],
             "estimated_received_power_w": receiver_section["total_estimated_received_power_w"],
             "link_loss_db": receiver_section["total_link_loss_db"],
             "q_parameter_status": q_check["status"],
@@ -315,6 +376,7 @@ def build_phase2_optical_train_report(
         },
         optical_train=train.to_dict(),
         target_footprints=tuple(footprint.to_dict() for footprint in footprints),
+        scene_energy_ledger=scene_ledger,
         receiver_return=receiver_section,
         analytical_checks={
             "check_scope": "internal_consistency_only",
@@ -322,6 +384,17 @@ def build_phase2_optical_train_report(
             "energy_ledger": energy_check,
             "aperture_fraction": aperture_check,
             "target_footprint": target_check,
+            "scene_energy_ledger": {
+                "status": scene_ledger["status"],
+                "message": (
+                    "Nearest-visible target contribution이 final beam power를 초과하지 "
+                    "않는지 검사합니다."
+                ),
+                "oversubscription_residual_w": scene_ledger[
+                    "oversubscription_residual_w"
+                ],
+                "tolerance_w": scene_ledger["tolerance_w"],
+            },
             "receiver_return": receiver_check,
             "external_validation_status": "not_evaluated",
         },
