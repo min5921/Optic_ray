@@ -65,15 +65,19 @@ def _frame_from_z_axis(axis: Any, *, name: str) -> Mat3:
     raise ValueError(f"{name}에서 local frame을 만들 수 없습니다.")
 
 
-def _frame_from_target_normal(normal: Any, *, name: str) -> Mat3:
+def _frame_from_target_normal(
+    normal: Any,
+    width_axis: Any | None = None,
+    *,
+    name: str,
+) -> Mat3:
     unit_normal = normalize_vector(normal, name=name)
-    width_axis, _ = rectangle_plane_axes(unit_normal)
-    height_axis = normalize_vector(
-        np.cross(unit_normal, width_axis),
-        name=f"{name} frame y axis",
+    resolved_width_axis, height_axis = rectangle_plane_axes(
+        unit_normal,
+        width_axis,
     )
     return _matrix3(
-        np.column_stack((width_axis, height_axis, unit_normal)),
+        np.column_stack((resolved_width_axis, height_axis, unit_normal)),
         name=f"{name} frame",
     )
 
@@ -390,6 +394,7 @@ def _make_components(project: Any, assembly: AssemblyPlacement) -> tuple[Viewpor
                 origin_world_m=_vec3(geometry["center_m"], name=f"{target['id']}.center"),
                 rotation_world_from_component=_frame_from_target_normal(
                     geometry["normal"],
+                    geometry.get("width_axis"),
                     name=f"{target['id']}.normal",
                 ),
                 bounds_m=_target_bounds(dict(geometry)),
@@ -571,11 +576,10 @@ def _make_guides(
             continue
         center = np.asarray(geometry["center_m"], dtype=np.float64)
         normal = normalize_vector(geometry["normal"], name="target normal")
-        reference = np.array((0.0, 0.0, 1.0), dtype=np.float64)
-        if abs(float(np.dot(normal, reference))) > 0.95:
-            reference = np.array((0.0, 1.0, 0.0), dtype=np.float64)
-        axis_u = normalize_vector(np.cross(normal, reference), name="target u")
-        axis_v = normalize_vector(np.cross(normal, axis_u), name="target v")
+        axis_u, axis_v = rectangle_plane_axes(
+            normal,
+            geometry.get("width_axis"),
+        )
         half_width = 0.5 * float(geometry["width_m"])
         half_height = 0.5 * float(geometry["height_m"])
         corners = (

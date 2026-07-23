@@ -30,6 +30,12 @@ class MirrorClipResult:
     loss_db: float | None
     status: str
     quadrature_order: int
+    refined_quadrature_order: int
+    base_transmission_fraction: float
+    refined_transmission_fraction: float
+    quadrature_relative_residual: float
+    quadrature_tolerance: float
+    convergence_status: str
     method: str
 
     def to_dict(self) -> dict[str, float | int | str | None]:
@@ -49,6 +55,12 @@ class MirrorClipResult:
             "loss_db": self.loss_db,
             "status": self.status,
             "quadrature_order": self.quadrature_order,
+            "refined_quadrature_order": self.refined_quadrature_order,
+            "base_transmission_fraction": self.base_transmission_fraction,
+            "refined_transmission_fraction": self.refined_transmission_fraction,
+            "quadrature_relative_residual": self.quadrature_relative_residual,
+            "quadrature_tolerance": self.quadrature_tolerance,
+            "convergence_status": self.convergence_status,
             "method": self.method,
         }
 
@@ -80,6 +92,43 @@ def reflect_vector(vector: Iterable[float], surface_normal: Iterable[float]) -> 
     return normalize_vector(incoming - 2.0 * float(np.dot(incoming, normal)) * normal)
 
 
+def _rectangular_transmission_fraction(
+    beam: BeamState,
+    *,
+    x_axis: np.ndarray,
+    y_axis: np.ndarray,
+    center_u_m: float,
+    center_v_m: float,
+    incidence_cosine: float,
+    u_min: float,
+    u_max: float,
+    v_min: float,
+    v_max: float,
+    quadrature_order: int,
+) -> float:
+    """Fixed integration window에서 rectangular Gaussian fraction을 계산한다."""
+
+    if u_min >= u_max or v_min >= v_max:
+        return 0.0
+    nodes, weights = np.polynomial.legendre.leggauss(int(quadrature_order))
+    u = 0.5 * (u_max - u_min) * nodes + 0.5 * (u_max + u_min)
+    v = 0.5 * (v_max - v_min) * nodes + 0.5 * (v_max + v_min)
+    wu = 0.5 * (u_max - u_min) * weights
+    wv = 0.5 * (v_max - v_min) * weights
+    uu, vv = np.meshgrid(u, v, indexing="xy")
+    surface_points = (
+        (uu - center_u_m)[..., None] * x_axis
+        + (vv - center_v_m)[..., None] * y_axis
+    )
+    beam_x = np.tensordot(surface_points, beam.transverse_x_axis, axes=([-1], [0]))
+    beam_y = np.tensordot(surface_points, beam.transverse_y_axis, axes=([-1], [0]))
+    integration_beam = beam if beam.power_w > 0.0 else replace(beam, power_w=1.0)
+    irradiance = integration_beam.irradiance(beam_x, beam_y)
+    area_weights = np.outer(wv, wu)
+    integrated_power = float(np.sum(irradiance * incidence_cosine * area_weights))
+    return min(max(integrated_power / integration_beam.power_w, 0.0), 1.0)
+
+
 def rectangular_mirror_clip(
     beam: BeamState,
     *,
@@ -92,6 +141,8 @@ def rectangular_mirror_clip(
     beam_center_v_m: float = 0.0,
     quadrature_order: int = 80,
     integration_extent_radii: float = 6.0,
+    quadrature_tolerance: float = 1e-8,
+    refinement_factor: int = 2,
 ) -> MirrorClipResult:
     """Mirror plane의 centered rectangular aperture가 통과시키는 power를 적분한다."""
 
@@ -107,6 +158,13 @@ def rectangular_mirror_clip(
     order = int(quadrature_order)
     if order < 16:
         raise ValueError("quadrature_order는 16 이상이어야 합니다.")
+    factor = int(refinement_factor)
+    if factor < 2:
+        raise ValueError("refinement_factor는 2 이상이어야 합니다.")
+    refined_order = order * factor
+    tolerance = float(quadrature_tolerance)
+    if not math.isfinite(tolerance) or tolerance <= 0.0:
+        raise ValueError("quadrature_tolerance는 0보다 큰 유한한 값이어야 합니다.")
     extent = float(integration_extent_radii)
     if not math.isfinite(extent) or extent <= 0.0:
         raise ValueError("integration_extent_radii는 0보다 큰 유한한 값이어야 합니다.")
@@ -136,48 +194,48 @@ def rectangular_mirror_clip(
     u_max = min(0.5 * width, center_u + extent * max(radius_u, 1e-15))
     v_min = max(-0.5 * height, center_v - extent * max(radius_v, 1e-15))
     v_max = min(0.5 * height, center_v + extent * max(radius_v, 1e-15))
-    if u_min >= u_max or v_min >= v_max:
-        fraction = 0.0
-        output_power = 0.0
-        loss = beam.power_w
-        return MirrorClipResult(
-            clear_width_m=width,
-            clear_height_m=height,
-            beam_center_u_m=center_u,
-            beam_center_v_m=center_v,
-            incidence_cosine=incidence_cosine,
-            incidence_angle_rad=math.acos(min(max(incidence_cosine, 0.0), 1.0)),
-            transmission_fraction=fraction,
-            clipped_fraction=1.0,
-            input_power_w=beam.power_w,
-            output_power_w=output_power,
-            loss_w=loss,
-            loss_db=None,
-            status="fail",
-            quadrature_order=order,
-            method="surface_projected_rectangular_gauss_legendre_windowed",
-        )
-    nodes, weights = np.polynomial.legendre.leggauss(order)
-    u = 0.5 * (u_max - u_min) * nodes + 0.5 * (u_max + u_min)
-    v = 0.5 * (v_max - v_min) * nodes + 0.5 * (v_max + v_min)
-    wu = 0.5 * (u_max - u_min) * weights
-    wv = 0.5 * (v_max - v_min) * weights
-    uu, vv = np.meshgrid(u, v, indexing="xy")
-    surface_points = (
-        (uu - center_u)[..., None] * x_axis
-        + (vv - center_v)[..., None] * y_axis
+    base_fraction = _rectangular_transmission_fraction(
+        beam,
+        x_axis=x_axis,
+        y_axis=y_axis,
+        center_u_m=center_u,
+        center_v_m=center_v,
+        incidence_cosine=incidence_cosine,
+        u_min=u_min,
+        u_max=u_max,
+        v_min=v_min,
+        v_max=v_max,
+        quadrature_order=order,
     )
-    beam_x = np.tensordot(surface_points, beam.transverse_x_axis, axes=([-1], [0]))
-    beam_y = np.tensordot(surface_points, beam.transverse_y_axis, axes=([-1], [0]))
-    integration_beam = beam if beam.power_w > 0.0 else replace(beam, power_w=1.0)
-    irradiance = integration_beam.irradiance(beam_x, beam_y)
-    area_weights = np.outer(wv, wu)
-    integrated_power = float(np.sum(irradiance * incidence_cosine * area_weights))
-    fraction = min(max(integrated_power / integration_beam.power_w, 0.0), 1.0)
+    refined_fraction = _rectangular_transmission_fraction(
+        beam,
+        x_axis=x_axis,
+        y_axis=y_axis,
+        center_u_m=center_u,
+        center_v_m=center_v,
+        incidence_cosine=incidence_cosine,
+        u_min=u_min,
+        u_max=u_max,
+        v_min=v_min,
+        v_max=v_max,
+        quadrature_order=refined_order,
+    )
+    residual = abs(refined_fraction - base_fraction) / max(
+        abs(refined_fraction),
+        1e-15,
+    )
+    convergence_status = "pass" if residual <= tolerance else "warning"
+    fraction = refined_fraction
     output_power = beam.power_w * fraction
     loss = beam.power_w - output_power
     loss_db = None if fraction <= 0.0 else -10.0 * math.log10(fraction)
-    status = "pass" if 1.0 - fraction <= 1e-9 else "warning" if fraction > 0.0 else "fail"
+    status = (
+        "fail"
+        if fraction <= 0.0
+        else "warning"
+        if 1.0 - fraction > 1e-9 or convergence_status != "pass"
+        else "pass"
+    )
 
     return MirrorClipResult(
         clear_width_m=width,
@@ -194,6 +252,12 @@ def rectangular_mirror_clip(
         loss_db=loss_db,
         status=status,
         quadrature_order=order,
+        refined_quadrature_order=refined_order,
+        base_transmission_fraction=base_fraction,
+        refined_transmission_fraction=refined_fraction,
+        quadrature_relative_residual=residual,
+        quadrature_tolerance=tolerance,
+        convergence_status=convergence_status,
         method="surface_projected_rectangular_gauss_legendre_windowed",
     )
 

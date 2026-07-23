@@ -379,6 +379,12 @@
         "loss_db",
         "status",
         "quadrature_order",
+        "refined_quadrature_order",
+        "base_transmission_fraction",
+        "refined_transmission_fraction",
+        "quadrature_relative_residual",
+        "quadrature_tolerance",
+        "convergence_status",
         "method"
       ],
       "properties": {
@@ -411,6 +417,20 @@
         "loss_db": { "type": ["number", "null"], "minimum": 0.0 },
         "status": { "enum": ["pass", "warning", "fail"] },
         "quadrature_order": { "type": "integer", "minimum": 16 },
+        "refined_quadrature_order": { "type": "integer", "minimum": 32 },
+        "base_transmission_fraction": {
+          "type": "number",
+          "minimum": 0.0,
+          "maximum": 1.0
+        },
+        "refined_transmission_fraction": {
+          "type": "number",
+          "minimum": 0.0,
+          "maximum": 1.0
+        },
+        "quadrature_relative_residual": { "type": "number", "minimum": 0.0 },
+        "quadrature_tolerance": { "type": "number", "exclusiveMinimum": 0.0 },
+        "convergence_status": { "enum": ["pass", "warning"] },
         "method": { "type": "string" }
       }
     },
@@ -717,8 +737,13 @@
         "target_center_m",
         "target_normal_input",
         "target_normal",
+        "target_width_axis_input",
+        "width_axis_source",
         "width_axis_world",
         "height_axis_world",
+        "surface_sidedness",
+        "front_face",
+        "radiometric_normal_world",
         "width_m",
         "height_m",
         "assumptions",
@@ -746,7 +771,7 @@
           "maximum": 1.5707963267948966
         },
         "incidence_angle_convention": {
-          "const": "angle_from_surface_normal_radians"
+          "const": "angle_from_radiometric_surface_normal_radians"
         },
         "incidence_cosine": {
           "type": ["number", "null"],
@@ -767,8 +792,20 @@
         "target_center_m": { "$ref": "#/$defs/vec3" },
         "target_normal_input": { "$ref": "#/$defs/vec3" },
         "target_normal": { "$ref": "#/$defs/vec3" },
+        "target_width_axis_input": {
+          "oneOf": [
+            { "type": "null" },
+            { "$ref": "#/$defs/vec3" }
+          ]
+        },
+        "width_axis_source": {
+          "enum": ["scenario", "deterministic_default"]
+        },
         "width_axis_world": { "$ref": "#/$defs/vec3" },
         "height_axis_world": { "$ref": "#/$defs/vec3" },
+        "surface_sidedness": { "enum": ["one_sided", "two_sided"] },
+        "front_face": { "type": ["boolean", "null"] },
+        "radiometric_normal_world": { "$ref": "#/$defs/vec3" },
         "width_m": { "type": "number", "exclusiveMinimum": 0.0 },
         "height_m": { "type": "number", "exclusiveMinimum": 0.0 },
         "assumptions": { "$ref": "#/$defs/stringArray" },
@@ -803,6 +840,12 @@
         "occluded_by_target_id",
         "clipped_by_target_bounds",
         "quadrature_order",
+        "refined_quadrature_order",
+        "base_estimated_power_on_target_w",
+        "refined_estimated_power_on_target_w",
+        "quadrature_relative_residual",
+        "quadrature_tolerance",
+        "convergence_status",
         "integration_extent_radii",
         "method",
         "target_intersection",
@@ -830,7 +873,7 @@
           "maximum": 1.5707963267948966
         },
         "incidence_angle_convention": {
-          "const": "angle_from_surface_normal_radians"
+          "const": "angle_from_radiometric_surface_normal_radians"
         },
         "local_coordinates_m": {
           "oneOf": [
@@ -895,6 +938,20 @@
         "occluded_by_target_id": { "type": ["string", "null"] },
         "clipped_by_target_bounds": { "type": "boolean" },
         "quadrature_order": { "type": "integer", "minimum": 16 },
+        "refined_quadrature_order": { "type": "integer", "minimum": 32 },
+        "base_estimated_power_on_target_w": {
+          "type": "number",
+          "minimum": 0.0
+        },
+        "refined_estimated_power_on_target_w": {
+          "type": "number",
+          "minimum": 0.0
+        },
+        "quadrature_relative_residual": { "type": "number", "minimum": 0.0 },
+        "quadrature_tolerance": { "type": "number", "exclusiveMinimum": 0.0 },
+        "convergence_status": {
+          "enum": ["pass", "warning", "not_evaluated"]
+        },
         "integration_extent_radii": {
           "type": "number",
           "exclusiveMinimum": 0.0
@@ -978,6 +1035,7 @@
         "material_ref",
         "material_model",
         "material_reflectivity",
+        "material_surface_sidedness",
         "receiver_architecture",
         "receiver_direction_input",
         "receiver_direction",
@@ -1002,6 +1060,9 @@
           "type": ["number", "null"],
           "minimum": 0.0,
           "maximum": 1.0
+        },
+        "material_surface_sidedness": {
+          "enum": ["one_sided", "two_sided"]
         },
         "receiver_architecture": { "type": "string" },
         "receiver_direction_input": { "$ref": "#/$defs/vec3" },
@@ -1119,6 +1180,10 @@
       "required": [
         "checked_apertures",
         "minimum_transmission_fraction",
+        "quadrature_checked_apertures",
+        "max_quadrature_relative_residual",
+        "minimum_quadrature_tolerance",
+        "numerical_convergence_status",
         "status",
         "message"
       ],
@@ -1129,7 +1194,17 @@
           "minimum": 0.0,
           "maximum": 1.0
         },
-        "status": { "enum": ["pass", "fail"] },
+        "quadrature_checked_apertures": { "type": "integer", "minimum": 0 },
+        "max_quadrature_relative_residual": {
+          "type": ["number", "null"],
+          "minimum": 0.0
+        },
+        "minimum_quadrature_tolerance": {
+          "type": ["number", "null"],
+          "exclusiveMinimum": 0.0
+        },
+        "numerical_convergence_status": { "enum": ["pass", "warning"] },
+        "status": { "enum": ["pass", "warning", "fail"] },
         "message": { "type": "string" }
       }
     },
@@ -1142,6 +1217,10 @@
         "visible_contributing_target_count",
         "visible_target_id",
         "total_estimated_power_on_target_w",
+        "quadrature_checked_footprints",
+        "max_quadrature_relative_residual",
+        "minimum_quadrature_tolerance",
+        "numerical_convergence_status",
         "status",
         "message"
       ],
@@ -1158,6 +1237,16 @@
           "type": "number",
           "minimum": 0.0
         },
+        "quadrature_checked_footprints": { "type": "integer", "minimum": 0 },
+        "max_quadrature_relative_residual": {
+          "type": ["number", "null"],
+          "minimum": 0.0
+        },
+        "minimum_quadrature_tolerance": {
+          "type": ["number", "null"],
+          "exclusiveMinimum": 0.0
+        },
+        "numerical_convergence_status": { "enum": ["pass", "warning"] },
         "status": { "enum": ["pass", "warning", "fail"] },
         "message": { "type": "string" }
       }

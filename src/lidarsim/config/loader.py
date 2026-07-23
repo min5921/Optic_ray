@@ -500,6 +500,14 @@ def _validate_scenario(
                 path=f"scene.targets[{index}].geometry.normal",
                 diagnostics=diagnostics,
             )
+        width_axis = target["geometry"].get("width_axis")
+        if width_axis is not None:
+            _validate_vector(
+                width_axis,
+                source=source,
+                path=f"scene.targets[{index}].geometry.width_axis",
+                diagnostics=diagnostics,
+            )
 
     _validate_vector(
         scenario["receiver"]["direction"],

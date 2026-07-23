@@ -17,6 +17,7 @@
       "properties": {
         "model": { "type": "string" },
         "wavelength_m": { "$ref": "common.schema.json#/$defs/quantity" },
+        "surface_sidedness": { "enum": ["one_sided", "two_sided"] },
         "hemispherical_reflectivity": { "type": "number", "minimum": 0.0, "maximum": 1.0 },
         "transmission": { "type": "number", "minimum": 0.0, "maximum": 1.0 },
         "data_file": { "type": "string" }
@@ -24,5 +25,18 @@
     },
     "provenance": { "$ref": "common.schema.json#/$defs/provenance" },
     "notes": { "type": ["string", "null"] }
-  }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": { "material_type": { "const": "surface_reflection" } },
+        "required": ["material_type"]
+      },
+      "then": {
+        "properties": {
+          "optical": { "required": ["surface_sidedness"] }
+        }
+      }
+    }
+  ]
 }

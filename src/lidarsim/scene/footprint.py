@@ -32,6 +32,12 @@ class TargetFootprint:
     occluded_by_target_id: str | None
     clipped_by_target_bounds: bool
     quadrature_order: int
+    refined_quadrature_order: int
+    base_estimated_power_on_target_w: float
+    refined_estimated_power_on_target_w: float
+    quadrature_relative_residual: float
+    quadrature_tolerance: float
+    convergence_status: str
     integration_extent_radii: float
     method: str
     assumptions: tuple[str, ...] = ()
@@ -62,7 +68,9 @@ class TargetFootprint:
             ),
             "distance_to_target_m": self.intersection.distance_to_target_m,
             "incidence_angle_rad": self.intersection.incidence_angle_rad,
-            "incidence_angle_convention": "angle_from_surface_normal_radians",
+            "incidence_angle_convention": (
+                "angle_from_radiometric_surface_normal_radians"
+            ),
             "local_coordinates_m": (
                 None
                 if self.intersection.local_coordinates_m is None
@@ -85,6 +93,16 @@ class TargetFootprint:
             "occluded_by_target_id": self.occluded_by_target_id,
             "clipped_by_target_bounds": self.clipped_by_target_bounds,
             "quadrature_order": self.quadrature_order,
+            "refined_quadrature_order": self.refined_quadrature_order,
+            "base_estimated_power_on_target_w": (
+                self.base_estimated_power_on_target_w
+            ),
+            "refined_estimated_power_on_target_w": (
+                self.refined_estimated_power_on_target_w
+            ),
+            "quadrature_relative_residual": self.quadrature_relative_residual,
+            "quadrature_tolerance": self.quadrature_tolerance,
+            "convergence_status": self.convergence_status,
             "integration_extent_radii": self.integration_extent_radii,
             "method": self.method,
             "target_intersection": self.intersection.to_dict(),
@@ -175,12 +193,21 @@ def estimate_rectangle_plane_footprint(
     *,
     quadrature_order: int = 96,
     integration_extent_radii: float = 6.0,
+    quadrature_tolerance: float = 1e-8,
+    refinement_factor: int = 2,
 ) -> TargetFootprint:
     """Rectangle-plane hit에서 projected Gaussian footprint와 intercepted power를 추정한다."""
 
     order = int(quadrature_order)
     if order < 16:
         raise ValueError("quadrature_order는 16 이상이어야 합니다.")
+    factor = int(refinement_factor)
+    if factor < 2:
+        raise ValueError("refinement_factor는 2 이상이어야 합니다.")
+    refined_order = order * factor
+    tolerance = float(quadrature_tolerance)
+    if not math.isfinite(tolerance) or tolerance <= 0.0:
+        raise ValueError("quadrature_tolerance는 0보다 큰 유한한 값이어야 합니다.")
     extent = float(integration_extent_radii)
     if not math.isfinite(extent) or extent <= 0.0:
         raise ValueError("integration_extent_radii는 0보다 큰 유한한 값이어야 합니다.")
@@ -209,6 +236,12 @@ def estimate_rectangle_plane_footprint(
             occluded_by_target_id=None,
             clipped_by_target_bounds=False,
             quadrature_order=order,
+            refined_quadrature_order=refined_order,
+            base_estimated_power_on_target_w=0.0,
+            refined_estimated_power_on_target_w=0.0,
+            quadrature_relative_residual=0.0,
+            quadrature_tolerance=tolerance,
+            convergence_status="not_evaluated",
             integration_extent_radii=extent,
             method="miss_no_footprint",
             assumptions=tuple(assumptions),
@@ -237,7 +270,7 @@ def estimate_rectangle_plane_footprint(
     area = math.pi * major * minor
     peak = float(beam.irradiance(0.0, 0.0, distance_m=intersection.distance_to_target_m))
     peak_surface = peak * float(intersection.incidence_cosine)
-    power_on_target, clipped = _integrate_power_on_target(
+    base_power_on_target, clipped = _integrate_power_on_target(
         beam,
         intersection,
         metric_inverse,
@@ -246,8 +279,28 @@ def estimate_rectangle_plane_footprint(
         quadrature_order=order,
         integration_extent_radii=extent,
     )
+    refined_power_on_target, refined_clipped = _integrate_power_on_target(
+        beam,
+        intersection,
+        metric_inverse,
+        distance_m=intersection.distance_to_target_m,
+        incidence_cosine=float(intersection.incidence_cosine),
+        quadrature_order=refined_order,
+        integration_extent_radii=extent,
+    )
+    clipped = clipped or refined_clipped
+    residual = abs(refined_power_on_target - base_power_on_target) / max(
+        abs(refined_power_on_target),
+        max(abs(beam.power_w), 1.0) * 1e-15,
+    )
+    convergence_status = "pass" if residual <= tolerance else "warning"
     if clipped:
         warnings.append("Projected 1/e² footprint가 rectangle target bounds에 걸립니다.")
+    if convergence_status != "pass":
+        warnings.append(
+            "Target footprint base/refined quadrature relative residual "
+            f"{residual:.3e}이 tolerance {tolerance:.3e}을 초과했습니다."
+        )
 
     return TargetFootprint(
         intersection=intersection,
@@ -259,13 +312,19 @@ def estimate_rectangle_plane_footprint(
         projected_radius_v_m=radius_v,
         approximate_footprint_area_m2=area,
         peak_irradiance_w_m2=peak_surface,
-        candidate_estimated_power_on_target_w=power_on_target,
-        estimated_power_on_target_w=power_on_target,
+        candidate_estimated_power_on_target_w=refined_power_on_target,
+        estimated_power_on_target_w=refined_power_on_target,
         visibility_status="candidate_unresolved",
         contributes_to_scene_energy=False,
         occluded_by_target_id=None,
         clipped_by_target_bounds=clipped,
         quadrature_order=order,
+        refined_quadrature_order=refined_order,
+        base_estimated_power_on_target_w=base_power_on_target,
+        refined_estimated_power_on_target_w=refined_power_on_target,
+        quadrature_relative_residual=residual,
+        quadrature_tolerance=tolerance,
+        convergence_status=convergence_status,
         integration_extent_radii=extent,
         method="projected_gaussian_rectangle_plane_first_order",
         assumptions=tuple(assumptions),

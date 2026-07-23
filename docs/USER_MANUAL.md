@@ -26,7 +26,7 @@
 
 Phase 0·0.1과 Phase 1 Gaussian Beam Engine이 완료되었다. `lidarsim validate`는 project/scenario/experiment/catalog YAML을 검사하고 단위, 물리 범위, wavelength validity와 참조·배치를 검증한다. `placement`, `inspect-mesh`, `inspect-measurement`, `report`, `view`, `review`로 배치와 입력 contract를 확인할 수 있다. `lidarsim beam`은 active source의 point·elliptical·line Gaussian을 NumPy/float64로 자유공간 전파하고 radius, divergence, q-parameter, second moment와 power-normalized irradiance를 YAML/PNG로 저장한다. Numerical check와 실제 장비 calibration을 구분해 confidence, provenance, paraxial validity와 hardware readiness를 함께 표시한다.
 
-Phase 2의 vertical slice로 `lidarsim optical-train`이 추가되었다. 이 명령은 source에서 ideal thin-lens collimator를 거쳐 scanner mirror에서 정지 반사되고, rectangle-plane target footprint와 첫 Lambertian virtual-aperture estimate까지 free-space propagation, ABCD thin-lens transform, centered circular aperture clipping, static flat-mirror reflection, mirror aperture clipping, catalog power transmission/reflectivity, target hit/footprint와 analytical link budget을 계산한다. 이 값은 동일 scanner/collimator의 역방향 traversal 또는 fiber-coupled power가 아니다. 현재는 `scanner.static_command_angle_rad` 하나를 static pose로 적용해 mirror normal, reflected ray, target hit와 virtual-aperture estimate를 바꿀 수 있다. Phase 3의 첫 helper로 `lidarsim scanner-sweep`이 추가되어 여러 static command angle에서 target hit와 analytical return 변화를 YAML/CSV/PNG로 비교할 수 있다. 이어서 `lidarsim scanner-path`가 추가되어 config의 scanner waveform에서 한 줄의 ideal forward scan path를 시간 샘플로 만들고, 각 sample의 target hit와 virtual-aperture estimate를 계산한다. Dynamic lag, jitter, bidirectional return stroke, calibration table과 실제 scanner dynamics는 아직 적용하지 않는다. 여러 rectangle-plane이 중심 광선을 가로막으면 가장 가까운 하나만 opaque visible target으로 energy에 기여하지만, beam footprint 면적별 부분 가림과 STL occlusion은 아직 없다. Reciprocal return train, single-mode fiber coupling, STL hit detection, non-Lambertian BRDF/BSDF, detector noise, speckle와 coherent FMCW는 아직 구현되지 않았다. `lidarsim run`, `compare`와 calibrated scan radiometry는 아직 구현되지 않았다.
+Phase 2의 vertical slice로 `lidarsim optical-train`이 추가되었다. 이 명령은 source에서 ideal thin-lens collimator를 거쳐 scanner mirror에서 정지 반사되고, rectangle-plane target footprint와 첫 Lambertian virtual-aperture estimate까지 free-space propagation, ABCD thin-lens transform, 실제 ray-plane hit, projected aperture clipping, static flat-mirror reflection, catalog power transmission/reflectivity, target hit/footprint와 analytical link budget을 계산한다. 이 값은 동일 scanner/collimator의 역방향 traversal 또는 fiber-coupled power가 아니다. 현재는 `scanner.static_command_angle_rad` 하나를 catalog pivot 기준 static pose로 적용해 mirror normal, reflected ray, target hit와 virtual-aperture estimate를 바꿀 수 있다. Phase 3의 첫 helper로 `lidarsim scanner-sweep`이 추가되어 여러 static command angle에서 target hit와 analytical return 변화를 YAML/CSV/PNG로 비교할 수 있다. 이어서 `lidarsim scanner-path`가 추가되어 config의 scanner waveform에서 한 줄의 ideal forward scan path를 시간 샘플로 만들고, 각 sample의 target hit와 virtual-aperture estimate를 계산한다. Dynamic lag, jitter, bidirectional return stroke, calibration table과 실제 scanner dynamics는 아직 적용하지 않는다. 여러 rectangle-plane이 중심 광선을 가로막으면 가장 가까운 하나만 opaque visible target으로 energy에 기여하지만, beam footprint 면적별 부분 가림과 STL occlusion은 아직 없다. Reciprocal return train, single-mode fiber coupling, STL hit detection, non-Lambertian BRDF/BSDF, detector noise, speckle와 coherent FMCW는 아직 구현되지 않았다. `lidarsim run`, `compare`와 calibrated scan radiometry는 아직 구현되지 않았다.
 
 ## 3. 주요 파일 위치
 
@@ -575,10 +575,13 @@ scene:
         type: rectangle_plane
         center_m: [10.0, 0.0, 0.0]
         normal: [-1.0, 0.0, 0.0]
+        width_axis: [0.0, -1.0, 0.0]
         width_m: 4 m
         height_m: 4 m
       material_ref: custom:diffuse_gray_020
 ```
+
+`normal`은 target의 geometric front-face 방향이고 `width_axis`는 normal 주위 roll과 rectangle width 방향을 결정한다. 두 벡터는 finite/non-zero이고 서로 수직이어야 한다. Runtime은 둘을 unit vector로 정규화하고 `width_axis × height_axis = normal`인 right-handed local frame을 만든다. `width_axis`가 없는 이전 config도 deterministic default로 읽지만 warning이 발생하므로 새 설정에는 명시한다. Baseline의 `normal=[-1,0,0]`, `width_axis=[0,-1,0]`은 height axis가 world `+Z`가 되도록 선택한 값이다.
 
 STL target 예:
 
@@ -596,7 +599,21 @@ Material는 catalog ID로 교체한다.
 material_ref: custom:diffuse_gray_020
 ```
 
-향후 material record에서 변경할 값:
+Lambertian material의 앞·뒷면 정책도 catalog에 명시한다.
+
+```yaml
+optical:
+  model: lambertian
+  surface_sidedness: one_sided
+  hemispherical_reflectivity: 0.20
+```
+
+- `one_sided`: center ray가 geometric normal의 뒷면에서 접근하면 `backface_culled` miss다.
+- `two_sided`: 양쪽을 hit로 허용하며 입사면 쪽으로 향하는 `radiometric_normal_world`를 Lambertian receiver cosine에도 사용한다.
+
+Phase 2 report의 mirror aperture와 target footprint에는 base/refined quadrature order, 두 결과, relative residual, tolerance와 `convergence_status`가 포함된다. 계산 power에는 refined 결과를 사용한다. Residual이 tolerance를 넘으면 결과를 숨기지 않고 `warning`으로 올리므로 aperture edge나 grazing 조건에서는 이 값을 먼저 확인한다.
+
+향후 material record에서 추가·교체할 값:
 
 - wavelength-dependent reflectivity
 - diffuse/specular/retro ratio

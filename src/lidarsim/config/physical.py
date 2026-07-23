@@ -322,7 +322,8 @@ def validate_scenario_physics(
                     )
                 )
     for index, target in enumerate(scenario["scene"]["targets"]):
-        normal = target["geometry"].get("normal")
+        geometry = target["geometry"]
+        normal = geometry.get("normal")
         if normal is None:
             continue
         normalized = _require_direction(
@@ -345,6 +346,58 @@ def validate_scenario_physics(
                         severity="warning",
                     )
                 )
+        width_axis = geometry.get("width_axis")
+        if width_axis is None:
+            if geometry.get("type") == "rectangle_plane":
+                warnings.append(
+                    Diagnostic(
+                        source=source_text,
+                        path=f"scene.targets[{index}].geometry.width_axis",
+                        message=(
+                            "Target width_axis가 없어 normal에서 deterministic default "
+                            "roll을 선택합니다."
+                        ),
+                        hint="재현 가능한 rectangle roll을 위해 width_axis를 명시하세요.",
+                        severity="warning",
+                    )
+                )
+            continue
+        normalized_width = _require_direction(
+            width_axis,
+            source=source_text,
+            path=f"scene.targets[{index}].geometry.width_axis",
+            diagnostics=diagnostics,
+        )
+        if normalized_width is None or normalized is None:
+            continue
+        width_norm = math.sqrt(sum(float(value) ** 2 for value in width_axis))
+        if not math.isclose(width_norm, 1.0, rel_tol=1e-12, abs_tol=1e-12):
+            warnings.append(
+                Diagnostic(
+                    source=source_text,
+                    path=f"scene.targets[{index}].geometry.width_axis",
+                    message=(
+                        f"입력 target width axis norm={width_norm:.9g}를 runtime에서 "
+                        f"unit vector {list(normalized_width)}로 정규화합니다."
+                    ),
+                    severity="warning",
+                )
+            )
+        dot = sum(
+            float(normalized[axis]) * float(normalized_width[axis])
+            for axis in range(3)
+        )
+        if abs(dot) > 1e-9:
+            diagnostics.append(
+                Diagnostic(
+                    source=source_text,
+                    path=f"scene.targets[{index}].geometry.width_axis",
+                    message=(
+                        "Target width_axis는 normal에 수직이어야 합니다: "
+                        f"|dot|={abs(dot):.9g}, tolerance=1e-9"
+                    ),
+                )
+            )
     wavelength = _require_positive(
         source_config["wavelength_m"],
         source=source_text,

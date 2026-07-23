@@ -30,6 +30,7 @@ def test_simulation_variant_combines_parameters_and_placement(
             scanner_rotation_axis_world=(0.0, 0.999, 0.0447),
             target_id="target_plane",
             target_center_m=("12 m", "0 m", "0 m"),
+            target_width_axis=(0.0, 0.0, 1.0),
             receiver_aperture_diameter_m="30 mm",
         ),
         element_edits=AssemblyElementEdits(
@@ -51,11 +52,15 @@ def test_simulation_variant_combines_parameters_and_placement(
     assert scenario["scene"]["targets"][0]["geometry"]["center_m"] == pytest.approx(
         [12.0, 0.0, 0.0]
     )
+    assert scenario["scene"]["targets"][0]["geometry"]["width_axis"] == pytest.approx(
+        [0.0, 0.0, 1.0]
+    )
     assert scenario["receiver"]["aperture_diameter_m"] == pytest.approx(0.03)
     assert assembly["scan_mirror"].T_world_from_component.translation_m.tolist() == pytest.approx(
         [0.01, 0.0, 0.0]
     )
     assert "source.optical_power_w" in result.changed_fields
+    assert any("width_axis" in path for path in result.changed_fields)
     assert any("translation_m" in path for path in result.changed_fields)
 
 

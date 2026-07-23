@@ -1,7 +1,12 @@
 """Scene primitive intersection and footprint estimation APIs."""
 
 from .footprint import TargetFootprint, estimate_rectangle_plane_footprint
-from .targets import TargetIntersection, evaluate_target_footprints, intersect_rectangle_plane
+from .targets import (
+    TargetIntersection,
+    evaluate_target_footprints,
+    intersect_rectangle_plane,
+    rectangle_plane_axes,
+)
 
 __all__ = [
     "TargetFootprint",
@@ -9,4 +14,5 @@ __all__ = [
     "estimate_rectangle_plane_footprint",
     "evaluate_target_footprints",
     "intersect_rectangle_plane",
+    "rectangle_plane_axes",
 ]

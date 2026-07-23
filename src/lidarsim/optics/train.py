@@ -575,6 +575,11 @@ def _scanner_mirror_report(
             warning=(
                 "Mirror aperture는 surface-projected Gaussian power만 적분합니다. "
                 "Diffraction과 edge scattering은 아직 계산하지 않습니다."
+                + (
+                    " Base/refined quadrature residual이 tolerance를 초과했습니다."
+                    if clip.convergence_status != "pass"
+                    else ""
+                )
             ),
         )
     )
@@ -594,6 +599,16 @@ def _scanner_mirror_report(
             model_source="catalog optical.power_reflectivity",
         )
     )
+    mirror_warnings = [
+        "Static command-angle reference입니다. Time-dependent scanner motion은 아직 계산하지 않습니다.",
+        "Rectangular aperture는 projected Gaussian power clipping만 계산합니다.",
+    ]
+    if clip.convergence_status != "pass":
+        mirror_warnings.append(
+            "Mirror aperture base/refined quadrature relative residual "
+            f"{clip.quadrature_relative_residual:.3e}이 tolerance "
+            f"{clip.quadrature_tolerance:.3e}을 초과했습니다."
+        )
     report = {
         "element_id": element_id,
         "component_ref": component_ref,
@@ -634,10 +649,7 @@ def _scanner_mirror_report(
             "Beam center ray의 실제 rotated surface-plane hit와 aperture local coordinate를 사용합니다.",
             "Diffraction, edge scattering, coating spectral curve와 polarization은 계산하지 않습니다.",
         ],
-        "warnings": [
-            "Static command-angle reference입니다. Time-dependent scanner motion은 아직 계산하지 않습니다.",
-            "Rectangular aperture는 projected Gaussian power clipping만 계산합니다.",
-        ],
+        "warnings": mirror_warnings,
     }
     return interaction.output_beam, report
 

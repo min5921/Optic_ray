@@ -70,6 +70,7 @@ scene:
         type: rectangle_plane
         center_m: [10.0, 0.0, 0.0]
         normal: [-1.0, 0.0, 0.0]
+        width_axis: [0.0, -1.0, 0.0]
         width_m: 4 m
         height_m: 4 m
       material_ref: custom:diffuse_gray_020

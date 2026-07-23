@@ -15,6 +15,7 @@
 - Phase 2-S0 첫 checkpoint를 완료했다. `calibrated_hardware`는 fitted parameter file SHA-256, calibration/독립 validation measurement, wavelength validity, absolute-radiometric mode와 calibrated receiver가 모두 검증되어야 한다. 0 W optical state와 zero transmission/reflectivity를 runtime·schema가 함께 지원하며 scanner/target/receiver 방향 입력은 원본과 정규화 값을 report한다. Phase 2 optical train은 현재 `gaussian_m2`만 명시적으로 허용한다.
 - Phase 2-S0 전체 Gate를 완료했다. 여러 rectangle-plane 후보 중 nearest positive center-ray hit 하나만 scene energy와 receiver return에 기여하며 `scene_energy_ledger`가 oversubscription을 검사한다. Component/material의 실행 필드, 전체 Phase 2 report와 `ViewportScene schema_version: 1`을 strict schema로 검증한다.
 - Phase 2-S1 geometry checkpoint를 완료했다. Collimator·mirror는 실제 ray-plane hit까지 전파하며 component origin으로 beam을 재배치하지 않는다. Plane parallel/behind와 clear-aperture center-ray miss는 명시적 0 W `terminated` path가 된다. Off-axis collimator decenter는 projected aperture와 paraxial chief-ray에 반영되고 scanner command는 catalog pivot 기준으로 surface frame을 회전한다.
+- Phase 2-S1 전체 Gate를 완료했다. Rectangle target의 `width_axis`가 roll을 고정하고 right-handed local frame을 만든다. Material의 `one_sided/two_sided` 정책을 backface intersection과 Lambertian radiometric normal에 동일하게 적용한다. Mirror aperture와 target footprint 적분은 base/refined result, relative residual, tolerance와 convergence status를 보고하며 refined power를 사용한다.
 - 프로젝트의 중심 범위는 catalog 기반 또는 사용자 정의 광학 부품의 3D 배치, 포인트·라인·면적 빔, collimator 광학계, 사용자 정의 scanner, target interaction과 receiver return 분석이다.
 - Draft v0.2에는 model fidelity contract, commercial component catalog, optical/CAD import, coordinate frame, rigid transform, optical port, placement constraint, structured result, visualization과 tolerance analysis가 포함된다.
 - Phase 0~5의 임시 초기값은 `docs/specs/INITIAL_BASELINE.md`에 정리되어 있으며 모든 값은 configuration으로 교체할 수 있다.
@@ -41,7 +42,7 @@
 - CLI distance는 `20 mm` 같은 단위 포함 값을 받고 기본 결과는 timestamp run directory에 저장해 덮어쓰지 않는다.
 - `configs/line_beam_project.example.yaml`은 3.0 mm × 0.25 mm numerical elliptical-Gaussian line preset을 제공하며 Powell lens나 상용 제품 model이 아니다.
 - Resolved project state는 재귀적으로 변경 불가능하며 안정적인 물리 configuration SHA-256을 갖는다. 표시 단위와 UI preference는 이 hash를 바꾸지 않는다.
-- Local `.venv`는 `pyproject.toml`에서 `dev,ui` optional dependency까지 설치했으며, deprecation·user warning을 error로 처리해도 자동 test 152개가 통과한다.
+- Local `.venv`는 `pyproject.toml`에서 `dev,ui` optional dependency까지 설치했으며 자동 test 164개가 통과한다.
 - 사용자 친화적인 로컬 simulation dashboard와 SolidWorks-like Optical Assembly Workspace 개발 방향은 `docs/UI_SIMULATION_DASHBOARD.md`에 분리해 정리했다.
 - UI MVP 0의 첫 vertical slice로 `ViewportScene` data contract, source/collimator/scanner mirror/target/receiver 표시 data, local frame, port axis, mirror normal, reflected ray, target plane, receiver FOV, beam path, target hit ray, footprint overlay와 headless Matplotlib 3D workspace PNG renderer가 구현되었다.
 - `lidarsim workspace configs/project.yaml --output results/ui_workspace.png --write-scene results/ui_workspace_scene.yaml`로 현재 Phase 2.3 static simulation을 optical assembly workspace용 PNG와 YAML scene으로 확인할 수 있다.
@@ -61,7 +62,7 @@
 - UI 편집값이 3D에 반영되지 않은 것처럼 보이던 UX를 수정했다. Inspector 상단에 `변경값 반영 · 시뮬레이션` action과 pending/applied 상태를 표시하고, active config hash가 바뀌면 cached `UiSimulationRun`을 자동 갱신한다.
 - UI에서 같은 Scenario ID를 반복 적용할 때 기존 `configs/ui_runs` 작업 variant 때문에 실패하던 문제를 수정했다. 작업 variant 덮어쓰기는 기본으로 켜져 있고 기존 파일이 있으면 보존 방법을 안내하며, baseline config는 계속 수정하지 않는다.
 - 3D UI에 기본 `광학 헤드 확대`, `전체 광로`, `선택 부품 확대` view range를 추가했다. 10 m target 때문에 겹치던 source·collimator·scanner mirror를 근거리 동일 축척, component label과 확대 marker로 확인할 수 있다. Scanner static angle은 실제 기계각으로 명시하고 rotation-axis X/Y/Z는 고급 단위벡터 설정으로 분리했으며 non-unit 입력은 저장 시 명시적으로 정규화한다.
-- 현재 주요 검수 이슈는 target roll/단면·양면 정책, mirror/footprint quadrature convergence, UI single-object pending draft와 non-atomic variant run, footprint 표시 방향, STL hit 미구현이다. Phase 2-S0 계약과 Phase 2-S1 actual-hit/no-teleport/scanner-pivot geometry는 2026-07-23 checkpoint에서 닫았다.
+- 현재 주요 검수 이슈는 UI single-object pending draft와 non-atomic variant run, footprint 표시 방향, 일부 project UI setting 미연결과 STL hit 미구현이다. Phase 2-S0 계약과 Phase 2-S1 actual-hit/no-teleport/scanner-pivot/target-sidedness/numerical-convergence Gate는 2026-07-23에 닫았다.
 - `configs/ui_runs/baseline_1550nm_ui_variant*.yaml` 두 파일은 사용자 생성 미추적 작업물이므로 보존한다. 현재 `[10, 10, 0]` scanner rotation axis는 10 degree가 아니라 정규화 후 X-Y 대각 방향축이므로 사용자 의도를 확인하기 전에는 자동 교정하거나 커밋하지 않는다.
 
 ## 유지할 결정 사항
@@ -80,9 +81,18 @@
 
 ## 가장 좋은 다음 작업
 
-추천 1순위는 `Phase 2-S1`의 target width-axis orientation 및 one/two-sided material 정책이다. 이어서 mirror/footprint base-refined quadrature convergence를 닫고 전체 S1 Gate를 검수한다.
+추천 1순위는 `UI-S`의 project-wide draft patch와 atomic variant simulation/rollback이다. 이어서 stable provenance, physical footprint major/minor world axis와 project UI setting 연결을 닫는다.
 
 ## 검증 기록
+
+- 2026-07-23 Phase 2-S1 완료 checkpoint: target `geometry.width_axis`, right-handed rectangle frame과 material `optical.surface_sidedness`를 추가했다. One-sided backface는 miss, two-sided backface는 입사면 radiometric normal을 Lambertian return에도 사용한다.
+- Mirror aperture와 target footprint에 base/refined Gauss-Legendre 결과, relative residual, tolerance와 convergence status를 추가하고 최종 power에는 refined 결과를 사용한다. 극단적 edge-clipping convergence warning regression을 추가했다.
+- UI target numeric editor, Plotly/Matplotlib target frame과 variant serialization이 같은 width axis를 사용한다.
+- `python -m pytest -q`: 통과, `164 passed in 37.95s`.
+- `python -W error::DeprecationWarning -W error::UserWarning -m pytest -q`: 통과, `164 passed in 31.72s`.
+- `python -m lidarsim.cli validate configs/project.yaml`: 통과. 명시적 target width axis와 material sidedness가 포함된 config hash는 `8b7318ba7d9a649c2299ff52a5e4feb146355db4ec5f02f1049b264118e4a645`다.
+- `python -m lidarsim.cli optical-train configs/project.yaml`: 통과. Mirror/target quadrature, q, energy, aperture, target와 receiver check가 모두 `pass`이고 기존 baseline power `P_target=0.00999997341 W`, `P_virtual_ap=2.49999335e-09 W`를 유지한다.
+- `python -m lidarsim.cli workspace configs/project.yaml --write-scene results/audit/s1_viewport_scene.yaml --output results/audit/s1_workspace.png --dpi 80`: 통과. Right-handed target frame을 포함한 strict ViewportScene과 3D PNG를 시각 검수했다.
 
 - 2026-07-23 Phase 2-S1 geometry checkpoint: 공통 float64 ray-plane intersection, actual component hit, no-teleport termination, off-axis ideal-lens chief ray와 scanner catalog pivot 회전을 구현했다.
 - Baseline actual-hit, 1 mm collimator decenter, 20 mm clear-aperture miss와 nonzero mirror pivot regression을 추가했다. Phase 2 strict schema에 interaction·termination 계약을 추가했다.
@@ -174,7 +184,7 @@
 - `python -W error::DeprecationWarning -W error::UserWarning -m pytest -q`: 91개 통과.
 - `lidarsim validate configs/project.yaml`: 통과. 현재 output warning은 scanner time dynamics가 아직 없는 `scan_path`만 남는다.
 - `lidarsim optical-train configs/project.yaml`: 통과. Final plane은 `scan_mirror.reflected`, target hit count `1`, target power `0.00999997341 W`, receiver power `2.49999335e-09 W`, link loss `66.02059991327963 dB`, q/energy/aperture/target/receiver check `pass`, unsupported downstream element `0`.
-- 현재 Phase 2 한계: aperture 뒤 diffraction/truncated profile shape, mirror edge scattering, polarization, Fresnel/coating/dispersion, aberration, decenter/tilt tolerance, vendor black-box execution, STL hit detection, visibility/occlusion, non-Lambertian BRDF/BSDF, detector noise, coherent FMCW와 time-dependent scanner motion은 아직 계산하지 않는다.
+- 현재 Phase 2 한계: deterministic placement offset/tilt는 실제 hit와 paraxial chief ray에 반영하지만 aperture 뒤 diffraction/truncated profile shape, mirror edge scattering, polarization, Fresnel/coating/dispersion, aberration, stochastic tolerance ensemble, vendor black-box execution, STL hit detection, footprint-area visibility/occlusion, non-Lambertian BRDF/BSDF, detector noise, coherent FMCW와 time-dependent scanner motion은 아직 계산하지 않는다.
 - `docs/UI_SIMULATION_DASHBOARD.md`를 추가해 UI 최종 목표를 단순 dashboard가 아닌 SolidWorks-like Optical Assembly Workspace로 정리했다. 진행 규칙은 얇은 workspace UI 골격을 먼저 만들고, 이후 물리 기능을 하나씩 추가할 때마다 UI에 연결하는 방식이다.
 - 문서 전용 변경이므로 자동 test는 실행하지 않았고 `git diff --check`로 형식만 확인한다.
 - UI MVP 0 첫 vertical slice에서 `src/lidarsim/ui/assembly/viewport_data.py`, `src/lidarsim/visualization/workspace.py`, `lidarsim workspace` CLI, viewport scene YAML 저장, 2패널 workspace PNG renderer와 UI workspace test를 추가했다.

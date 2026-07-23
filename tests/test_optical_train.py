@@ -143,6 +143,40 @@ def test_flat_mirror_rectangular_aperture_reports_status() -> None:
     assert small_clip.transmission_fraction == pytest.approx(1.0, rel=1e-12)
     assert large_clip.status in {"warning", "fail"}
     assert large_clip.transmission_fraction < 1.0
+    assert small_clip.refined_quadrature_order == 2 * small_clip.quadrature_order
+    assert small_clip.quadrature_relative_residual <= small_clip.quadrature_tolerance
+    assert small_clip.convergence_status == "pass"
+
+
+def test_mirror_clip_reports_base_refined_convergence_warning() -> None:
+    beam = _beam(
+        waist_radius_x_m=1.0e-3,
+        waist_radius_y_m=5.0e-3,
+        profile_kind="elliptical_gaussian",
+    )
+
+    clip = rectangular_mirror_clip(
+        beam,
+        surface_normal=[0.0, 0.0, 1.0],
+        aperture_x_axis=[1.0, 0.0, 0.0],
+        aperture_y_axis=[0.0, 1.0, 0.0],
+        clear_width_m=0.02,
+        clear_height_m=0.02,
+        beam_center_u_m=0.0095,
+        beam_center_v_m=0.009,
+        quadrature_order=16,
+        quadrature_tolerance=1e-8,
+    )
+
+    assert clip.refined_quadrature_order == 32
+    assert clip.base_transmission_fraction != pytest.approx(
+        clip.refined_transmission_fraction,
+        rel=1e-8,
+    )
+    assert clip.transmission_fraction == clip.refined_transmission_fraction
+    assert clip.quadrature_relative_residual > clip.quadrature_tolerance
+    assert clip.convergence_status == "warning"
+    assert clip.status == "warning"
 
 
 def test_phase2_train_reflects_from_scanner_mirror_with_power_ledger(project_root: Path) -> None:
@@ -174,6 +208,11 @@ def test_phase2_train_reflects_from_scanner_mirror_with_power_ledger(project_roo
     assert train.final_state.state.radius_x_m == pytest.approx(0.00197358, rel=1e-4)
     assert mirror_clip["incidence_angle_rad"] == pytest.approx(math.pi / 4.0)
     assert mirror_clip["transmission_fraction"] == pytest.approx(1.0, rel=1e-11)
+    assert mirror_clip["convergence_status"] == "pass"
+    assert (
+        mirror_clip["quadrature_relative_residual"]
+        <= mirror_clip["quadrature_tolerance"]
+    )
     assert train.component_reports[1]["incident_direction"] == pytest.approx([0.0, 0.0, 1.0])
     assert train.component_reports[1]["reflected_direction"] == pytest.approx(
         [1.0, 0.0, 0.0],
@@ -381,6 +420,54 @@ def test_nonunit_scenario_directions_preserve_input_and_report_normalization(
     assert receiver["receiver_direction"] == pytest.approx([1.0, 0.0, 0.0])
 
 
+def test_project_material_sidedness_controls_backface_hit_and_return(
+    copied_project: Path,
+) -> None:
+    scenario_path = copied_project.parent / "baseline_1550nm.yaml"
+    scenario = yaml.safe_load(scenario_path.read_text(encoding="utf-8"))
+    geometry = scenario["scene"]["targets"][0]["geometry"]
+    geometry["normal"] = [1.0, 0.0, 0.0]
+    geometry["width_axis"] = [0.0, 1.0, 0.0]
+    scenario_path.write_text(
+        yaml.safe_dump(scenario, sort_keys=False),
+        encoding="utf-8",
+    )
+
+    one_sided = build_phase2_optical_train_report(load_project(copied_project))
+
+    assert one_sided.target_footprints[0]["hit"] is False
+    assert one_sided.target_footprints[0]["miss_reason"] == "backface_culled"
+    assert one_sided.receiver_return["returns"][0]["estimated_received_power_w"] == 0.0
+
+    material_path = (
+        copied_project.parent.parent
+        / "catalog"
+        / "materials"
+        / "custom"
+        / "diffuse_gray_020.yaml"
+    )
+    material = yaml.safe_load(material_path.read_text(encoding="utf-8"))
+    material["optical"]["surface_sidedness"] = "two_sided"
+    material_path.write_text(
+        yaml.safe_dump(material, sort_keys=False),
+        encoding="utf-8",
+    )
+
+    two_sided = build_phase2_optical_train_report(load_project(copied_project))
+    intersection = two_sided.target_footprints[0]["target_intersection"]
+
+    assert two_sided.target_footprints[0]["hit"] is True
+    assert intersection["front_face"] is False
+    assert intersection["radiometric_normal_world"] == pytest.approx(
+        [-1.0, 0.0, 0.0]
+    )
+    assert (
+        two_sided.receiver_return["returns"][0]["material_surface_sidedness"]
+        == "two_sided"
+    )
+    assert two_sided.receiver_return["returns"][0]["estimated_received_power_w"] > 0.0
+
+
 def test_multiple_collinear_targets_only_nearest_owns_scene_energy(
     copied_project: Path,
 ) -> None:
@@ -395,6 +482,7 @@ def test_multiple_collinear_targets_only_nearest_owns_scene_energy(
             "type": "rectangle_plane",
             "center_m": ["12 m", "0 m", "0 m"],
             "normal": [-1.0, 0.0, 0.0],
+            "width_axis": [0.0, -1.0, 0.0],
             "width_m": "4 m",
             "height_m": "4 m",
         },

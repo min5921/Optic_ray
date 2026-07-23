@@ -58,7 +58,7 @@ python -W error::DeprecationWarning -W error::UserWarning -m pytest -q
 - `S0-MODEL-01` 완료: Phase 2 q-ABCD optical train은 `gaussian_m2`만 명시적으로 지원하며 `second_moment`를 암묵적으로 q 경로에 넣지 않는다.
 - `S0-ENERGY-01` 완료: 여러 rectangle-plane 후보 hit를 모두 보존하되 단일 center ray에서 가장 가까운 positive hit 하나만 opaque visible target으로 scene energy와 receiver return에 기여한다. `scene_energy_ledger`가 후보/기여 power와 oversubscription residual을 구분한다.
 - `S0-SCHEMA-01` 완료: 현재 실행 경로의 component/material 중첩 optical field와 Phase 2 report를 strict schema로 검증한다. `ViewportScene`은 `schema_version: 1`과 별도 `viewport_scene.schema.json`을 가지며 CLI/UI runner가 저장 전에 검증한다.
-- Phase 2-S0 Gate 완료. 다음 활성 단계는 Phase 2-S1이다.
+- Phase 2-S0 Gate 완료. 후속 Phase 2-S1 Gate도 2026-07-23에 완료했다.
 
 ### 3.2 Phase 2-S1 — 실제 배치 geometry 안정화
 
@@ -75,7 +75,9 @@ python -W error::DeprecationWarning -W error::UserWarning -m pytest -q
 - Off-axis collimator는 실제 interaction point와 aperture center의 local decenter를 사용해 projected circular aperture를 적분하고, ideal paraxial thin-lens chief-ray slope 변화를 적용한다.
 - `S1-GEO-02` 완료: scanner command rotation은 catalog `mechanical.pivot_local_m`을 world frame으로 변환한 pivot을 기준으로 surface origin, normal과 rectangular aperture axes를 함께 회전한다.
 - Baseline, 1 mm collimator decenter, 20 mm aperture miss와 nonzero scanner pivot analytical regression을 통과했다.
-- 남은 Phase 2-S1 Gate는 `S1-TARGET-01`과 `S1-NUM-01`이다.
+- `S1-TARGET-01` 완료: rectangle `geometry.width_axis`가 normal 주위 roll을 결정한다. Normal·width axis는 직교 검증하며 width×height=normal인 right-handed frame을 보고한다. Material `optical.surface_sidedness`의 `one_sided`는 backface를 차단하고 `two_sided`는 입사면 쪽 radiometric normal을 geometry와 Lambertian return에서 동일하게 사용한다.
+- `S1-NUM-01` 완료: mirror rectangular aperture와 target footprint Gauss-Legendre 적분은 base/refined order 결과, relative residual, tolerance와 convergence status를 report한다. 최종 power에는 refined 결과를 사용하고 tolerance 초과는 `warning`이다.
+- Phase 2-S1 Gate 완료. 다음 활성 단계는 `UI-S`다.
 
 ### 3.3 UI-S — 편집·시각화 안정화
 

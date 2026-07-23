@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from lidarsim.config import find_project_root, load_project
+from lidarsim.scene import rectangle_plane_axes
 from lidarsim.ui.assembly import (
     MirrorTargetMatePreview,
     build_interactive_viewport_figure,
@@ -524,6 +525,20 @@ def _selected_object_editor(
             )
             for index, axis in enumerate("xyz")
         )
+        resolved_width_axis, _ = rectangle_plane_axes(
+            geometry["normal"],
+            geometry.get("width_axis"),
+        )
+        width_axis_columns = st.columns(3)
+        width_axis = tuple(
+            width_axis_columns[index].number_input(
+                f"Target width axis {axis.upper()}",
+                value=float(resolved_width_axis[index]),
+                key=f"target:{project.config_hash}:{selected_object_id}:width-axis:{axis}",
+            )
+            for index, axis in enumerate("xyz")
+        )
+        st.caption("Target width axis는 normal과 수직이어야 하며 rectangle의 roll을 결정합니다.")
         width = st.number_input(
             "Target width (m)",
             min_value=1.0e-6,
@@ -554,6 +569,15 @@ def _selected_object_editor(
                         normal,
                     )
                     else normal  # type: ignore[arg-type]
+                ),
+                target_width_axis=(
+                    None
+                    if _same_values(
+                        tuple(float(value) for value in resolved_width_axis),
+                        width_axis,
+                    )
+                    and geometry.get("width_axis") is not None
+                    else width_axis  # type: ignore[arg-type]
                 ),
                 target_width_m=(
                     None

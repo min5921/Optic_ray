@@ -183,9 +183,9 @@ Port 이름은 광 진행 방향을 고정하는 명령이 아니라 component r
 - 여러 target에서 beam power를 중복 합산하지 않는 nearest-visible hit 정책
 - schema와 runtime의 zero transmission·zero-power 계약 일치
 - scanner axis의 finite/non-zero 의미와 scanner pivot 회전 검증
-- UI project-wide draft, atomic variant run과 stable provenance
+- target width-axis, material one/two-sided 정책과 quadrature convergence 검증
 
-이 Gate는 R1에서 같은 geometry primitive를 forward/reverse 양쪽에 사용하기 위한 전제 조건이다. 상세 ID와 완료 기준은 [`IMPLEMENTATION_AUDIT_2026-07-15.md`](IMPLEMENTATION_AUDIT_2026-07-15.md)를 따른다.
+상태: 2026-07-23 완료. 이 Gate는 R1에서 같은 geometry primitive를 forward/reverse 양쪽에 사용하기 위한 전제 조건이다. UI project-wide draft, atomic variant run과 stable provenance는 다음 `UI-S` Gate에서 닫는다. 상세 ID와 완료 기준은 [`IMPLEMENTATION_AUDIT_2026-07-15.md`](IMPLEMENTATION_AUDIT_2026-07-15.md)를 따른다.
 
 ### Phase 2.4-R1 — Reciprocal center-ray geometry
 
@@ -262,4 +262,4 @@ Port 이름은 광 진행 방향을 고정하는 명령이 아니라 component r
 
 ## 11. 현재 한계
 
-이 문서는 목표 물리 구조와 구현 계약을 정리한 것이다. 현재는 R0의 정직한 output 표기 일부만 반영되어 있고, Phase 2-S 안정화, R1 reverse mirror/collimator center ray, Phase 4.1-M1 STL closest-hit, R2 return power ledger, R3 fiber mode overlap, R4 duplexer와 detector는 아직 구현되어 있지 않다. 기존 virtual aperture 계산을 유지하는 이유는 regression과 수치 비교를 위한 것이며 실제 fiber-coupled hardware prediction을 주장하기 위한 것이 아니다.
+이 문서는 목표 물리 구조와 구현 계약을 정리한 것이다. R0의 정직한 output 표기 일부와 Phase 2-S 안정화는 구현되었다. UI-S, R1 reverse mirror/collimator center ray, Phase 4.1-M1 STL closest-hit, R2 return power ledger, R3 fiber mode overlap, R4 duplexer와 detector는 아직 구현되어 있지 않다. 기존 virtual aperture 계산을 유지하는 이유는 regression과 수치 비교를 위한 것이며 실제 fiber-coupled hardware prediction을 주장하기 위한 것이 아니다.

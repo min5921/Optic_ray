@@ -5,6 +5,7 @@ model_level: ideal
 
 optical:
   model: lambertian
+  surface_sidedness: one_sided
   wavelength_m: 1550 nm
   hemispherical_reflectivity: 0.20
   transmission: 0.0

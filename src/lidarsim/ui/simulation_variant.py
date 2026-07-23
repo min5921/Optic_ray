@@ -42,6 +42,7 @@ class SimulationParameterEdits:
     target_id: str | None = None
     target_center_m: tuple[QuantityInput, QuantityInput, QuantityInput] | None = None
     target_normal: tuple[float, float, float] | None = None
+    target_width_axis: tuple[float, float, float] | None = None
     target_width_m: QuantityInput | None = None
     target_height_m: QuantityInput | None = None
     receiver_position_m: tuple[QuantityInput, QuantityInput, QuantityInput] | None = None
@@ -191,6 +192,7 @@ def _apply_parameter_edits(
         for value in (
             edits.target_center_m,
             edits.target_normal,
+            edits.target_width_axis,
             edits.target_width_m,
             edits.target_height_m,
         )
@@ -213,6 +215,17 @@ def _apply_parameter_edits(
             "normal",
             None if edits.target_normal is None else [float(value) for value in edits.target_normal],
             path=f"{target_prefix}.normal",
+            changed=changed,
+        )
+        _set_if_changed(
+            geometry,
+            "width_axis",
+            (
+                None
+                if edits.target_width_axis is None
+                else [float(value) for value in edits.target_width_axis]
+            ),
+            path=f"{target_prefix}.width_axis",
             changed=changed,
         )
         _set_if_changed(

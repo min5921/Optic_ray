@@ -262,6 +262,18 @@ def test_negative_target_size_is_rejected(copied_project: Path) -> None:
         load_project(copied_project)
 
 
+def test_target_width_axis_must_be_perpendicular_to_normal(
+    copied_project: Path,
+) -> None:
+    scenario_path = copied_project.parent / "baseline_1550nm.yaml"
+    scenario = _read_yaml(scenario_path)
+    scenario["scene"]["targets"][0]["geometry"]["width_axis"] = [1.0, 1.0, 0.0]
+    _write_yaml(scenario_path, scenario)
+
+    with pytest.raises(ConfigValidationError, match="수직"):
+        load_project(copied_project)
+
+
 def test_source_wavelength_outside_catalog_validity_is_rejected(copied_project: Path) -> None:
     scenario_path = copied_project.parent / "baseline_1550nm.yaml"
     scenario = _read_yaml(scenario_path)

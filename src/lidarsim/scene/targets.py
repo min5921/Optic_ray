@@ -27,10 +27,28 @@ def _positive(value: float, *, name: str) -> float:
     return result
 
 
-def rectangle_plane_axes(normal: Iterable[float]) -> tuple[np.ndarray, np.ndarray]:
-    """Rectangle target의 deterministic local width/height axes를 만든다."""
+def rectangle_plane_axes(
+    normal: Iterable[float],
+    width_axis: Iterable[float] | None = None,
+    *,
+    orthogonality_tolerance: float = 1e-9,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Normal과 optional width axis에서 right-handed rectangle frame을 만든다."""
 
     unit_normal = normalize_vector(normal, name="target normal")
+    if width_axis is not None:
+        unit_width = normalize_vector(width_axis, name="target width axis")
+        dot = float(np.dot(unit_normal, unit_width))
+        if abs(dot) > float(orthogonality_tolerance):
+            raise ValueError(
+                "target width_axis는 normal에 수직이어야 합니다: "
+                f"|dot|={abs(dot):.9g}, tolerance={orthogonality_tolerance:.9g}"
+            )
+        height_axis = normalize_vector(
+            np.cross(unit_normal, unit_width),
+            name="target height axis",
+        )
+        return unit_width, height_axis
     for candidate in (
         np.array([0.0, 1.0, 0.0], dtype=np.float64),
         np.array([0.0, 0.0, 1.0], dtype=np.float64),
@@ -40,7 +58,7 @@ def rectangle_plane_axes(normal: Iterable[float]) -> tuple[np.ndarray, np.ndarra
         if float(np.linalg.norm(projected)) > 1e-12:
             width_axis = normalize_vector(projected, name="target width axis")
             height_axis = normalize_vector(
-                np.cross(width_axis, unit_normal),
+                np.cross(unit_normal, width_axis),
                 name="target height axis",
             )
             return width_axis, height_axis
@@ -64,8 +82,13 @@ class TargetIntersection:
     target_center_m: np.ndarray
     target_normal_input: np.ndarray
     target_normal: np.ndarray
+    target_width_axis_input: np.ndarray | None
+    width_axis_source: str
     width_axis: np.ndarray
     height_axis: np.ndarray
+    surface_sidedness: str
+    front_face: bool | None
+    radiometric_normal: np.ndarray
     width_m: float
     height_m: float
     assumptions: tuple[str, ...] = ()
@@ -81,7 +104,9 @@ class TargetIntersection:
             "hit_center_m": None if self.hit_center_m is None else self.hit_center_m.tolist(),
             "distance_to_target_m": self.distance_to_target_m,
             "incidence_angle_rad": self.incidence_angle_rad,
-            "incidence_angle_convention": "angle_from_surface_normal_radians",
+            "incidence_angle_convention": (
+                "angle_from_radiometric_surface_normal_radians"
+            ),
             "incidence_cosine": self.incidence_cosine,
             "local_coordinates_m": (
                 None if self.local_coordinates_m is None else list(self.local_coordinates_m)
@@ -89,8 +114,17 @@ class TargetIntersection:
             "target_center_m": self.target_center_m.tolist(),
             "target_normal_input": self.target_normal_input.tolist(),
             "target_normal": self.target_normal.tolist(),
+            "target_width_axis_input": (
+                None
+                if self.target_width_axis_input is None
+                else self.target_width_axis_input.tolist()
+            ),
+            "width_axis_source": self.width_axis_source,
             "width_axis_world": self.width_axis.tolist(),
             "height_axis_world": self.height_axis.tolist(),
+            "surface_sidedness": self.surface_sidedness,
+            "front_face": self.front_face,
+            "radiometric_normal_world": self.radiometric_normal.tolist(),
             "width_m": self.width_m,
             "height_m": self.height_m,
             "assumptions": list(self.assumptions),
@@ -107,8 +141,13 @@ def _miss(
     center: np.ndarray,
     normal_input: np.ndarray | None = None,
     normal: np.ndarray,
+    width_axis_input: np.ndarray | None = None,
+    width_axis_source: str = "deterministic_default",
     width_axis: np.ndarray,
     height_axis: np.ndarray,
+    surface_sidedness: str = "two_sided",
+    front_face: bool | None = None,
+    radiometric_normal: np.ndarray | None = None,
     width_m: float,
     height_m: float,
     assumptions: tuple[str, ...],
@@ -128,8 +167,13 @@ def _miss(
         target_center_m=center,
         target_normal_input=normal if normal_input is None else normal_input,
         target_normal=normal,
+        target_width_axis_input=width_axis_input,
+        width_axis_source=width_axis_source,
         width_axis=width_axis,
         height_axis=height_axis,
+        surface_sidedness=surface_sidedness,
+        front_face=front_face,
+        radiometric_normal=normal if radiometric_normal is None else radiometric_normal,
         width_m=width_m,
         height_m=height_m,
         assumptions=assumptions,
@@ -144,8 +188,10 @@ def intersect_rectangle_plane(
     material_ref: str,
     center_m: Iterable[float],
     normal: Iterable[float],
+    width_axis: Iterable[float] | None = None,
     width_m: float,
     height_m: float,
+    surface_sidedness: str = "two_sided",
     epsilon: float = 1e-12,
 ) -> TargetIntersection:
     """Beam center ray와 rectangle plane의 첫 교차를 계산한다."""
@@ -153,13 +199,38 @@ def intersect_rectangle_plane(
     center = _vec3(center_m, name="target center_m")
     normal_input = _vec3(normal, name="target normal input")
     unit_normal = normalize_vector(normal_input, name="target normal")
+    width_axis_input = (
+        None
+        if width_axis is None
+        else _vec3(width_axis, name="target width_axis input")
+    )
+    sidedness = str(surface_sidedness)
+    if sidedness not in {"one_sided", "two_sided"}:
+        raise ValueError(
+            "surface_sidedness는 'one_sided' 또는 'two_sided'여야 합니다."
+        )
     width = _positive(width_m, name="target width_m")
     height = _positive(height_m, name="target height_m")
-    width_axis, height_axis = rectangle_plane_axes(unit_normal)
+    resolved_width_axis, height_axis = rectangle_plane_axes(
+        unit_normal,
+        width_axis_input,
+    )
+    width_axis_source = "scenario" if width_axis_input is not None else "deterministic_default"
     assumptions = (
         "rectangle_plane target은 완전 평면 primitive로 취급합니다.",
+        (
+            "Target local frame은 width_axis × height_axis = geometric normal인 "
+            "right-handed frame입니다."
+        ),
+        f"Surface sidedness는 material optical.surface_sidedness={sidedness!r}를 따릅니다.",
         "STL visibility, occlusion, roughness와 curved-surface intersection은 계산하지 않습니다.",
     )
+    base_warnings: tuple[str, ...] = (
+        (
+            "geometry.width_axis가 없어 target roll을 deterministic default axis로 "
+            "해석했습니다. 재현 가능한 roll을 위해 width_axis를 명시하세요."
+        ),
+    ) if width_axis_input is None else ()
 
     denominator = float(np.dot(beam.direction, unit_normal))
     if abs(denominator) <= float(epsilon):
@@ -171,11 +242,15 @@ def intersect_rectangle_plane(
             center=center,
             normal_input=normal_input,
             normal=unit_normal,
-            width_axis=width_axis,
+            width_axis_input=width_axis_input,
+            width_axis_source=width_axis_source,
+            width_axis=resolved_width_axis,
             height_axis=height_axis,
+            surface_sidedness=sidedness,
             width_m=width,
             height_m=height,
             assumptions=assumptions,
+            warnings=base_warnings,
         )
 
     distance = float(np.dot(center - beam.origin_m, unit_normal) / denominator)
@@ -188,16 +263,48 @@ def intersect_rectangle_plane(
             center=center,
             normal_input=normal_input,
             normal=unit_normal,
-            width_axis=width_axis,
+            width_axis_input=width_axis_input,
+            width_axis_source=width_axis_source,
+            width_axis=resolved_width_axis,
             height_axis=height_axis,
+            surface_sidedness=sidedness,
             width_m=width,
             height_m=height,
             assumptions=assumptions,
+            warnings=base_warnings,
+        )
+
+    front_face = denominator < 0.0
+    radiometric_normal = (
+        unit_normal
+        if front_face
+        else normalize_vector(-unit_normal, name="target backside radiometric normal")
+    )
+    if not front_face and sidedness == "one_sided":
+        return _miss(
+            target_id=target_id,
+            material_ref=material_ref,
+            geometry_type="rectangle_plane",
+            reason="backface_culled",
+            center=center,
+            normal_input=normal_input,
+            normal=unit_normal,
+            width_axis_input=width_axis_input,
+            width_axis_source=width_axis_source,
+            width_axis=resolved_width_axis,
+            height_axis=height_axis,
+            surface_sidedness=sidedness,
+            front_face=False,
+            radiometric_normal=unit_normal,
+            width_m=width,
+            height_m=height,
+            assumptions=assumptions,
+            warnings=base_warnings,
         )
 
     hit = beam.origin_m + distance * beam.direction
     offset = hit - center
-    local_u = float(np.dot(offset, width_axis))
+    local_u = float(np.dot(offset, resolved_width_axis))
     local_v = float(np.dot(offset, height_axis))
     if abs(local_u) > 0.5 * width + float(epsilon) or abs(local_v) > 0.5 * height + float(epsilon):
         return _miss(
@@ -208,20 +315,27 @@ def intersect_rectangle_plane(
             center=center,
             normal_input=normal_input,
             normal=unit_normal,
-            width_axis=width_axis,
+            width_axis_input=width_axis_input,
+            width_axis_source=width_axis_source,
+            width_axis=resolved_width_axis,
             height_axis=height_axis,
+            surface_sidedness=sidedness,
+            front_face=front_face,
+            radiometric_normal=radiometric_normal,
             width_m=width,
             height_m=height,
             assumptions=assumptions,
+            warnings=base_warnings,
         )
 
     incidence_cosine = abs(denominator)
     incidence_angle = math.acos(min(max(incidence_cosine, 0.0), 1.0))
     hit.setflags(write=False)
-    warnings: list[str] = []
-    if denominator > 0.0:
+    warnings = list(base_warnings)
+    if not front_face:
         warnings.append(
-            "Beam이 target normal의 뒷면 방향에서 접근합니다. 양면 Lambertian reference로 계산합니다."
+            "Beam이 geometric normal의 뒷면에서 접근했습니다. two_sided 정책에 따라 "
+            "radiometric normal을 입사면 쪽으로 뒤집었습니다."
         )
     return TargetIntersection(
         target_id=target_id,
@@ -237,8 +351,13 @@ def intersect_rectangle_plane(
         target_center_m=center,
         target_normal_input=normal_input,
         target_normal=unit_normal,
-        width_axis=width_axis,
+        target_width_axis_input=width_axis_input,
+        width_axis_source=width_axis_source,
+        width_axis=resolved_width_axis,
         height_axis=height_axis,
+        surface_sidedness=sidedness,
+        front_face=front_face,
+        radiometric_normal=radiometric_normal,
         width_m=width,
         height_m=height,
         assumptions=assumptions,
@@ -262,6 +381,10 @@ def evaluate_target_footprints(
         target_id = str(target["id"])
         material_ref = str(target["material_ref"])
         geometry_type = str(geometry["type"])
+        material = project.catalog[material_ref].data
+        surface_sidedness = str(
+            material["optical"].get("surface_sidedness", "two_sided")
+        )
         if geometry_type != "rectangle_plane":
             normal = np.array([0.0, 0.0, 1.0], dtype=np.float64)
             width_axis, height_axis = rectangle_plane_axes(normal)
@@ -274,6 +397,7 @@ def evaluate_target_footprints(
                 normal=normal,
                 width_axis=width_axis,
                 height_axis=height_axis,
+                surface_sidedness=surface_sidedness,
                 width_m=1.0,
                 height_m=1.0,
                 assumptions=("STL/CAD target hit detection은 이번 Phase 2.2 patch 범위 밖입니다.",),
@@ -284,7 +408,12 @@ def evaluate_target_footprints(
             center = _vec3(geometry["center_m"], name="target center_m")
             normal_input = _vec3(geometry["normal"], name="target normal input")
             normal = normalize_vector(normal_input, name="target normal")
-            width_axis, height_axis = rectangle_plane_axes(normal)
+            width_axis_input = (
+                None
+                if geometry.get("width_axis") is None
+                else _vec3(geometry["width_axis"], name="target width_axis input")
+            )
+            width_axis, height_axis = rectangle_plane_axes(normal, width_axis_input)
             intersection = _miss(
                 target_id=target_id,
                 material_ref=material_ref,
@@ -293,8 +422,15 @@ def evaluate_target_footprints(
                 center=center,
                 normal_input=normal_input,
                 normal=normal,
+                width_axis_input=width_axis_input,
+                width_axis_source=(
+                    "scenario"
+                    if width_axis_input is not None
+                    else "deterministic_default"
+                ),
                 width_axis=width_axis,
                 height_axis=height_axis,
+                surface_sidedness=surface_sidedness,
                 width_m=_positive(geometry["width_m"], name="target width_m"),
                 height_m=_positive(geometry["height_m"], name="target height_m"),
                 assumptions=(
@@ -310,8 +446,10 @@ def evaluate_target_footprints(
             material_ref=material_ref,
             center_m=geometry["center_m"],
             normal=geometry["normal"],
+            width_axis=geometry.get("width_axis"),
             width_m=geometry["width_m"],
             height_m=geometry["height_m"],
+            surface_sidedness=surface_sidedness,
         )
         footprints.append(estimate_rectangle_plane_footprint(beam, intersection))
     visible_candidates = [

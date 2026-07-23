@@ -43,10 +43,11 @@ def _intersection(**overrides):
     return intersect_rectangle_plane(beam, **values)
 
 
-def _material() -> dict:
+def _material(*, surface_sidedness: str = "two_sided") -> dict:
     return {
         "optical": {
             "model": "lambertian",
+            "surface_sidedness": surface_sidedness,
             "hemispherical_reflectivity": 0.20,
         }
     }
@@ -66,13 +67,70 @@ def _receiver(**overrides) -> dict:
 
 
 def test_rectangle_plane_center_hit_succeeds() -> None:
-    hit = _intersection()
+    hit = _intersection(width_axis=[0.0, -1.0, 0.0])
 
     assert hit.hit is True
     assert hit.hit_center_m == pytest.approx([10.0, 0.0, 0.0])
     assert hit.distance_to_target_m == pytest.approx(10.0)
     assert hit.incidence_angle_rad == pytest.approx(0.0)
     assert hit.local_coordinates_m == pytest.approx([0.0, 0.0])
+    assert hit.width_axis == pytest.approx([0.0, -1.0, 0.0])
+    assert hit.height_axis == pytest.approx([0.0, 0.0, 1.0])
+    assert hit.front_face is True
+    assert hit.radiometric_normal == pytest.approx([-1.0, 0.0, 0.0])
+
+
+def test_rectangle_plane_width_axis_controls_roll_and_local_coordinates() -> None:
+    hit = _intersection(
+        beam=_beam(origin_m=[0.0, 1.0, 0.0]),
+        width_axis=[0.0, -1.0, 0.0],
+    )
+
+    assert hit.hit is True
+    assert hit.local_coordinates_m == pytest.approx([-1.0, 0.0])
+    assert hit.width_axis_source == "scenario"
+    assert tuple(float(value) for value in hit.width_axis) == pytest.approx(
+        [0.0, -1.0, 0.0]
+    )
+
+
+def test_rectangle_plane_rejects_nonorthogonal_width_axis() -> None:
+    with pytest.raises(ValueError, match="수직"):
+        _intersection(width_axis=[1.0, 1.0, 0.0])
+
+
+def test_one_sided_target_culls_backface() -> None:
+    miss = _intersection(
+        normal=[1.0, 0.0, 0.0],
+        width_axis=[0.0, 1.0, 0.0],
+        surface_sidedness="one_sided",
+    )
+
+    assert miss.hit is False
+    assert miss.miss_reason == "backface_culled"
+    assert miss.front_face is False
+
+
+def test_two_sided_backface_uses_incident_side_radiometric_normal() -> None:
+    beam = _beam()
+    intersection = _intersection(
+        beam=beam,
+        normal=[1.0, 0.0, 0.0],
+        width_axis=[0.0, 1.0, 0.0],
+        surface_sidedness="two_sided",
+    )
+    footprint = estimate_rectangle_plane_footprint(beam, intersection)
+    result = estimate_lambertian_receiver_return(
+        footprint=footprint,
+        material=_material(surface_sidedness="two_sided"),
+        receiver=_receiver(),
+    )
+
+    assert intersection.hit is True
+    assert intersection.front_face is False
+    assert intersection.radiometric_normal == pytest.approx([-1.0, 0.0, 0.0])
+    assert result.material_surface_sidedness == "two_sided"
+    assert result.estimated_received_power_w > 0.0
 
 
 def test_rectangle_plane_parallel_ray_misses() -> None:
@@ -113,6 +171,9 @@ def test_rectangle_plane_footprint_reports_power_and_area() -> None:
     assert footprint.peak_irradiance_w_m2 > 0.0
     assert footprint.estimated_power_on_target_w == pytest.approx(beam.power_w, rel=1e-10)
     assert footprint.clipped_by_target_bounds is False
+    assert footprint.refined_quadrature_order == 2 * footprint.quadrature_order
+    assert footprint.quadrature_relative_residual <= footprint.quadrature_tolerance
+    assert footprint.convergence_status == "pass"
 
 
 def test_oblique_footprint_expands_projected_major_axis() -> None:
@@ -160,3 +221,29 @@ def test_lambertian_receiver_return_is_zero_outside_fov() -> None:
     assert result.receiver_fov_status == "outside_fov"
     assert result.estimated_received_power_w == 0.0
     assert result.link_loss_db is None
+
+
+def test_target_footprint_reports_base_refined_convergence_warning() -> None:
+    beam = _beam(origin_m=[0.0, 0.49, 0.49])
+    intersection = _intersection(
+        beam=beam,
+        width_axis=[0.0, -1.0, 0.0],
+        width_m=1.0,
+        height_m=1.0,
+    )
+
+    footprint = estimate_rectangle_plane_footprint(
+        beam,
+        intersection,
+        quadrature_order=16,
+        quadrature_tolerance=1e-8,
+    )
+
+    assert footprint.refined_quadrature_order == 32
+    assert footprint.base_estimated_power_on_target_w != pytest.approx(
+        footprint.refined_estimated_power_on_target_w,
+        rel=1e-8,
+    )
+    assert footprint.quadrature_relative_residual > footprint.quadrature_tolerance
+    assert footprint.convergence_status == "warning"
+    assert any("quadrature" in warning for warning in footprint.warnings)

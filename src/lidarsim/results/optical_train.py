@@ -103,17 +103,48 @@ def _energy_check(result: OpticalTrainResult) -> dict[str, Any]:
 
 
 def _aperture_check(result: OpticalTrainResult) -> dict[str, Any]:
-    fractions = [
-        float(report["aperture_clip"]["transmission_fraction"])
+    clips = [
+        report["aperture_clip"]
         for report in result.component_reports
         if "aperture_clip" in report
     ]
+    fractions = [float(clip["transmission_fraction"]) for clip in clips]
+    converged_clips = [
+        clip for clip in clips if "quadrature_relative_residual" in clip
+    ]
+    residuals = [
+        float(clip["quadrature_relative_residual"])
+        for clip in converged_clips
+    ]
+    tolerances = [
+        float(clip["quadrature_tolerance"])
+        for clip in converged_clips
+    ]
+    convergence_status = (
+        "warning"
+        if any(clip.get("convergence_status") != "pass" for clip in converged_clips)
+        else "pass"
+    )
     valid = all(0.0 <= value <= 1.0 for value in fractions)
+    status = (
+        "fail"
+        if not valid
+        else "warning"
+        if convergence_status != "pass"
+        else "pass"
+    )
     return {
         "checked_apertures": len(fractions),
         "minimum_transmission_fraction": min(fractions) if fractions else None,
-        "status": "pass" if valid else "fail",
-        "message": "Aperture clipping fraction이 물리 범위 [0, 1] 안에 있는지 확인합니다.",
+        "quadrature_checked_apertures": len(converged_clips),
+        "max_quadrature_relative_residual": max(residuals) if residuals else None,
+        "minimum_quadrature_tolerance": min(tolerances) if tolerances else None,
+        "numerical_convergence_status": convergence_status,
+        "status": status,
+        "message": (
+            "Aperture clipping fraction의 물리 범위와 numerical aperture의 "
+            "base/refined quadrature 수렴을 확인합니다."
+        ),
     }
 
 
@@ -125,11 +156,21 @@ def _target_footprint_check(footprints: tuple[TargetFootprint, ...]) -> dict[str
     ]
     finite = all(math.isfinite(power) and power >= 0.0 for power in powers)
     unique_visible = len(contributing) <= 1
+    integrated = [footprint for footprint in footprints if footprint.hit]
+    residuals = [
+        footprint.quadrature_relative_residual for footprint in integrated
+    ]
+    tolerances = [footprint.quadrature_tolerance for footprint in integrated]
+    convergence_status = (
+        "warning"
+        if any(footprint.convergence_status != "pass" for footprint in integrated)
+        else "pass"
+    )
     status = (
         "fail"
         if not finite or not unique_visible
         else "pass"
-        if contributing
+        if contributing and convergence_status == "pass"
         else "warning"
     )
     return {
@@ -138,9 +179,14 @@ def _target_footprint_check(footprints: tuple[TargetFootprint, ...]) -> dict[str
         "visible_contributing_target_count": len(contributing),
         "visible_target_id": contributing[0].target_id if contributing else None,
         "total_estimated_power_on_target_w": sum(powers),
+        "quadrature_checked_footprints": len(integrated),
+        "max_quadrature_relative_residual": max(residuals) if residuals else None,
+        "minimum_quadrature_tolerance": min(tolerances) if tolerances else None,
+        "numerical_convergence_status": convergence_status,
         "status": status,
         "message": (
-            "Rectangle-plane 후보 hit와 nearest-visible target energy ownership을 검사합니다."
+            "Rectangle-plane 후보 hit, nearest-visible target energy ownership과 "
+            "base/refined footprint quadrature 수렴을 검사합니다."
         ),
     }
 
@@ -220,6 +266,7 @@ def _receiver_return_section(returns: tuple[ReceiverReturn, ...]) -> dict[str, A
         "total_link_loss_db": link_loss,
         "assumptions": [
             "Nearest visible target footprint만 small-footprint Lambertian patch로 계산합니다.",
+            "Target material의 one_sided/two_sided 정책과 intersection의 radiometric normal을 동일하게 사용합니다.",
             "estimated_received_power_w는 기존 schema 이름이며 현재는 virtual aperture plane의 값입니다.",
             "동일 scanner/collimator의 역방향 광로와 single-mode fiber mode coupling은 계산하지 않습니다.",
             "Occlusion, BRDF lobe, detector response, coherent sum과 speckle은 계산하지 않습니다.",
@@ -263,6 +310,8 @@ def _accuracy(
             "Collimator는 catalog의 ideal_thin_lens, clear aperture와 power_transmission만 사용합니다.",
             "Scanner mirror는 catalog base pose에 static command angle을 적용하고 catalog reflectivity를 사용합니다.",
             "Rectangle-plane target footprint는 projected Gaussian first-order model로 계산합니다.",
+            "Target roll은 geometry.width_axis로 고정하고 material surface sidedness를 intersection과 radiometry에 동일하게 적용합니다.",
+            "Mirror aperture와 target footprint 적분은 base/refined Gauss-Legendre 수렴 잔차를 보고합니다.",
             "Receiver return은 Lambertian small-footprint analytical virtual-aperture approximation입니다.",
             "Aperture clipping 뒤 profile shape, diffraction과 edge scattering은 계산하지 않고 power loss만 반영합니다.",
             "Scanner time dynamics, STL hit detection, BRDF/BSDF, detector noise와 coherent FMCW는 계산하지 않습니다.",
@@ -366,12 +415,12 @@ def build_phase2_optical_train_report(
             "propagation_model": "gaussian_q_abcd_plus_analytical_radiometry",
             "radius_definition": "1/e^2 irradiance radius",
             "validity": (
-                "Paraxial scalar Gaussian, ideal centered thin lens, centered apertures, "
+                "Paraxial scalar Gaussian, ideal thin lens with deterministic off-axis chief ray, projected apertures, "
                 "static flat mirror reflection, rectangle-plane footprint and Lambertian virtual-aperture return"
             ),
             "limitations": [
                 "No aberration, diffraction, coating spectral curve, polarization or ghost reflection.",
-                "No decenter/tilt tolerance propagation yet.",
+                "Deterministic placement decenter/tilt is geometric/paraxial only; no aberration model or stochastic tolerance ensemble yet.",
                 "This Phase 2 report applies one static scanner command angle; use the ideal scanner-path report for forward-line samples.",
                 "No scanner motor lag, jitter, bidirectional return stroke or calibration table yet.",
                 "No STL mesh hit detection, visibility, occlusion or BVH yet.",

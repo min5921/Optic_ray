@@ -78,6 +78,8 @@ def test_viewport_component_frames_match_physical_directions(project_root: Path)
     )
 
     assert target_rotation[:, 2] == pytest.approx([-1.0, 0.0, 0.0])
+    assert target_rotation[:, 0] == pytest.approx([0.0, -1.0, 0.0])
+    assert target_rotation[:, 1] == pytest.approx([0.0, 0.0, 1.0])
     assert np.linalg.det(target_rotation) == pytest.approx(1.0)
     assert receiver_rotation[:, 2] == pytest.approx([1.0, 0.0, 0.0])
     assert np.linalg.det(receiver_rotation) == pytest.approx(1.0)

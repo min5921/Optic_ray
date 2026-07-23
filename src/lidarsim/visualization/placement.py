@@ -23,6 +23,7 @@ from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 
 from lidarsim.geometry import AssemblyPlacement, resolve_assembly
 from lidarsim.geometry.transform import RigidTransform, normalize_vector
+from lidarsim.scene.targets import rectangle_plane_axes
 
 
 _ELEMENT_COLORS = {
@@ -70,11 +71,10 @@ def _target_polygon(target: Any) -> np.ndarray | None:
         return None
     center = np.asarray(geometry["center_m"], dtype=np.float64)
     normal = normalize_vector(geometry["normal"], name=f"target {target['id']} normal")
-    reference = np.array((0.0, 0.0, 1.0), dtype=np.float64)
-    if abs(float(np.dot(normal, reference))) > 0.95:
-        reference = np.array((0.0, 1.0, 0.0), dtype=np.float64)
-    axis_u = normalize_vector(np.cross(normal, reference), name="target plane u axis")
-    axis_v = normalize_vector(np.cross(normal, axis_u), name="target plane v axis")
+    axis_u, axis_v = rectangle_plane_axes(
+        normal,
+        geometry.get("width_axis"),
+    )
     half_width = float(geometry["width_m"]) / 2.0
     half_height = float(geometry["height_m"]) / 2.0
     return np.asarray(

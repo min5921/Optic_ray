@@ -34,6 +34,7 @@ class ReceiverReturn:
     material_ref: str
     material_model: str
     material_reflectivity: float | None
+    material_surface_sidedness: str
     receiver_architecture: str
     receiver_direction_input: tuple[float, float, float]
     receiver_direction: tuple[float, float, float]
@@ -56,6 +57,7 @@ class ReceiverReturn:
             "material_ref": self.material_ref,
             "material_model": self.material_model,
             "material_reflectivity": self.material_reflectivity,
+            "material_surface_sidedness": self.material_surface_sidedness,
             "receiver_architecture": self.receiver_architecture,
             "receiver_direction_input": list(self.receiver_direction_input),
             "receiver_direction": list(self.receiver_direction),
@@ -108,6 +110,16 @@ def estimate_lambertian_receiver_return(
     ]
     warnings = list(footprint.warnings)
     material_model = str(material["optical"].get("model", "unknown"))
+    surface_sidedness = str(
+        material["optical"].get(
+            "surface_sidedness",
+            footprint.intersection.surface_sidedness,
+        )
+    )
+    if surface_sidedness != footprint.intersection.surface_sidedness:
+        raise ValueError(
+            "Target intersection과 receiver material의 surface_sidedness가 일치해야 합니다."
+        )
     reflectivity: float | None = None
 
     if architecture not in {"virtual_monostatic", "virtual_aperture"}:
@@ -117,6 +129,7 @@ def estimate_lambertian_receiver_return(
             material_ref=footprint.material_ref,
             material_model=material_model,
             material_reflectivity=None,
+            material_surface_sidedness=surface_sidedness,
             receiver_architecture=architecture,
             receiver_direction_input=receiver_direction_input,
             receiver_direction=receiver_direction_resolved,
@@ -140,6 +153,7 @@ def estimate_lambertian_receiver_return(
             material_ref=footprint.material_ref,
             material_model=material_model,
             material_reflectivity=None,
+            material_surface_sidedness=surface_sidedness,
             receiver_architecture=architecture,
             receiver_direction_input=receiver_direction_input,
             receiver_direction=receiver_direction_resolved,
@@ -169,6 +183,7 @@ def estimate_lambertian_receiver_return(
             material_ref=footprint.material_ref,
             material_model=material_model,
             material_reflectivity=None,
+            material_surface_sidedness=surface_sidedness,
             receiver_architecture=architecture,
             receiver_direction_input=receiver_direction_input,
             receiver_direction=receiver_direction_resolved,
@@ -193,6 +208,7 @@ def estimate_lambertian_receiver_return(
             material_ref=footprint.material_ref,
             material_model=material_model,
             material_reflectivity=None,
+            material_surface_sidedness=surface_sidedness,
             receiver_architecture=architecture,
             receiver_direction_input=receiver_direction_input,
             receiver_direction=receiver_direction_resolved,
@@ -222,6 +238,7 @@ def estimate_lambertian_receiver_return(
             material_ref=footprint.material_ref,
             material_model=material_model,
             material_reflectivity=reflectivity,
+            material_surface_sidedness=surface_sidedness,
             receiver_architecture=architecture,
             receiver_direction_input=receiver_direction_input,
             receiver_direction=receiver_direction_resolved,
@@ -252,6 +269,7 @@ def estimate_lambertian_receiver_return(
             material_ref=footprint.material_ref,
             material_model=material_model,
             material_reflectivity=reflectivity,
+            material_surface_sidedness=surface_sidedness,
             receiver_architecture=architecture,
             receiver_direction_input=receiver_direction_input,
             receiver_direction=receiver_direction_resolved,
@@ -269,7 +287,15 @@ def estimate_lambertian_receiver_return(
             warnings=tuple(warnings),
         )
 
-    target_cosine = max(0.0, float(np.dot(footprint.intersection.target_normal, unit_target_to_receiver)))
+    target_cosine = max(
+        0.0,
+        float(
+            np.dot(
+                footprint.intersection.radiometric_normal,
+                unit_target_to_receiver,
+            )
+        ),
+    )
     projected_receiver_cosine = max(0.0, receiver_axis_cosine)
     efficiency = float(receiver["optical_efficiency"])
     if not 0.0 <= efficiency <= 1.0:
@@ -292,6 +318,7 @@ def estimate_lambertian_receiver_return(
         material_ref=footprint.material_ref,
         material_model=material_model,
         material_reflectivity=reflectivity,
+        material_surface_sidedness=surface_sidedness,
         receiver_architecture=architecture,
         receiver_direction_input=receiver_direction_input,
         receiver_direction=receiver_direction_resolved,
