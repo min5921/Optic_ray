@@ -1,6 +1,6 @@
 # 프로젝트 인계 문서
 
-마지막 갱신: 2026-07-15 (Asia/Seoul)
+마지막 갱신: 2026-07-23 (Asia/Seoul)
 
 ## 현재 상태
 
@@ -12,6 +12,7 @@
 - Phase 2.1~2.3 vertical slice가 진행되어 source→ideal thin-lens collimator→static scanner mirror reflection→rectangle-plane target footprint→Lambertian virtual aperture까지의 ABCD optical train, aperture clipping, component transmission/reflectivity, power ledger, target footprint, analytical link budget와 PNG 시각화가 구현되어 있다. 이 virtual aperture 값은 fiber-coupled receiver power가 아니다.
 - 사용자가 설계하는 실제 수신 구조는 target→same scanner mirror→same collimator→same single-mode fiber→circulator/coupler→detector의 reciprocal monostatic path로 확정했다. 목표 contract, 단계별 output과 검증은 `docs/specs/RECIPROCAL_FIBER_RETURN.md`에 정리했다.
 - 2026-07-15 전체 검수에서 확인한 물리·UI·schema 문제, 문제 ID, 완료 조건과 활성 착수 순서는 `docs/specs/IMPLEMENTATION_AUDIT_2026-07-15.md`에 정리했다. 승인된 순서는 `Phase 2-S0 → Phase 2-S1 → UI-S → R1 → CPU STL closest-hit → R2 → R3 → R4`다.
+- Phase 2-S0 첫 checkpoint를 완료했다. `calibrated_hardware`는 fitted parameter file SHA-256, calibration/독립 validation measurement, wavelength validity, absolute-radiometric mode와 calibrated receiver가 모두 검증되어야 한다. 0 W optical state와 zero transmission/reflectivity를 runtime·schema가 함께 지원하며 scanner/target/receiver 방향 입력은 원본과 정규화 값을 report한다. Phase 2 optical train은 현재 `gaussian_m2`만 명시적으로 허용한다.
 - 프로젝트의 중심 범위는 catalog 기반 또는 사용자 정의 광학 부품의 3D 배치, 포인트·라인·면적 빔, collimator 광학계, 사용자 정의 scanner, target interaction과 receiver return 분석이다.
 - Draft v0.2에는 model fidelity contract, commercial component catalog, optical/CAD import, coordinate frame, rigid transform, optical port, placement constraint, structured result, visualization과 tolerance analysis가 포함된다.
 - Phase 0~5의 임시 초기값은 `docs/specs/INITIAL_BASELINE.md`에 정리되어 있으며 모든 값은 configuration으로 교체할 수 있다.
@@ -38,7 +39,7 @@
 - CLI distance는 `20 mm` 같은 단위 포함 값을 받고 기본 결과는 timestamp run directory에 저장해 덮어쓰지 않는다.
 - `configs/line_beam_project.example.yaml`은 3.0 mm × 0.25 mm numerical elliptical-Gaussian line preset을 제공하며 Powell lens나 상용 제품 model이 아니다.
 - Resolved project state는 재귀적으로 변경 불가능하며 안정적인 물리 configuration SHA-256을 갖는다. 표시 단위와 UI preference는 이 hash를 바꾸지 않는다.
-- Local `.venv`는 `pyproject.toml`에서 `dev,ui` optional dependency까지 설치했으며, deprecation·user warning을 error로 처리해도 자동 test 139개가 통과한다.
+- Local `.venv`는 `pyproject.toml`에서 `dev,ui` optional dependency까지 설치했으며, deprecation·user warning을 error로 처리해도 자동 test 147개가 통과한다.
 - 사용자 친화적인 로컬 simulation dashboard와 SolidWorks-like Optical Assembly Workspace 개발 방향은 `docs/UI_SIMULATION_DASHBOARD.md`에 분리해 정리했다.
 - UI MVP 0의 첫 vertical slice로 `ViewportScene` data contract, source/collimator/scanner mirror/target/receiver 표시 data, local frame, port axis, mirror normal, reflected ray, target plane, receiver FOV, beam path, target hit ray, footprint overlay와 headless Matplotlib 3D workspace PNG renderer가 구현되었다.
 - `lidarsim workspace configs/project.yaml --output results/ui_workspace.png --write-scene results/ui_workspace_scene.yaml`로 현재 Phase 2.3 static simulation을 optical assembly workspace용 PNG와 YAML scene으로 확인할 수 있다.
@@ -58,7 +59,7 @@
 - UI 편집값이 3D에 반영되지 않은 것처럼 보이던 UX를 수정했다. Inspector 상단에 `변경값 반영 · 시뮬레이션` action과 pending/applied 상태를 표시하고, active config hash가 바뀌면 cached `UiSimulationRun`을 자동 갱신한다.
 - UI에서 같은 Scenario ID를 반복 적용할 때 기존 `configs/ui_runs` 작업 variant 때문에 실패하던 문제를 수정했다. 작업 variant 덮어쓰기는 기본으로 켜져 있고 기존 파일이 있으면 보존 방법을 안내하며, baseline config는 계속 수정하지 않는다.
 - 3D UI에 기본 `광학 헤드 확대`, `전체 광로`, `선택 부품 확대` view range를 추가했다. 10 m target 때문에 겹치던 source·collimator·scanner mirror를 근거리 동일 축척, component label과 확대 marker로 확인할 수 있다. Scanner static angle은 실제 기계각으로 명시하고 rotation-axis X/Y/Z는 고급 단위벡터 설정으로 분리했으며 non-unit 입력은 저장 시 명시적으로 정규화한다.
-- 현재 주요 검수 이슈는 calibration evidence 없는 `calibrated/pass` 가능성, off-axis 부품에서 실제 교차 대신 component origin으로 beam을 재배치하는 동작, multi-target power 중복 합산, schema/runtime zero-power 불일치, scanner 방향 벡터·pivot 검증 부족, UI single-object pending draft와 non-atomic variant run, footprint 표시 방향, STL hit 미구현이다.
+- 현재 주요 검수 이슈는 off-axis 부품에서 실제 교차 대신 component origin으로 beam을 재배치하는 동작, multi-target power 중복 합산, scanner pivot 미적용, 느슨한 중첩 schema, UI single-object pending draft와 non-atomic variant run, footprint 표시 방향, STL hit 미구현이다. Calibration evidence, zero-power와 scenario 방향 벡터 계약은 2026-07-23 checkpoint에서 닫았다.
 - `configs/ui_runs/baseline_1550nm_ui_variant*.yaml` 두 파일은 사용자 생성 미추적 작업물이므로 보존한다. 현재 `[10, 10, 0]` scanner rotation axis는 10 degree가 아니라 정규화 후 X-Y 대각 방향축이므로 사용자 의도를 확인하기 전에는 자동 교정하거나 커밋하지 않는다.
 
 ## 유지할 결정 사항
@@ -77,9 +78,18 @@
 
 ## 가장 좋은 다음 작업
 
-추천 1순위는 `Phase 2-S0` 신뢰도·계약 안정화다. Calibration evidence gate, zero-power 상태, multi-target energy 정책, scenario 방향 벡터와 strict schema를 먼저 고친다. 이어서 `Phase 2-S1`에서 실제 ray-plane/port intersection, no-teleport miss와 scanner pivot을 구현하고 `UI-S`의 project-wide draft·atomic variant run·stable provenance를 닫는다. 그 다음 `Phase 2.4-R1` reciprocal center ray, `Phase 4.1-M1` CPU STL target closest-hit, R2 return power ledger, R3 fiber overlap, R4 circulator/detector boundary 순서로 진행한다. 상세 문제와 Gate는 `docs/specs/IMPLEMENTATION_AUDIT_2026-07-15.md`를 따른다.
+추천 1순위는 `Phase 2-S0`의 남은 `S0-ENERGY-01`과 `S0-SCHEMA-01`이다. 단일 center ray에서 nearest visible target만 scene energy에 기여하도록 한 뒤 component/material/Phase 2 report와 `ViewportScene` schema를 strict하게 닫는다. 이어서 `Phase 2-S1`에서 실제 ray-plane/port intersection, no-teleport miss, scanner pivot, target orientation/two-sided 정책과 quadrature convergence를 구현한다.
 
 ## 검증 기록
+
+- 2026-07-23 Phase 2-S0 첫 구현 checkpoint: 공통 `ReadinessAssessment`를 추가하고 Phase 0/1/2 report가 동일한 evidence 기반 hardware readiness를 사용하게 했다. `calibrated_hardware` label만으로 calibrated를 선언할 수 없으며 fitted parameter file의 실제 SHA-256, 역할이 분리된 measurement ID와 validity를 loader가 검사한다.
+- `BeamState.power_w=0`, ABCD `power_transmission=0`, mirror `power_reflectivity=0`과 zero-power aperture 적분을 지원하고 Phase 2 report schema를 같은 범위로 맞췄다.
+- Scanner axis, target normal, receiver direction을 finite/non-zero 검사하고 non-unit 입력 warning, original input과 resolved unit vector를 report에 추가했다.
+- Phase 2 q-ABCD train은 `propagation_model=gaussian_m2`만 지원하도록 명시했으며 `second_moment`를 잘못된 q 경로로 처리하지 않는다.
+- `python -m pytest -q`: 통과, `147 passed in 24.17s`.
+- `python -W error::DeprecationWarning -W error::UserWarning -m pytest -q`: 통과, `147 passed in 23.67s`.
+- `lidarsim validate configs/project.yaml`: 통과. Baseline expected warning과 config hash `3b3d040200ff6409e7c81dc95d3beb3bf2ba71e3658db0bca88ccbccf84fd608`를 확인했다.
+- `lidarsim optical-train configs/project.yaml --output results/audit/s0_contract_optical_train.yaml --plot results/audit/s0_contract_optical_train.png --dpi 80`: 통과. q/energy/aperture/target/receiver check가 모두 `pass`, overall은 analytical/uncalibrated이므로 `warning`이다.
 
 - 2026-07-15 전체 구현 검수를 현재 로드맵에 반영했다. `docs/specs/IMPLEMENTATION_AUDIT_2026-07-15.md`에 신뢰도·계약 `S0`, 실제 배치 geometry `S1`, UI 안정화 `UI-S`, reciprocal `R1`, CPU STL closest-hit `M1`, `R2→R3→R4`의 문제 ID·완료 조건과 Gate를 기록하고 `AGENTS.md`, `README.md`, `PROJECT_VISION`, reciprocal/UI 사양과 사용자·멀티PC 매뉴얼을 같은 순서로 동기화했다.
 - `python -m pytest -q`: 통과, `139 passed in 24.60s`.

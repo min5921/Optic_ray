@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import math
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
@@ -147,9 +148,19 @@ def _validate_vector(
     diagnostics: list[Diagnostic],
 ) -> None:
     try:
-        norm = math.sqrt(sum(float(item) ** 2 for item in value))
+        components = tuple(float(item) for item in value)
     except (TypeError, ValueError):
         return
+    if not all(math.isfinite(item) for item in components):
+        diagnostics.append(
+            Diagnostic(
+                source=str(source),
+                path=path,
+                message="Direction or axis vector must contain only finite values.",
+            )
+        )
+        return
+    norm = math.sqrt(sum(item**2 for item in components))
     if norm <= 1e-15:
         diagnostics.append(
             Diagnostic(
@@ -157,6 +168,148 @@ def _validate_vector(
                 path=path,
                 message="Direction or axis vector must be non-zero.",
                 hint="Provide a three-component vector with a non-zero magnitude.",
+            )
+        )
+
+
+def _validate_calibration_evidence(
+    scenario: Mapping[str, Any],
+    *,
+    source: Path,
+    assets: AssetRegistry,
+    diagnostics: list[Diagnostic],
+) -> None:
+    """calibrated_hardware label에 필요한 추적 가능한 근거를 검사한다."""
+
+    if str(scenario["model_purpose"]) != "calibrated_hardware":
+        return
+    evidence = scenario.get("calibration_evidence")
+    if not isinstance(evidence, Mapping):
+        return
+
+    calibration_ids = tuple(
+        str(value) for value in evidence.get("calibration_measurement_ids", ())
+    )
+    validation_ids = tuple(
+        str(value) for value in evidence.get("validation_measurement_ids", ())
+    )
+    for field, identifiers, expected_role in (
+        ("calibration_measurement_ids", calibration_ids, "calibration"),
+        ("validation_measurement_ids", validation_ids, "validation"),
+    ):
+        for index, identifier in enumerate(identifiers):
+            record = assets.measurements.get(identifier)
+            if record is None:
+                diagnostics.append(
+                    Diagnostic(
+                        source=str(source),
+                        path=f"calibration_evidence.{field}[{index}]",
+                        message=f"등록되지 않은 measurement ID입니다: {identifier!r}",
+                    )
+                )
+                continue
+            actual_role = str(record.data.get("dataset_role", ""))
+            if actual_role != expected_role:
+                diagnostics.append(
+                    Diagnostic(
+                        source=str(source),
+                        path=f"calibration_evidence.{field}[{index}]",
+                        message=(
+                            f"Measurement {identifier!r}의 dataset_role은 "
+                            f"{expected_role!r}이어야 합니다(현재 {actual_role!r})."
+                        ),
+                    )
+                )
+    overlap = sorted(set(calibration_ids) & set(validation_ids))
+    if overlap:
+        diagnostics.append(
+            Diagnostic(
+                source=str(source),
+                path="calibration_evidence",
+                message=(
+                    "Calibration과 validation dataset은 독립적이어야 합니다: "
+                    + ", ".join(overlap)
+                ),
+            )
+        )
+
+    fitted = evidence.get("fitted_parameter_set")
+    if isinstance(fitted, Mapping):
+        parameter_path = (source.parent / str(fitted["file"])).resolve()
+        try:
+            payload = parameter_path.read_bytes()
+        except OSError as exc:
+            diagnostics.append(
+                Diagnostic(
+                    source=str(source),
+                    path="calibration_evidence.fitted_parameter_set.file",
+                    message=f"Fitted parameter set file을 읽을 수 없습니다: {parameter_path}: {exc}",
+                )
+            )
+        else:
+            actual_hash = hashlib.sha256(payload).hexdigest()
+            if actual_hash.lower() != str(fitted["sha256"]).lower():
+                diagnostics.append(
+                    Diagnostic(
+                        source=str(source),
+                        path="calibration_evidence.fitted_parameter_set.sha256",
+                        message=(
+                            "Fitted parameter set SHA-256이 파일과 일치하지 않습니다: "
+                            f"actual={actual_hash}"
+                        ),
+                    )
+                )
+
+    validity = evidence.get("validity")
+    if isinstance(validity, Mapping):
+        wavelength_range = validity.get("wavelength_range_m")
+        if isinstance(wavelength_range, Sequence) and len(wavelength_range) == 2:
+            lower, upper = (float(value) for value in wavelength_range)
+            wavelength = float(scenario["source"]["wavelength_m"])
+            if not all(math.isfinite(value) for value in (lower, upper)):
+                diagnostics.append(
+                    Diagnostic(
+                        source=str(source),
+                        path="calibration_evidence.validity.wavelength_range_m",
+                        message="Calibration wavelength validity는 유한한 값이어야 합니다.",
+                    )
+                )
+            elif lower <= 0.0 or lower > upper:
+                diagnostics.append(
+                    Diagnostic(
+                        source=str(source),
+                        path="calibration_evidence.validity.wavelength_range_m",
+                        message="Calibration wavelength validity는 증가하는 양의 범위여야 합니다.",
+                    )
+                )
+            elif not lower <= wavelength <= upper:
+                diagnostics.append(
+                    Diagnostic(
+                        source=str(source),
+                        path="calibration_evidence.validity.wavelength_range_m",
+                        message=(
+                            f"Scenario wavelength {wavelength:.9g} m가 calibration "
+                            f"validity [{lower:.9g}, {upper:.9g}] m 밖에 있습니다."
+                        ),
+                    )
+                )
+
+    if str(scenario["simulation"]["accuracy_mode"]) != "absolute_radiometric":
+        diagnostics.append(
+            Diagnostic(
+                source=str(source),
+                path="simulation.accuracy_mode",
+                message=(
+                    "calibrated_hardware에는 accuracy_mode=absolute_radiometric가 필요합니다."
+                ),
+            )
+        )
+    if str(scenario["receiver"]["model_level"]) != "calibrated":
+        diagnostics.append(
+            Diagnostic(
+                source=str(source),
+                path="receiver.model_level",
+                message="calibrated_hardware에는 receiver.model_level=calibrated가 필요합니다.",
             )
         )
 
@@ -209,6 +362,7 @@ def _validate_scenario(
     *,
     source: Path,
     catalog: Catalog,
+    assets: AssetRegistry,
 ) -> None:
     diagnostics: list[Diagnostic] = []
     assembly = scenario["optical_assembly"]
@@ -353,6 +507,12 @@ def _validate_scenario(
         path="receiver.direction",
         diagnostics=diagnostics,
     )
+    _validate_calibration_evidence(
+        scenario,
+        source=source,
+        assets=assets,
+        diagnostics=diagnostics,
+    )
     if diagnostics:
         raise ConfigValidationError(diagnostics)
 
@@ -491,7 +651,12 @@ def load_project(project_path: str | Path = "configs/project.yaml") -> ResolvedP
         try:
             schemas.validate(raw_scenario, "scenario.schema.json", source=str(scenario_path))
             resolved_scenario = resolve_quantities(raw_scenario, source=str(scenario_path))
-            _validate_scenario(resolved_scenario, source=scenario_path, catalog=catalog)
+            _validate_scenario(
+                resolved_scenario,
+                source=scenario_path,
+                catalog=catalog,
+                assets=assets,
+            )
             scenario_warnings = validate_scenario_physics(
                 resolved_scenario,
                 source=scenario_path,

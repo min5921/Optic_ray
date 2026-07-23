@@ -14,6 +14,8 @@
 
 2026-07-15 전체 검수에서 확정한 보완 문제, 완료 조건과 실제 착수 순서는 [`docs/specs/IMPLEMENTATION_AUDIT_2026-07-15.md`](docs/specs/IMPLEMENTATION_AUDIT_2026-07-15.md)를 따른다. 현재 순서는 `Phase 2-S0 → Phase 2-S1 → UI-S → reciprocal R1 → CPU STL closest-hit → R2 → R3 → R4`다.
 
+2026-07-23 Phase 2-S0 중간 checkpoint에서 보정 근거 gate, 0 W 전파, 방향 벡터 입력/정규화 report와 q-ABCD 지원 범위를 고정했다. S0의 남은 Gate는 multi-target energy ownership과 strict schema다.
+
 파장, 광원, 광학 부품, 배치, scanner, STL geometry, 재질, 수신기 설정, output과 비교 experiment를 변경하는 자세한 방법은 [`docs/USER_MANUAL.md`](docs/USER_MANUAL.md)를 참고한다.
 
 사용자 친화적인 로컬 simulation dashboard 개발 계획은 [`docs/UI_SIMULATION_DASHBOARD.md`](docs/UI_SIMULATION_DASHBOARD.md)에 정리한다.

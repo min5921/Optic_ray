@@ -25,12 +25,12 @@ class MirrorClipResult:
     input_power_w: float
     output_power_w: float
     loss_w: float
-    loss_db: float
+    loss_db: float | None
     status: str
     quadrature_order: int
     method: str
 
-    def to_dict(self) -> dict[str, float | int | str]:
+    def to_dict(self) -> dict[str, float | int | str | None]:
         return {
             "clear_width_m": self.clear_width_m,
             "clear_height_m": self.clear_height_m,
@@ -140,7 +140,7 @@ def rectangular_mirror_clip(
             input_power_w=beam.power_w,
             output_power_w=output_power,
             loss_w=loss,
-            loss_db=math.inf,
+            loss_db=None,
             status="fail",
             quadrature_order=order,
             method="surface_projected_rectangular_gauss_legendre_windowed",
@@ -154,13 +154,14 @@ def rectangular_mirror_clip(
     surface_points = uu[..., None] * x_axis + vv[..., None] * y_axis
     beam_x = np.tensordot(surface_points, beam.transverse_x_axis, axes=([-1], [0]))
     beam_y = np.tensordot(surface_points, beam.transverse_y_axis, axes=([-1], [0]))
-    irradiance = beam.irradiance(beam_x, beam_y)
+    integration_beam = beam if beam.power_w > 0.0 else replace(beam, power_w=1.0)
+    irradiance = integration_beam.irradiance(beam_x, beam_y)
     area_weights = np.outer(wv, wu)
     integrated_power = float(np.sum(irradiance * incidence_cosine * area_weights))
-    fraction = min(max(integrated_power / beam.power_w, 0.0), 1.0)
+    fraction = min(max(integrated_power / integration_beam.power_w, 0.0), 1.0)
     output_power = beam.power_w * fraction
     loss = beam.power_w - output_power
-    loss_db = math.inf if fraction <= 0.0 else -10.0 * math.log10(fraction)
+    loss_db = None if fraction <= 0.0 else -10.0 * math.log10(fraction)
     status = "pass" if 1.0 - fraction <= 1e-9 else "warning" if fraction > 0.0 else "fail"
 
     return MirrorClipResult(
@@ -195,8 +196,8 @@ def interact_flat_mirror(
     """현재 plane의 beam을 ideal flat mirror에서 반사시킨다."""
 
     reflectivity = float(power_reflectivity)
-    if not math.isfinite(reflectivity) or not 0.0 < reflectivity <= 1.0:
-        raise ValueError("power_reflectivity는 0보다 크고 1 이하이어야 합니다.")
+    if not math.isfinite(reflectivity) or not 0.0 <= reflectivity <= 1.0:
+        raise ValueError("power_reflectivity는 0 이상 1 이하이어야 합니다.")
     normal = normalize_vector(surface_normal, name="surface normal")
     reflected_direction = reflect_vector(beam.direction, normal)
     reflected_x_axis = reflect_vector(beam.transverse_x_axis, normal)

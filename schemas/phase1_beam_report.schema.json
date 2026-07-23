@@ -43,13 +43,14 @@
     "accuracy": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["model_purpose", "accuracy_mode", "hardware_readiness", "confidence_level", "calibration_status", "scope", "source_component_ref", "source_model_level", "source_provenance", "catalog_parameter_policy", "mfd_interpretation", "mfd_uncertainty_m", "paraxial_validity", "assumptions", "warnings"],
+      "required": ["model_purpose", "accuracy_mode", "hardware_readiness", "confidence_level", "calibration_status", "calibration_evidence", "scope", "source_component_ref", "source_model_level", "source_provenance", "catalog_parameter_policy", "mfd_interpretation", "mfd_uncertainty_m", "paraxial_validity", "assumptions", "warnings"],
       "properties": {
         "model_purpose": { "enum": ["analytical_regression", "bench_template", "calibrated_hardware"] },
         "accuracy_mode": { "enum": ["relative_design", "absolute_radiometric", "coherent_fmcw"] },
         "hardware_readiness": { "enum": ["analytical_only", "bench_template", "calibrated"] },
         "confidence_level": { "enum": ["comparative", "engineering_estimate", "calibrated"] },
         "calibration_status": { "enum": ["uncalibrated", "calibrated"] },
+        "calibration_evidence": { "type": ["object", "null"] },
         "scope": { "const": "source_free_space_only" },
         "source_component_ref": { "type": "string" },
         "source_model_level": { "type": "string" },

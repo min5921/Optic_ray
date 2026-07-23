@@ -76,6 +76,16 @@ def test_beam_state_builds_right_handed_immutable_frame() -> None:
         beam.origin_m[0] = 1.0
 
 
+def test_zero_power_beam_state_is_valid_and_has_zero_irradiance() -> None:
+    beam = _beam(power_w=0.0)
+
+    profile = beam.sample_profile(grid_size=51)
+
+    assert beam.irradiance(0.0, 0.0) == 0.0
+    assert profile.integrated_power_w == 0.0
+    assert profile.relative_power_error == 0.0
+
+
 def test_free_space_propagation_updates_plane_q_and_path_length() -> None:
     beam = _beam()
     propagated = beam.propagate_free_space(0.25)

@@ -62,6 +62,7 @@ class TargetIntersection:
     incidence_cosine: float | None
     local_coordinates_m: tuple[float, float] | None
     target_center_m: np.ndarray
+    target_normal_input: np.ndarray
     target_normal: np.ndarray
     width_axis: np.ndarray
     height_axis: np.ndarray
@@ -86,6 +87,7 @@ class TargetIntersection:
                 None if self.local_coordinates_m is None else list(self.local_coordinates_m)
             ),
             "target_center_m": self.target_center_m.tolist(),
+            "target_normal_input": self.target_normal_input.tolist(),
             "target_normal": self.target_normal.tolist(),
             "width_axis_world": self.width_axis.tolist(),
             "height_axis_world": self.height_axis.tolist(),
@@ -103,6 +105,7 @@ def _miss(
     geometry_type: str,
     reason: str,
     center: np.ndarray,
+    normal_input: np.ndarray | None = None,
     normal: np.ndarray,
     width_axis: np.ndarray,
     height_axis: np.ndarray,
@@ -123,6 +126,7 @@ def _miss(
         incidence_cosine=None,
         local_coordinates_m=None,
         target_center_m=center,
+        target_normal_input=normal if normal_input is None else normal_input,
         target_normal=normal,
         width_axis=width_axis,
         height_axis=height_axis,
@@ -147,7 +151,8 @@ def intersect_rectangle_plane(
     """Beam center ray와 rectangle plane의 첫 교차를 계산한다."""
 
     center = _vec3(center_m, name="target center_m")
-    unit_normal = normalize_vector(normal, name="target normal")
+    normal_input = _vec3(normal, name="target normal input")
+    unit_normal = normalize_vector(normal_input, name="target normal")
     width = _positive(width_m, name="target width_m")
     height = _positive(height_m, name="target height_m")
     width_axis, height_axis = rectangle_plane_axes(unit_normal)
@@ -164,6 +169,7 @@ def intersect_rectangle_plane(
             geometry_type="rectangle_plane",
             reason="parallel_to_plane",
             center=center,
+            normal_input=normal_input,
             normal=unit_normal,
             width_axis=width_axis,
             height_axis=height_axis,
@@ -180,6 +186,7 @@ def intersect_rectangle_plane(
             geometry_type="rectangle_plane",
             reason="intersection_behind_beam",
             center=center,
+            normal_input=normal_input,
             normal=unit_normal,
             width_axis=width_axis,
             height_axis=height_axis,
@@ -199,6 +206,7 @@ def intersect_rectangle_plane(
             geometry_type="rectangle_plane",
             reason="outside_rectangle_bounds",
             center=center,
+            normal_input=normal_input,
             normal=unit_normal,
             width_axis=width_axis,
             height_axis=height_axis,
@@ -227,6 +235,7 @@ def intersect_rectangle_plane(
         incidence_cosine=incidence_cosine,
         local_coordinates_m=(local_u, local_v),
         target_center_m=center,
+        target_normal_input=normal_input,
         target_normal=unit_normal,
         width_axis=width_axis,
         height_axis=height_axis,

@@ -10,6 +10,49 @@
     "scenario_id": { "$ref": "common.schema.json#/$defs/identifier" },
     "description": { "type": "string" },
     "model_purpose": { "enum": ["analytical_regression", "bench_template", "calibrated_hardware"] },
+    "calibration_evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["fitted_parameter_set", "calibration_measurement_ids", "validation_measurement_ids", "validity"],
+      "properties": {
+        "fitted_parameter_set": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["id", "file", "sha256"],
+          "properties": {
+            "id": { "$ref": "common.schema.json#/$defs/identifier" },
+            "file": { "type": "string", "minLength": 1 },
+            "sha256": { "type": "string", "pattern": "^[A-Fa-f0-9]{64}$" }
+          }
+        },
+        "calibration_measurement_ids": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "$ref": "common.schema.json#/$defs/identifier" }
+        },
+        "validation_measurement_ids": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "$ref": "common.schema.json#/$defs/identifier" }
+        },
+        "validity": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["wavelength_range_m"],
+          "properties": {
+            "wavelength_range_m": {
+              "type": "array",
+              "minItems": 2,
+              "maxItems": 2,
+              "items": { "$ref": "common.schema.json#/$defs/quantity" }
+            },
+            "notes": { "type": "string" }
+          }
+        }
+      }
+    },
     "coordinates": {
       "type": "object",
       "additionalProperties": false,
@@ -166,5 +209,14 @@
       "uniqueItems": true,
       "items": { "type": "string", "minLength": 1 }
     }
-  }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": { "model_purpose": { "const": "calibrated_hardware" } },
+        "required": ["model_purpose"]
+      },
+      "then": { "required": ["calibration_evidence"] }
+    }
+  ]
 }

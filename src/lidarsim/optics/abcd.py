@@ -138,8 +138,8 @@ def apply_abcd_to_beam(
         allow_zero=True,
     )
     transmission = _finite(power_transmission, name="power_transmission")
-    if not 0.0 < transmission <= 1.0:
-        raise ValueError("power_transmission은 0보다 크고 1 이하이어야 합니다.")
+    if not 0.0 <= transmission <= 1.0:
+        raise ValueError("power_transmission은 0 이상 1 이하이어야 합니다.")
 
     q_x = matrix.apply_q(beam.q_x_m)
     q_y = matrix.apply_q(beam.q_y_m)

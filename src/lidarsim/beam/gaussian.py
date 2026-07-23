@@ -146,6 +146,8 @@ class GaussianProfileSample:
 
     @property
     def relative_power_error(self) -> float:
+        if self.requested_power_w == 0.0:
+            return 0.0 if self.integrated_power_w == 0.0 else math.inf
         return abs(self.integrated_power_w - self.requested_power_w) / self.requested_power_w
 
 
@@ -194,7 +196,11 @@ class BeamState:
         object.__setattr__(self, "transverse_y_axis", y_axis)
         object.__setattr__(self, "time_s", _finite(self.time_s, name="time_s"))
         object.__setattr__(self, "wavelength_m", _positive(self.wavelength_m, name="wavelength_m"))
-        object.__setattr__(self, "power_w", _positive(self.power_w, name="power_w"))
+        object.__setattr__(
+            self,
+            "power_w",
+            _positive(self.power_w, name="power_w", allow_zero=True),
+        )
         object.__setattr__(
             self,
             "waist_radius_x_m",

@@ -12,6 +12,7 @@ import numpy as np
 from lidarsim import __version__
 from lidarsim.beam import BeamState, build_source_beam
 from lidarsim.config.immutable import deep_thaw
+from lidarsim.results.accuracy import assess_readiness
 
 
 POWER_TOLERANCE = 1e-3
@@ -105,19 +106,9 @@ def _accuracy(project: Any, beam: BeamState, paraxial: dict[str, Any]) -> dict[s
     scenario = project.active_scenario
     source = scenario["source"]
     record = project.catalog[str(beam.source_component_ref)].data
-    purpose = str(scenario["model_purpose"])
-    confidence = {
-        "analytical_regression": "comparative",
-        "bench_template": "engineering_estimate",
-        "calibrated_hardware": "calibrated",
-    }[purpose]
-    readiness = {
-        "analytical_regression": "analytical_only",
-        "bench_template": "bench_template",
-        "calibrated_hardware": "calibrated",
-    }[purpose]
-    calibration = "calibrated" if purpose == "calibrated_hardware" else "uncalibrated"
+    readiness = assess_readiness(project)
     warnings = [item.format() for item in project.warnings]
+    warnings.extend(readiness.warnings)
     assumptions = [
         "Source에서 profile plane까지 scalar paraxial free-space Gaussian으로 계산합니다.",
         "Downstream optical component와 loss를 적용하지 않습니다.",
@@ -141,11 +132,12 @@ def _accuracy(project: Any, beam: BeamState, paraxial: dict[str, Any]) -> dict[s
             "Non-paraxial 또는 measured model 필요성을 검토하세요."
         )
     return {
-        "model_purpose": purpose,
-        "accuracy_mode": str(scenario["simulation"]["accuracy_mode"]),
-        "hardware_readiness": readiness,
-        "confidence_level": confidence,
-        "calibration_status": calibration,
+        "model_purpose": readiness.model_purpose,
+        "accuracy_mode": readiness.accuracy_mode,
+        "hardware_readiness": readiness.hardware_readiness,
+        "confidence_level": readiness.confidence_level,
+        "calibration_status": readiness.calibration_status,
+        "calibration_evidence": readiness.calibration_evidence,
         "scope": "source_free_space_only",
         "source_component_ref": beam.source_component_ref,
         "source_model_level": str(record["model_level"]),
@@ -279,6 +271,7 @@ def build_phase1_beam_report(
         if paraxial["status"] == "warning"
         or accuracy["hardware_readiness"] != "calibrated"
         or accuracy["calibration_status"] != "calibrated"
+        or accuracy["warnings"]
         else "pass"
     )
 

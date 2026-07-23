@@ -35,6 +35,8 @@ class ReceiverReturn:
     material_model: str
     material_reflectivity: float | None
     receiver_architecture: str
+    receiver_direction_input: tuple[float, float, float]
+    receiver_direction: tuple[float, float, float]
     receiver_aperture_area_m2: float
     receiver_distance_m: float | None
     receiver_fov_status: str
@@ -55,6 +57,8 @@ class ReceiverReturn:
             "material_model": self.material_model,
             "material_reflectivity": self.material_reflectivity,
             "receiver_architecture": self.receiver_architecture,
+            "receiver_direction_input": list(self.receiver_direction_input),
+            "receiver_direction": list(self.receiver_direction),
             "receiver_aperture_area_m2": self.receiver_aperture_area_m2,
             "receiver_distance_m": self.receiver_distance_m,
             "receiver_fov_status": self.receiver_fov_status,
@@ -83,6 +87,18 @@ def estimate_lambertian_receiver_return(
     if aperture_diameter <= 0.0 or not math.isfinite(aperture_diameter):
         raise ValueError("receiver.aperture_diameter_m은 0보다 큰 유한한 값이어야 합니다.")
     aperture_area = math.pi * (0.5 * aperture_diameter) ** 2
+    receiver_direction_input_array = _vec3(
+        receiver["direction"],
+        name="receiver.direction input",
+    )
+    receiver_direction = normalize_vector(
+        receiver_direction_input_array,
+        name="receiver.direction",
+    )
+    receiver_direction_input = tuple(
+        float(value) for value in receiver_direction_input_array
+    )
+    receiver_direction_resolved = tuple(float(value) for value in receiver_direction)
     assumptions = [
         "Small-footprint Lambertian analytical approximation입니다.",
         "Receiver는 virtual aperture이며 동일 scanner/collimator의 reverse path, single-mode fiber coupling, detector와 duplexer를 생략합니다.",
@@ -102,6 +118,8 @@ def estimate_lambertian_receiver_return(
             material_model=material_model,
             material_reflectivity=None,
             receiver_architecture=architecture,
+            receiver_direction_input=receiver_direction_input,
+            receiver_direction=receiver_direction_resolved,
             receiver_aperture_area_m2=aperture_area,
             receiver_distance_m=None,
             receiver_fov_status="not_evaluated",
@@ -123,6 +141,8 @@ def estimate_lambertian_receiver_return(
             material_model=material_model,
             material_reflectivity=None,
             receiver_architecture=architecture,
+            receiver_direction_input=receiver_direction_input,
+            receiver_direction=receiver_direction_resolved,
             receiver_aperture_area_m2=aperture_area,
             receiver_distance_m=None,
             receiver_fov_status="no_target_hit",
@@ -145,6 +165,8 @@ def estimate_lambertian_receiver_return(
             material_model=material_model,
             material_reflectivity=None,
             receiver_architecture=architecture,
+            receiver_direction_input=receiver_direction_input,
+            receiver_direction=receiver_direction_resolved,
             receiver_aperture_area_m2=aperture_area,
             receiver_distance_m=None,
             receiver_fov_status="not_evaluated",
@@ -161,7 +183,6 @@ def estimate_lambertian_receiver_return(
 
     reflectivity = float(material["optical"]["hemispherical_reflectivity"])
     receiver_position = _vec3(receiver["position_m"], name="receiver.position_m")
-    receiver_direction = normalize_vector(receiver["direction"], name="receiver.direction")
     hit = footprint.intersection.hit_center_m
     target_to_receiver = receiver_position - hit
     distance = float(np.linalg.norm(target_to_receiver))
@@ -173,6 +194,8 @@ def estimate_lambertian_receiver_return(
             material_model=material_model,
             material_reflectivity=reflectivity,
             receiver_architecture=architecture,
+            receiver_direction_input=receiver_direction_input,
+            receiver_direction=receiver_direction_resolved,
             receiver_aperture_area_m2=aperture_area,
             receiver_distance_m=0.0,
             receiver_fov_status="invalid_zero_distance",
@@ -201,6 +224,8 @@ def estimate_lambertian_receiver_return(
             material_model=material_model,
             material_reflectivity=reflectivity,
             receiver_architecture=architecture,
+            receiver_direction_input=receiver_direction_input,
+            receiver_direction=receiver_direction_resolved,
             receiver_aperture_area_m2=aperture_area,
             receiver_distance_m=distance,
             receiver_fov_status="outside_fov",
@@ -239,6 +264,8 @@ def estimate_lambertian_receiver_return(
         material_model=material_model,
         material_reflectivity=reflectivity,
         receiver_architecture=architecture,
+        receiver_direction_input=receiver_direction_input,
+        receiver_direction=receiver_direction_resolved,
         receiver_aperture_area_m2=aperture_area,
         receiver_distance_m=distance,
         receiver_fov_status="inside_fov",

@@ -1,5 +1,6 @@
 """Structured simulation·validation result contract."""
 
+from .accuracy import ReadinessAssessment, assess_readiness
 from .reports import (
     AccuracyReport,
     ConvergenceCheck,
@@ -15,6 +16,8 @@ from .optical_train import Phase2OpticalTrainReport, build_phase2_optical_train_
 
 __all__ = [
     "AccuracyReport",
+    "ReadinessAssessment",
+    "assess_readiness",
     "ConvergenceCheck",
     "ConvergenceReport",
     "EnergyLedger",

@@ -93,6 +93,30 @@ def test_flat_mirror_reflectivity_scales_output_power() -> None:
     assert interaction.output_beam.accumulated_transmission == pytest.approx(0.8, rel=1e-12)
 
 
+def test_zero_transmission_and_reflectivity_produce_valid_zero_power() -> None:
+    beam = _beam(power_w=1.0)
+    after_lens = apply_abcd_to_beam(
+        beam,
+        ABCDMatrix.thin_lens(0.02),
+        power_transmission=0.0,
+    )
+    interaction = interact_flat_mirror(
+        after_lens,
+        surface_origin_m=[0.0, 0.0, 0.0],
+        surface_normal=[0.0, 0.0, 1.0],
+        aperture_x_axis=[1.0, 0.0, 0.0],
+        aperture_y_axis=[0.0, 1.0, 0.0],
+        clear_width_m=0.02,
+        clear_height_m=0.02,
+        power_reflectivity=0.0,
+    )
+
+    assert after_lens.power_w == 0.0
+    assert interaction.aperture_clip.input_power_w == 0.0
+    assert interaction.output_beam.power_w == 0.0
+    assert interaction.output_beam.accumulated_transmission == 0.0
+
+
 def test_flat_mirror_rectangular_aperture_reports_status() -> None:
     small = _beam(waist_radius_x_m=1.0e-3, waist_radius_y_m=1.0e-3)
     large = _beam(waist_radius_x_m=0.10, waist_radius_y_m=0.10)
@@ -155,6 +179,82 @@ def test_phase2_train_reflects_from_scanner_mirror_with_power_ledger(project_roo
         abs=1e-12,
     )
     assert train.component_reports[1]["aperture_status"] == "pass"
+
+
+def test_phase2_zero_component_transmission_is_schema_valid(
+    copied_project: Path,
+) -> None:
+    component_path = (
+        copied_project.parent.parent
+        / "catalog"
+        / "components"
+        / "custom"
+        / "ideal_collimator_f20.yaml"
+    )
+    component = yaml.safe_load(component_path.read_text(encoding="utf-8"))
+    component["optical"]["power_transmission"] = 0.0
+    component_path.write_text(
+        yaml.safe_dump(component, sort_keys=False),
+        encoding="utf-8",
+    )
+    project = load_project(copied_project)
+
+    train = propagate_transmitter_train(project)
+    report = build_phase2_optical_train_report(project, train)
+
+    assert train.final_state.state.power_w == 0.0
+    assert train.total_transmission == 0.0
+    assert train.power_ledger[2].transmission_fraction == 0.0
+    assert report.summary["final_power_w"] == 0.0
+    SchemaStore.load(copied_project.parent.parent / "schemas").validate(
+        report.to_dict(),
+        "phase2_optical_train_report.schema.json",
+        source="zero transmission Phase 2 report",
+    )
+
+
+def test_phase2_rejects_unsupported_second_moment_contract(
+    copied_project: Path,
+) -> None:
+    scenario_path = copied_project.parent / "baseline_1550nm.yaml"
+    scenario = yaml.safe_load(scenario_path.read_text(encoding="utf-8"))
+    scenario["source"]["propagation_model"] = "second_moment"
+    scenario_path.write_text(
+        yaml.safe_dump(scenario, sort_keys=False),
+        encoding="utf-8",
+    )
+    project = load_project(copied_project)
+
+    with pytest.raises(ValueError, match="gaussian_m2만 지원"):
+        propagate_transmitter_train(project)
+
+
+def test_nonunit_scenario_directions_preserve_input_and_report_normalization(
+    copied_project: Path,
+) -> None:
+    scenario_path = copied_project.parent / "baseline_1550nm.yaml"
+    scenario = yaml.safe_load(scenario_path.read_text(encoding="utf-8"))
+    scenario["scanner"]["rotation_axis_world"] = [0.0, 10.0, 0.0]
+    scenario["scene"]["targets"][0]["geometry"]["normal"] = [-2.0, 0.0, 0.0]
+    scenario["receiver"]["direction"] = [3.0, 0.0, 0.0]
+    scenario_path.write_text(
+        yaml.safe_dump(scenario, sort_keys=False),
+        encoding="utf-8",
+    )
+    project = load_project(copied_project)
+
+    report = build_phase2_optical_train_report(project)
+    mirror = report.optical_train["component_reports"][1]
+    target = report.target_footprints[0]["target_intersection"]
+    receiver = report.receiver_return["returns"][0]
+
+    assert sum("runtime에서 unit vector" in item.message for item in project.warnings) == 3
+    assert mirror["scanner_rotation_axis_input_world"] == pytest.approx([0.0, 10.0, 0.0])
+    assert mirror["scanner_rotation_axis_world"] == pytest.approx([0.0, 1.0, 0.0])
+    assert target["target_normal_input"] == pytest.approx([-2.0, 0.0, 0.0])
+    assert target["target_normal"] == pytest.approx([-1.0, 0.0, 0.0])
+    assert receiver["receiver_direction_input"] == pytest.approx([3.0, 0.0, 0.0])
+    assert receiver["receiver_direction"] == pytest.approx([1.0, 0.0, 0.0])
 
 
 def test_scanner_static_command_angle_steers_reflected_ray(copied_project: Path) -> None:

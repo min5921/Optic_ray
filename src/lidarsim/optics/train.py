@@ -415,6 +415,9 @@ def _scanner_mirror_report(
         "incident_direction": before_mirror.direction.tolist(),
         "scanner_pose_model": "static_command_angle",
         "scanner_command_angle_rad": command_angle,
+        "scanner_rotation_axis_input_world": [
+            float(value) for value in scenario["scanner"]["rotation_axis_world"]
+        ],
         "scanner_rotation_axis_world": rotation_axis.tolist(),
         "surface_normal_world": interaction.surface_normal.tolist(),
         "aperture_x_axis_world": interaction.aperture_x_axis.tolist(),
@@ -454,6 +457,12 @@ def propagate_transmitter_train(
     scenario = project.active_scenario
     if scenario["simulation"]["backend"] != "numpy" or scenario["simulation"]["real_dtype"] != "float64":
         raise ValueError("Phase 2 optical train reference는 backend=numpy, real_dtype=float64만 지원합니다.")
+    propagation_model = str(scenario["source"]["propagation_model"])
+    if propagation_model != "gaussian_m2":
+        raise ValueError(
+            "Phase 2 optical train은 propagation_model=gaussian_m2만 지원합니다. "
+            f"{propagation_model!r}을 q-ABCD 경로로 암묵적으로 처리하지 않습니다."
+        )
 
     resolved_assembly = assembly or resolve_assembly(
         scenario,

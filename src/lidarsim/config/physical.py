@@ -297,6 +297,54 @@ def validate_scenario_physics(
     diagnostics: list[Diagnostic] = []
     warnings: list[Diagnostic] = []
     source_config = scenario["source"]
+    for direction_path, values in (
+        ("scanner.rotation_axis_world", scenario["scanner"]["rotation_axis_world"]),
+        ("receiver.direction", scenario["receiver"]["direction"]),
+    ):
+        normalized = _require_direction(
+            values,
+            source=source_text,
+            path=direction_path,
+            diagnostics=diagnostics,
+        )
+        if normalized is not None:
+            norm = math.sqrt(sum(float(value) ** 2 for value in values))
+            if not math.isclose(norm, 1.0, rel_tol=1e-12, abs_tol=1e-12):
+                warnings.append(
+                    Diagnostic(
+                        source=source_text,
+                        path=direction_path,
+                        message=(
+                            f"입력 방향 벡터 norm={norm:.9g}를 runtime에서 unit vector "
+                            f"{list(normalized)}로 정규화합니다."
+                        ),
+                        severity="warning",
+                    )
+                )
+    for index, target in enumerate(scenario["scene"]["targets"]):
+        normal = target["geometry"].get("normal")
+        if normal is None:
+            continue
+        normalized = _require_direction(
+            normal,
+            source=source_text,
+            path=f"scene.targets[{index}].geometry.normal",
+            diagnostics=diagnostics,
+        )
+        if normalized is not None:
+            norm = math.sqrt(sum(float(value) ** 2 for value in normal))
+            if not math.isclose(norm, 1.0, rel_tol=1e-12, abs_tol=1e-12):
+                warnings.append(
+                    Diagnostic(
+                        source=source_text,
+                        path=f"scene.targets[{index}].geometry.normal",
+                        message=(
+                            f"입력 target normal norm={norm:.9g}를 runtime에서 unit vector "
+                            f"{list(normalized)}로 정규화합니다."
+                        ),
+                        severity="warning",
+                    )
+                )
     wavelength = _require_positive(
         source_config["wavelength_m"],
         source=source_text,

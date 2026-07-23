@@ -11,6 +11,7 @@ from lidarsim import __version__
 from lidarsim.config.immutable import deep_thaw
 from lidarsim.optics import ABCDMatrix, OpticalTrainResult, propagate_transmitter_train
 from lidarsim.receiver import ReceiverReturn, estimate_receiver_returns
+from lidarsim.results.accuracy import assess_readiness
 from lidarsim.scene import TargetFootprint, evaluate_target_footprints
 
 
@@ -42,22 +43,6 @@ class Phase2OpticalTrainReport:
             "receiver_return": deep_thaw(self.receiver_return),
             "analytical_checks": deep_thaw(self.analytical_checks),
         }
-
-
-def _readiness(project: Any) -> tuple[str, str, str]:
-    purpose = str(project.active_scenario["model_purpose"])
-    confidence = {
-        "analytical_regression": "comparative",
-        "bench_template": "engineering_estimate",
-        "calibrated_hardware": "calibrated",
-    }[purpose]
-    hardware = {
-        "analytical_regression": "analytical_only",
-        "bench_template": "bench_template",
-        "calibrated_hardware": "calibrated",
-    }[purpose]
-    calibration = "calibrated" if purpose == "calibrated_hardware" else "uncalibrated"
-    return confidence, hardware, calibration
 
 
 def _q_check(result: OpticalTrainResult) -> dict[str, Any]:
@@ -191,8 +176,9 @@ def _accuracy(
     footprints: tuple[TargetFootprint, ...],
     returns: tuple[ReceiverReturn, ...],
 ) -> dict[str, Any]:
-    confidence, hardware, calibration = _readiness(project)
+    readiness = assess_readiness(project)
     warnings = [item.format() for item in project.warnings]
+    warnings.extend(readiness.warnings)
     warnings.extend(result.warnings)
     for footprint in footprints:
         warnings.extend(footprint.warnings)
@@ -208,11 +194,12 @@ def _accuracy(
             "Scanner/mirror 이후 propagation은 아직 계산하지 않고 unsupported_elements에 기록합니다."
         )
     return {
-        "model_purpose": str(project.active_scenario["model_purpose"]),
-        "accuracy_mode": str(project.active_scenario["simulation"]["accuracy_mode"]),
-        "hardware_readiness": hardware,
-        "confidence_level": confidence,
-        "calibration_status": calibration,
+        "model_purpose": readiness.model_purpose,
+        "accuracy_mode": readiness.accuracy_mode,
+        "hardware_readiness": readiness.hardware_readiness,
+        "confidence_level": readiness.confidence_level,
+        "calibration_status": readiness.calibration_status,
+        "calibration_evidence": readiness.calibration_evidence,
         "scope": "source_to_static_mirror_rectangle_target_lambertian_virtual_aperture",
         "assumptions": [
             "Source부터 collimator까지는 scalar paraxial Gaussian q-parameter로 계산합니다.",
@@ -264,6 +251,7 @@ def build_phase2_optical_train_report(
         else "warning"
         if (
             accuracy["hardware_readiness"] != "calibrated"
+            or accuracy["warnings"]
             or train.unsupported_elements
             or "warning" in check_statuses
         )

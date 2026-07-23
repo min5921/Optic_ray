@@ -12,6 +12,7 @@ import numpy as np
 from lidarsim import __version__
 from lidarsim.config.immutable import deep_thaw
 from lidarsim.geometry import AssemblyPlacement, resolve_assembly
+from lidarsim.results.accuracy import assess_readiness
 
 
 @dataclass(frozen=True, slots=True)
@@ -35,6 +36,7 @@ class AccuracyReport:
     calibration_status: str
     model_purpose: str
     hardware_readiness: str
+    calibration_evidence: dict[str, Any] | None
     receiver_model: str
     component_model_levels: dict[str, str]
     assumptions: tuple[str, ...]
@@ -122,9 +124,14 @@ def _asset_hashes(project: Any) -> dict[str, str]:
 def _accuracy_report(project: Any, assembly: AssemblyPlacement) -> AccuracyReport:
     scenario = project.active_scenario
     mode = str(scenario["simulation"]["accuracy_mode"])
+    readiness = assess_readiness(project)
     confidence, calibration, warnings = _confidence_for_mode(
         mode, len(project.assets.measurements)
     )
+    if readiness.model_purpose == "calibrated_hardware":
+        confidence = readiness.confidence_level
+        calibration = readiness.calibration_status
+    warnings.extend(readiness.warnings)
     component_levels: dict[str, str] = {}
     assumptions: list[str] = []
     for element in assembly.elements.values():
@@ -144,19 +151,14 @@ def _accuracy_report(project: Any, assembly: AssemblyPlacement) -> AccuracyRepor
             f"target {target['id']}: material={material_ref}, model={material.get('model_level', 'unknown')}"
         )
     warnings.extend(item.format() for item in project.warnings)
-    model_purpose = str(scenario["model_purpose"])
-    readiness = {
-        "analytical_regression": "analytical_only",
-        "bench_template": "bench_template",
-        "calibrated_hardware": "calibrated",
-    }[model_purpose]
     receiver = scenario["receiver"]
     return AccuracyReport(
         accuracy_mode=mode,
         confidence_level=confidence,
         calibration_status=calibration,
-        model_purpose=model_purpose,
-        hardware_readiness=readiness,
+        model_purpose=readiness.model_purpose,
+        hardware_readiness=readiness.hardware_readiness,
+        calibration_evidence=readiness.calibration_evidence,
         receiver_model=f"{receiver['architecture']}/{receiver['model_level']}",
         component_model_levels=component_levels,
         assumptions=tuple(assumptions),

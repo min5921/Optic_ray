@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 from pathlib import Path
 
 import pytest
@@ -9,6 +10,7 @@ from lidarsim.config import load_project
 from lidarsim.config.immutable import deep_thaw
 from lidarsim.errors import ConfigValidationError
 from lidarsim.geometry import resolve_assembly
+from lidarsim.results import assess_readiness
 
 
 def _read_yaml(path: Path) -> dict:
@@ -17,6 +19,66 @@ def _read_yaml(path: Path) -> dict:
 
 def _write_yaml(path: Path, value: dict) -> None:
     path.write_text(yaml.safe_dump(value, sort_keys=False), encoding="utf-8")
+
+
+def _write_measurement(
+    root: Path,
+    *,
+    identifier: str,
+    role: str,
+) -> None:
+    stem = identifier.replace(":", "_")
+    data_path = root / f"{stem}.csv"
+    data_path.write_text("x,value\n0,1\n", encoding="utf-8")
+    _write_yaml(
+        root / f"{stem}.measurement.yaml",
+        {
+            "schema_version": 1,
+            "measurement_id": identifier,
+            "measurement_type": "receiver_response",
+            "dataset_role": role,
+            "data_file": data_path.name,
+            "conditions": {"wavelength": "1550 nm"},
+            "instrument": {"model": "test"},
+            "uncertainty": {"type": "standard", "value": "1 percent"},
+            "coordinate_frame": "receiver_frame",
+            "units": {"x": "m", "value": "1"},
+            "processing": [],
+            "source_hash": None,
+        },
+    )
+
+
+def _configure_valid_calibration(copied_project: Path) -> None:
+    measurement_root = copied_project.parent.parent / "assets" / "measurements"
+    _write_measurement(
+        measurement_root,
+        identifier="lab:calibration",
+        role="calibration",
+    )
+    _write_measurement(
+        measurement_root,
+        identifier="lab:validation",
+        role="validation",
+    )
+    parameter_path = copied_project.parent / "fitted_parameters.yaml"
+    parameter_path.write_text("gain: 1.0\n", encoding="utf-8")
+    scenario_path = copied_project.parent / "baseline_1550nm.yaml"
+    scenario = _read_yaml(scenario_path)
+    scenario["model_purpose"] = "calibrated_hardware"
+    scenario["simulation"]["accuracy_mode"] = "absolute_radiometric"
+    scenario["receiver"]["model_level"] = "calibrated"
+    scenario["calibration_evidence"] = {
+        "fitted_parameter_set": {
+            "id": "fit:baseline",
+            "file": parameter_path.name,
+            "sha256": hashlib.sha256(parameter_path.read_bytes()).hexdigest(),
+        },
+        "calibration_measurement_ids": ["lab:calibration"],
+        "validation_measurement_ids": ["lab:validation"],
+        "validity": {"wavelength_range_m": ["1500 nm", "1600 nm"]},
+    }
+    _write_yaml(scenario_path, scenario)
 
 
 def test_load_repository_project_resolves_and_freezes_config(project_root: Path) -> None:
@@ -84,6 +146,41 @@ def test_unknown_schema_field_is_rejected(copied_project: Path) -> None:
         diagnostic.path == "source" and "Additional properties" in diagnostic.message
         for diagnostic in captured.value.diagnostics
     )
+
+
+def test_calibrated_hardware_requires_explicit_evidence(copied_project: Path) -> None:
+    scenario_path = copied_project.parent / "baseline_1550nm.yaml"
+    scenario = _read_yaml(scenario_path)
+    scenario["model_purpose"] = "calibrated_hardware"
+    _write_yaml(scenario_path, scenario)
+
+    with pytest.raises(ConfigValidationError, match="calibration_evidence"):
+        load_project(copied_project)
+
+
+def test_calibrated_hardware_requires_traceable_independent_evidence(
+    copied_project: Path,
+) -> None:
+    _configure_valid_calibration(copied_project)
+
+    project = load_project(copied_project)
+    readiness = assess_readiness(project)
+
+    assert readiness.hardware_readiness == "calibrated"
+    assert readiness.calibration_status == "calibrated"
+    assert readiness.confidence_level == "calibrated"
+    assert readiness.calibration_evidence is not None
+
+
+def test_calibrated_hardware_rejects_parameter_hash_mismatch(
+    copied_project: Path,
+) -> None:
+    _configure_valid_calibration(copied_project)
+    parameter_path = copied_project.parent / "fitted_parameters.yaml"
+    parameter_path.write_text("gain: 2.0\n", encoding="utf-8")
+
+    with pytest.raises(ConfigValidationError, match="SHA-256"):
+        load_project(copied_project)
 
 
 def test_invalid_port_reference_is_rejected(copied_project: Path) -> None:

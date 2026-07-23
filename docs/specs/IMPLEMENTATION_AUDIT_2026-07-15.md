@@ -50,6 +50,14 @@ python -W error::DeprecationWarning -W error::UserWarning -m pytest -q
 | `S0-SCHEMA-01` | 일부 component/material/report 중첩 object와 `ViewportScene` 계약이 느슨하거나 schema가 없다. | 오타가 조용히 통과하고 향후 Three.js frontend 계약이 흔들릴 수 있다. | 현재 엔진이 소비하는 필드는 strict schema로 검증하고 `ViewportScene`에 `schema_version`과 JSON Schema를 추가한다. |
 | `S0-MODEL-01` | `second_moment`를 선택해도 downstream optical train은 q-ABCD 경로만 사용하거나 astigmatic 상태를 거부한다. | 라인 빔의 end-to-end 부품 교체 비교가 제한된다. | 지원 조합을 validation에서 명확히 제한하고, 지원 시에는 x/y 또는 covariance 전파를 report까지 일관되게 유지한다. |
 
+2026-07-23 중간 checkpoint:
+
+- `S0-ACC-01` 완료: `calibrated_hardware`는 해시로 검증한 fitted parameter file, 역할이 분리된 calibration/validation measurement, wavelength validity, absolute-radiometric mode와 calibrated receiver가 모두 있어야 한다. 공통 readiness 판정을 Phase 0/1/2 report가 사용하며 accuracy warning은 overall을 최소 `warning`으로 만든다.
+- `S0-POWER-01` 완료: `BeamState`, ABCD transmission, mirror clipping/reflectivity와 Phase 2 schema가 0 W를 같은 유효 상태로 처리한다.
+- `S0-CONFIG-01` 완료: scenario 방향 벡터를 load 단계에서 finite/non-zero 검사하고 non-unit 입력은 warning과 함께 정규화한다. Scanner, target, receiver report에는 원래 입력과 정규화된 vector를 함께 기록한다.
+- `S0-MODEL-01` 완료: Phase 2 q-ABCD optical train은 `gaussian_m2`만 명시적으로 지원하며 `second_moment`를 암묵적으로 q 경로에 넣지 않는다.
+- 남은 S0 Gate: `S0-ENERGY-01`, `S0-SCHEMA-01`.
+
 ### 3.2 Phase 2-S1 — 실제 배치 geometry 안정화
 
 | ID | 문제 | 영향 | 완료 조건 |
