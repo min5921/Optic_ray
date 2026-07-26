@@ -70,7 +70,7 @@ def test_ui_project_settings_drive_language_power_and_result_root(
     ).resolve()
 
 
-def test_r2_r3_metrics_distinguish_calculated_zero_from_not_evaluated() -> None:
+def test_r2_r3_r4_metrics_distinguish_calculated_zero_from_not_evaluated() -> None:
     streamlit = _MetricStreamlit()
     run = SimpleNamespace(
         summary={
@@ -82,6 +82,11 @@ def test_r2_r3_metrics_distinguish_calculated_zero_from_not_evaluated() -> None:
             "fiber_coupling_efficiency": 0.0,
             "power_coupled_into_fiber_w": 0.0,
             "target_to_fiber_coupled_link_loss_db": None,
+            "detector_input_status": "blocked",
+            "power_at_detector_input_w": 0.0,
+            "fiber_coupled_to_detector_input_link_loss_db": None,
+            "target_to_detector_input_link_loss_db": None,
+            "source_to_detector_input_round_trip_link_loss_db": None,
         }
     )
 
@@ -98,6 +103,11 @@ def test_r2_r3_metrics_distinguish_calculated_zero_from_not_evaluated() -> None:
         "0",
         "0 nW",
         "N/A",
+        "blocked",
+        "0 nW",
+        "N/A",
+        "N/A",
+        "N/A",
     ]
     labels = [column.calls[0][0] for column in streamlit.columns_result]
     assert labels[1:] == [
@@ -109,6 +119,13 @@ def test_r2_r3_metrics_distinguish_calculated_zero_from_not_evaluated() -> None:
         "Fiber coupling efficiency",
         "Coupled fiber power",
         "Target→coupled-fiber loss",
+        "Detector boundary status",
+        "Detector optical input power",
+        "Fiber→detector loss",
+        "Target→detector loss",
+        "Source→detector round-trip loss",
     ]
     assert "gaussian_alignment_proxy" in streamlit.columns_result[5].calls[0][2]
     assert "gaussian_alignment_proxy" in streamlit.columns_result[6].calls[0][2]
+    assert "optical input boundary" in streamlit.columns_result[9].calls[0][2]
+    assert "Photocurrent" in streamlit.columns_result[10].calls[0][2]

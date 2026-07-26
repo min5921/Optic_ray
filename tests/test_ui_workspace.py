@@ -134,6 +134,36 @@ def _attach_r3_fiber_coupling(
     }
 
 
+def _attach_r4_detector_boundary(
+    report: dict[str, object],
+    *,
+    detector_power_w: float = 4.8e-10,
+) -> None:
+    reciprocal = report["reciprocal_return"]
+    assert isinstance(reciprocal, dict)
+    reciprocal["detector_status"] = "pass" if detector_power_w > 0.0 else "blocked"
+    reciprocal["detector_boundary"] = {
+        "model": "passive_duplexer_detector_input_boundary",
+        "model_scope": "analytical_optical_boundary_only",
+        "hardware_readiness": "uncalibrated",
+        "status": reciprocal["detector_status"],
+        "duplexer_type": "fiber_coupler",
+        "detector_model": "none",
+        "return_power_transmission": 0.5,
+        "power_coupled_into_fiber_w": 9.6e-10,
+        "power_at_detector_input_w": detector_power_w,
+        "fiber_coupled_to_detector_input_link_loss_db": 3.010299956639812,
+        "target_to_detector_input_link_loss_db": 73.18758762624412,
+        "source_to_detector_input_round_trip_link_loss_db": 73.18758762624412,
+        "detector_response_status": "not_evaluated",
+        "field_at_fiber_output_sqrt_w": None,
+        "field_at_detector_input_sqrt_w": None,
+        "coherent_field_status": "not_provided",
+        "field_usable_for_coherent_propagation": False,
+        "warnings": ["R4 analytical detector optical boundary only"],
+    }
+
+
 def test_viewport_scene_contains_optical_bench_objects(project_root: Path) -> None:
     project = load_project(project_root / "configs" / "project.yaml")
 
@@ -208,7 +238,7 @@ def test_viewport_scene_round_trips_as_yaml(project_root: Path) -> None:
     assert payload["model_scope"] == (
         "source_to_static_mirror_rectangle_or_stl_center_ray_target_lambertian_virtual_aperture_"
         "and_reciprocal_center_ray_geometry_and_return_power_ledger_"
-        "and_gaussian_alignment_proxy"
+        "and_gaussian_alignment_proxy_and_passive_detector_input_boundary"
     )
     assert payload["placement_edits"] == []
     assert payload["constraints"] == []
@@ -470,6 +500,51 @@ def test_r3_coupling_is_fiber_reference_metadata_without_fake_ray_or_field(
         scene.to_dict(),
         "viewport_scene.schema.json",
         source="R3 fiber coupling viewport metadata",
+    )
+
+
+def test_r4_detector_boundary_is_metadata_without_fake_component_ray_or_field(
+    project_root: Path,
+) -> None:
+    project = load_project(project_root / "configs" / "project.yaml")
+    report = _report_with_reciprocal_path(project, path=_exact_reciprocal_path())
+    _attach_r2_return_power(report)
+    _attach_r3_fiber_coupling(report)
+    _attach_r4_detector_boundary(report)
+
+    scene = build_viewport_scene(project, report=report)
+    return_rays = [ray for ray in scene.rays if ray.propagation_role == "return"]
+    fiber_guide = next(
+        guide
+        for guide in scene.guides
+        if guide.guide_id.endswith("fiber_hit_residual")
+    )
+
+    assert len(return_rays) == 3
+    assert return_rays[-1].power_w == pytest.approx(1.5e-9)
+    assert not any(
+        component.component_type == "detector_boundary"
+        for component in scene.components
+    )
+    assert fiber_guide.metadata["detector_boundary_model"] == (
+        "passive_duplexer_detector_input_boundary"
+    )
+    assert fiber_guide.metadata["power_at_detector_input_w"] == pytest.approx(
+        4.8e-10
+    )
+    assert fiber_guide.metadata["detector_response_status"] == "not_evaluated"
+    assert fiber_guide.metadata["detector_coherent_field_status"] == "not_provided"
+    assert (
+        fiber_guide.metadata["detector_field_usable_for_coherent_propagation"]
+        is False
+    )
+    assert any("비공간 optical boundary" in item for item in scene.warnings)
+    assert any("component, ray, beam 또는 field" in item for item in scene.warnings)
+
+    SchemaStore.load(project_root / "schemas").validate(
+        scene.to_dict(),
+        "viewport_scene.schema.json",
+        source="R4 detector boundary viewport metadata",
     )
 
 

@@ -64,6 +64,11 @@ _TEXT = {
         "fiber_coupling_efficiency": "Fiber coupling efficiency",
         "coupled_fiber_power": "Coupled fiber power",
         "coupled_fiber_link_loss": "Target→coupled-fiber loss",
+        "detector_input_status": "Detector boundary status",
+        "detector_input_power": "Detector optical input power",
+        "fiber_detector_loss": "Fiber→detector loss",
+        "target_detector_loss": "Target→detector loss",
+        "source_detector_loss": "Source→detector round-trip loss",
     },
     "en": {
         "title": "Optic Ray Assembly Workspace",
@@ -98,6 +103,11 @@ _TEXT = {
         "fiber_coupling_efficiency": "Fiber coupling efficiency",
         "coupled_fiber_power": "Coupled fiber power",
         "coupled_fiber_link_loss": "Target→coupled-fiber loss",
+        "detector_input_status": "Detector boundary status",
+        "detector_input_power": "Detector optical input power",
+        "fiber_detector_loss": "Fiber→detector loss",
+        "target_detector_loss": "Target→detector loss",
+        "source_detector_loss": "Source→detector round-trip loss",
     },
 }
 
@@ -375,6 +385,51 @@ def _render_metrics(
         "N/A" if coupled_loss is None else f"{float(coupled_loss):.6g} dB",
         help="Target power에서 R3 coupled fiber power까지의 명시적 loss입니다.",
     )
+
+    detector_columns = st.columns(5)
+    detector_columns[0].metric(
+        _text(language, "detector_input_status"),
+        str(summary.get("detector_input_status", "not_evaluated")),
+        help=(
+            "Phase 2.4-R4는 passive duplexer 뒤 detector optical input boundary만 "
+            "계산합니다. Detector response나 hardware calibration 상태가 아닙니다."
+        ),
+    )
+    detector_power = summary.get("power_at_detector_input_w")
+    detector_columns[1].metric(
+        _text(language, "detector_input_power"),
+        (
+            "N/A"
+            if detector_power is None
+            else _format_power(float(detector_power), power_unit)
+        ),
+        help=(
+            "Passive duplexer transmission을 적용한 detector input plane의 optical power입니다. "
+            "Photocurrent, responsivity, noise와 saturation은 포함하지 않습니다."
+        ),
+    )
+    detector_losses = (
+        (
+            "fiber_detector_loss",
+            "fiber_coupled_to_detector_input_link_loss_db",
+        ),
+        ("target_detector_loss", "target_to_detector_input_link_loss_db"),
+        (
+            "source_detector_loss",
+            "source_to_detector_input_round_trip_link_loss_db",
+        ),
+    )
+    for column, (label_key, field_name) in zip(
+        detector_columns[2:],
+        detector_losses,
+        strict=True,
+    ):
+        value = summary.get(field_name)
+        column.metric(
+            _text(language, label_key),
+            "N/A" if value is None else f"{float(value):.6g} dB",
+            help="R4 detector optical input boundary까지의 명시적 link loss입니다.",
+        )
 
 
 def _render_run_details(

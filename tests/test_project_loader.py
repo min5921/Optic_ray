@@ -233,7 +233,7 @@ def test_canonical_scenario_save_and_reload_preserves_hash_and_placement(
     ("path", "value", "message"),
     [
         (("source", "wavelength_m"), "-1550 nm", "0보다 큰 값"),
-        (("source", "optical_power_w"), "-10 mW", "0보다 큰 값"),
+        (("source", "optical_power_w"), "-10 mW", "0 이상"),
         (("receiver", "aperture_diameter_m"), "-25 mm", "0보다 큰 값"),
     ],
 )

@@ -199,7 +199,30 @@
           "minimum": 0.0
         },
         "coherent_field_status": { "type": ["string", "null"] },
-        "field_usable_for_coherent_propagation": { "type": ["boolean", "null"] }
+        "field_usable_for_coherent_propagation": { "type": ["boolean", "null"] },
+        "detector_boundary_model": { "type": ["string", "null"] },
+        "detector_input_status": { "type": ["string", "null"] },
+        "power_at_detector_input_w": {
+          "type": ["number", "null"],
+          "minimum": 0.0
+        },
+        "fiber_coupled_to_detector_input_link_loss_db": {
+          "type": ["number", "null"],
+          "minimum": 0.0
+        },
+        "target_to_detector_input_link_loss_db": {
+          "type": ["number", "null"],
+          "minimum": 0.0
+        },
+        "source_to_detector_input_round_trip_link_loss_db": {
+          "type": ["number", "null"],
+          "minimum": 0.0
+        },
+        "detector_response_status": { "type": ["string", "null"] },
+        "detector_coherent_field_status": { "type": ["string", "null"] },
+        "detector_field_usable_for_coherent_propagation": {
+          "type": ["boolean", "null"]
+        }
       }
     },
     "raySegment": {

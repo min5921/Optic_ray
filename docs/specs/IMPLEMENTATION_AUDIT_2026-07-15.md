@@ -36,7 +36,7 @@ python -W error::DeprecationWarning -W error::UserWarning -m pytest -q
 → 139 passed
 ```
 
-현재 `estimated_received_power_w`와 `P_virtual_ap`는 virtual aperture plane의 분석용 중간값이다. 이 값 자체는 동일 scanner·collimator의 reverse traversal을 포함하지 않으며 R2 reciprocal return ledger 및 R3 fiber coupling과 별도로 유지한다. R3는 `gaussian_alignment_proxy`까지 구현했지만 duplexer와 detector loss는 포함하지 않는다.
+현재 `estimated_received_power_w`와 `P_virtual_ap`는 virtual aperture plane의 분석용 중간값이다. 이 값 자체는 동일 scanner·collimator의 reverse traversal을 포함하지 않으며 R2 reciprocal return ledger, R3 fiber coupling과 R4 detector optical boundary와 별도로 유지한다. R4는 passive duplexer transmission 뒤 optical input power까지만 계산하며 detector response나 coherent field를 포함하지 않는다.
 
 ## 3. 등록된 문제와 완료 조건
 
@@ -143,7 +143,7 @@ Gate 결과:
 - CPU Möller–Trumbore reference가 nearest positive hit, barycentric coordinate, winding 기반 geometric normal, distance, triangle ID와 front/back face를 보고하며 parallel/behind/self-hit/no-hit를 구분한다.
 - Sidecar `unit_scale_m`과 world placement를 실제 world triangle에 적용한다. Target role, scenario/sidecar material 일치와 `parent_frame: world`를 검증한다.
 - 2-triangle plane parity, one-sided backface, mixed rectangle/STL nearest visibility, strict report/viewport schema, CLI report와 Plotly/Matplotlib overlay를 검증했다.
-- Phase 4.1-M1 Gate 완료 후 `Phase 2.4-R2` return optical power ledger와 `Phase 2.4-R3` Gaussian alignment coupling까지 순서대로 완료했다. 현재 활성 단계는 R4다.
+- Phase 4.1-M1 Gate 완료 후 `Phase 2.4-R2` return optical power ledger, `Phase 2.4-R3` Gaussian alignment coupling과 `Phase 2.4-R4` detector optical boundary까지 순서대로 완료했다. 현재 활성 Gate는 Phase 2.4 전체 최종 감사와 보완 보고서다.
 
 ### 3.6 Phase 2.4-R2 — Return optical power ledger
 
@@ -183,7 +183,27 @@ Gate 결과:
 - CLI/Streamlit/dashboard에서 virtual aperture, R2 fiber-plane power와 R3 coupled power를 분리하고 계산된 `0.0`과 미평가 `null`을 구분한다. Viewport는 기존 R2 return ray power를 유지하고 fiber residual point metadata에만 R3를 표시한다.
 - Aligned `eta=1`, lateral/angular/MFD/focus mismatch 단조 감소, zero power, unsupported/missing R1/R2 input, coupling energy ledger, schema/YAML과 UI/CLI를 검증했다.
 - Baseline은 `eta_fiber ≈ 1`, `P_coupled ≈ 1.80063 nW`, target→coupled-fiber loss `≈ 67.4457 dB`다. 이 값은 Lambertian diffuse-return optimistic upper-bound/reference이며 calibrated hardware prediction이 아니다.
-- Phase 2.4-R3 Gate 완료. 다음 활성 단계는 `Phase 2.4-R4` duplexer와 detector boundary다.
+- Phase 2.4-R3 Gate 완료. 후속 R4 완료 상태는 아래 3.8절에 기록한다.
+
+### 3.8 Phase 2.4-R4 — Duplexer와 detector optical input boundary
+
+| ID | 문제 | 영향 | 완료 조건 |
+| --- | --- | --- | --- |
+| `R4-BOUNDARY-01` | R3 coupled power가 circulator/coupler를 지나 detector input plane까지 연결되지 않는다. | Fiber 결합 파워를 detector 입력으로 오해하거나 duplexer loss를 누락할 수 있다. | Configured passive return transmission을 별도 ledger로 적용하고 detector input power를 보고한다. |
+| `R4-ZERO-01` | 0 transmission 또는 0 W input을 미평가와 구분하지 못할 수 있다. | 완전 차단 결과가 누락되거나 거짓 positive power로 표시될 수 있다. | `blocked`/`zero_input`의 계산된 `0.0`과 `not_evaluated`의 `null`을 runtime·schema·UI에서 구분한다. |
+| `R4-LOSS-01` | Loss reference plane이 하나의 round-trip 값으로 뭉칠 수 있다. | Fiber→detector, target→detector와 source→detector 성능을 잘못 비교할 수 있다. | 세 reference loss를 명시적인 field로 분리하고 CLI/Streamlit/dashboard에 각각 표시한다. |
+| `R4-FIELD-01` | Radiometric R3 결과에 임의 위상을 붙여 coherent detector field로 전달할 위험이 있다. | 구현하지 않은 coherent FMCW 신호를 생성한 것처럼 보일 수 있다. | Fiber output과 detector input field를 `null`, coherent status를 `not_provided`, 사용 가능 여부를 `false`로 유지한다. |
+| `R4-UI-01` | Fiber 뒤 boundary를 별도 3D detector나 ray로 그리면 존재하지 않는 공간 광로가 생긴다. | Viewport가 config/report보다 더 강한 물리 주장을 하게 된다. | 기존 fiber reference guide metadata만 확장하고 새 component/ray/beam/field를 만들지 않는다. |
+
+2026-07-27 완료:
+
+- R3 `power_coupled_into_fiber_w`에 `receiver.duplexer.return_power_transmission`을 적용하는 NumPy/float64 passive boundary와 독립 energy ledger를 구현했다.
+- Strict Phase 2 report schema v6에 `reciprocal_return.detector_boundary`, `detector_status`와 summary의 detector input power 및 fiber/target/source 기준 loss를 추가했다.
+- Baseline ideal circulator에서 `P_detector_input ≈ 1.80063 nW`, fiber→detector loss `0 dB`, source→detector round-trip loss `≈ 67.4457 dB`를 확인했다.
+- 0 transmission은 `blocked`와 0 W, 0 input은 `zero_input`과 0 W로 보존하고 upstream 미평가는 `detector_boundary: null`로 구분한다.
+- CLI/Streamlit/dashboard는 virtual aperture, R2 plane power, R3 coupled power와 R4 detector input을 분리한다. `ViewportScene` v2는 R4를 fiber residual metadata에만 기록하며 가짜 detector geometry를 만들지 않는다.
+- `detector_response_status: not_evaluated`, R4 field `null`, `coherent_field_status: not_provided`를 유지한다. 이 결과는 analytical/uncalibrated optical boundary이며 responsivity, photocurrent, noise, saturation과 coherent FMCW를 포함하지 않는다.
+- Phase 2.4-R4 Gate 완료. 다음 활성 Gate는 Phase 2.4 전체 최종 감사와 보완 보고서다.
 
 ## 4. 승인된 활성 구현 순서
 
@@ -201,7 +221,7 @@ Gate 결과:
 
 `UI-S`의 코드 작업은 `Phase 2-S0/S1`과 병렬로 진행할 수 있다. 그러나 Git checkpoint와 완료 선언은 위 Gate 순서를 따른다. R1 결과가 생기면 같은 patch 또는 바로 다음 UI patch에서 return `RaySegment`, aperture residual과 fiber-port alignment overlay를 추가한다.
 
-2026-07-27 현재 `Phase 2-S0`, `Phase 2-S1`, `UI-S`, `Phase 2.4-R1`, `Phase 4.1-M1`, `Phase 2.4-R2`와 `Phase 2.4-R3`를 순서대로 완료했다. R2는 nearest-visible Lambertian rectangle과 actual R1 geometry Gate를 사용한 target→fiber reference-plane scalar power ledger를, R3는 명시적인 Gaussian alignment proxy를 strict report/UI에 연결했다. 활성 Gate는 `Phase 2.4-R4`다.
+2026-07-27 현재 `Phase 2-S0`, `Phase 2-S1`, `UI-S`, `Phase 2.4-R1`, `Phase 4.1-M1`과 `Phase 2.4-R2~R4`를 순서대로 완료했다. R2는 nearest-visible Lambertian rectangle과 actual R1 geometry Gate를 사용한 target→fiber reference-plane scalar power ledger를, R3는 명시적인 Gaussian alignment proxy를, R4는 passive duplexer와 detector optical input boundary를 strict report/UI에 연결했다. 활성 Gate는 Phase 2.4 전체 최종 감사와 보완 보고서다.
 
 ## 5. 현재 사용자 variant 처리
 

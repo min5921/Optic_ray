@@ -124,6 +124,7 @@ outputs:
   - reciprocal_return_geometry
   - reciprocal_return_power
   - fiber_coupling
+  - detector_input_power
   - energy_ledger
   - convergence_report
   - layout_3d

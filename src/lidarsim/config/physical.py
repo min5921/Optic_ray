@@ -25,6 +25,7 @@ IMPLEMENTED_OUTPUTS = {
     "reciprocal_return_geometry",
     "reciprocal_return_power",
     "fiber_coupling",
+    "detector_input_power",
 }
 
 # 계산 경로는 존재하지만 아직 calibrated hardware output으로 해석할 수 없는
@@ -152,6 +153,7 @@ def validate_catalog_record_physics(
                         source=source,
                         path=f"optical.{field}",
                         diagnostics=diagnostics,
+                        allow_zero=field == "optical_power_w",
                     )
             source_model = str(optical.get("source_model", ""))
             if source_model == "fiber_gaussian" and "mode_field_diameter_m" in optical:
@@ -412,6 +414,7 @@ def validate_scenario_physics(
         source=source_text,
         path="source.optical_power_w",
         diagnostics=diagnostics,
+        allow_zero=True,
     )
     source_type = str(source_config["type"])
     profile_kind = str(source_config["profile_kind"])
@@ -1013,9 +1016,11 @@ def validate_scenario_physics(
                 path="receiver.architecture",
                 message=(
                     "reciprocal_single_mode_fiber는 현재 center-ray geometry, "
-                    "Lambertian scalar return-power와 Gaussian alignment coupling reference입니다. "
+                    "Lambertian scalar return-power, Gaussian alignment coupling과 passive "
+                    "detector optical input boundary의 analytical reference입니다. "
                     "기존 virtual aperture power는 regression intermediate로 유지되며 "
-                    "fiber-coupled power 또는 detector power를 뜻하지 않습니다."
+                    "fiber-coupled power 또는 detector input power를 뜻하지 않습니다. "
+                    "Detector response와 hardware calibration은 평가하지 않습니다."
                 ),
                 severity="warning",
             )

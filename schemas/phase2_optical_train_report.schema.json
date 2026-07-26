@@ -20,7 +20,7 @@
     "analytical_checks"
   ],
   "properties": {
-    "schema_version": { "const": 5 },
+    "schema_version": { "const": 6 },
     "report_type": { "const": "phase2_optical_train" },
     "manifest": { "$ref": "#/$defs/manifest" },
     "summary": { "$ref": "#/$defs/summary" },
@@ -40,6 +40,98 @@
     "reciprocal_return": { "$ref": "#/$defs/reciprocalReturnSection" },
     "analytical_checks": { "$ref": "#/$defs/analyticalChecks" }
   },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "summary": {
+            "properties": { "detector_input_status": { "const": "pass" } },
+            "required": ["detector_input_status"]
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "reciprocal_return": {
+            "properties": { "detector_status": { "const": "pass" } },
+            "required": ["detector_status"]
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "summary": {
+            "properties": { "detector_input_status": { "const": "blocked" } },
+            "required": ["detector_input_status"]
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "reciprocal_return": {
+            "properties": { "detector_status": { "const": "blocked" } },
+            "required": ["detector_status"]
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "summary": {
+            "properties": { "detector_input_status": { "const": "zero_input" } },
+            "required": ["detector_input_status"]
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "reciprocal_return": {
+            "properties": { "detector_status": { "const": "zero_input" } },
+            "required": ["detector_status"]
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "summary": {
+            "properties": { "detector_input_status": { "const": "not_evaluated" } },
+            "required": ["detector_input_status"]
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "reciprocal_return": {
+            "properties": { "detector_status": { "const": "not_evaluated" } },
+            "required": ["detector_status"]
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "summary": {
+            "properties": { "detector_input_status": { "const": "fail" } },
+            "required": ["detector_input_status"]
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "reciprocal_return": {
+            "properties": { "detector_status": { "const": "fail" } },
+            "required": ["detector_status"]
+          }
+        }
+      }
+    }
+  ],
   "$defs": {
     "vec2": {
       "type": "array",
@@ -122,7 +214,12 @@
         "fiber_coupling_status",
         "fiber_coupling_efficiency",
         "power_coupled_into_fiber_w",
-        "target_to_fiber_coupled_link_loss_db"
+        "target_to_fiber_coupled_link_loss_db",
+        "detector_input_status",
+        "power_at_detector_input_w",
+        "fiber_coupled_to_detector_input_link_loss_db",
+        "target_to_detector_input_link_loss_db",
+        "source_to_detector_input_round_trip_link_loss_db"
       ],
       "properties": {
         "overall_status": { "enum": ["pass", "warning", "fail"] },
@@ -168,8 +265,63 @@
         },
         "fiber_coupling_efficiency": { "type": ["number", "null"], "minimum": 0.0, "maximum": 1.0 },
         "power_coupled_into_fiber_w": { "type": ["number", "null"], "minimum": 0.0 },
-        "target_to_fiber_coupled_link_loss_db": { "type": ["number", "null"], "minimum": 0.0 }
-      }
+        "target_to_fiber_coupled_link_loss_db": { "type": ["number", "null"], "minimum": 0.0 },
+        "detector_input_status": {
+          "enum": ["pass", "blocked", "zero_input", "not_evaluated", "fail"]
+        },
+        "power_at_detector_input_w": { "type": ["number", "null"], "minimum": 0.0 },
+        "fiber_coupled_to_detector_input_link_loss_db": { "type": ["number", "null"], "minimum": 0.0 },
+        "target_to_detector_input_link_loss_db": { "type": ["number", "null"], "minimum": 0.0 },
+        "source_to_detector_input_round_trip_link_loss_db": { "type": ["number", "null"], "minimum": 0.0 }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": { "detector_input_status": { "const": "pass" } },
+            "required": ["detector_input_status"]
+          },
+          "then": {
+            "properties": {
+              "power_at_detector_input_w": { "type": "number", "exclusiveMinimum": 0.0 },
+              "fiber_coupled_to_detector_input_link_loss_db": { "type": "number", "minimum": 0.0 },
+              "target_to_detector_input_link_loss_db": { "type": "number", "minimum": 0.0 },
+              "source_to_detector_input_round_trip_link_loss_db": { "type": "number", "minimum": 0.0 }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "detector_input_status": { "enum": ["blocked", "zero_input"] }
+            },
+            "required": ["detector_input_status"]
+          },
+          "then": {
+            "properties": {
+              "power_at_detector_input_w": { "const": 0.0 },
+              "fiber_coupled_to_detector_input_link_loss_db": { "type": "null" },
+              "target_to_detector_input_link_loss_db": { "type": "null" },
+              "source_to_detector_input_round_trip_link_loss_db": { "type": "null" }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "detector_input_status": { "enum": ["not_evaluated", "fail"] }
+            },
+            "required": ["detector_input_status"]
+          },
+          "then": {
+            "properties": {
+              "power_at_detector_input_w": { "type": "null" },
+              "fiber_coupled_to_detector_input_link_loss_db": { "type": "null" },
+              "target_to_detector_input_link_loss_db": { "type": "null" },
+              "source_to_detector_input_round_trip_link_loss_db": { "type": "null" }
+            }
+          }
+        }
+      ]
     },
     "accuracy": {
       "type": "object",
@@ -206,7 +358,7 @@
           ]
         },
         "scope": {
-          "const": "source_to_static_mirror_rectangle_or_stl_center_ray_target_lambertian_virtual_aperture_and_reciprocal_center_ray_geometry_and_return_power_ledger_and_gaussian_alignment_proxy"
+          "const": "source_to_static_mirror_rectangle_or_stl_center_ray_target_lambertian_virtual_aperture_and_reciprocal_center_ray_geometry_and_return_power_ledger_and_gaussian_alignment_proxy_and_passive_detector_input_boundary"
         },
         "assumptions": { "$ref": "#/$defs/stringArray" },
         "warnings": { "$ref": "#/$defs/stringArray" }
@@ -1886,6 +2038,177 @@
         "warnings": { "$ref": "#/$defs/stringArray" }
       }
     },
+    "detectorBoundaryLedgerEntry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "input_power_w",
+        "loss_w",
+        "output_power_w",
+        "transmission_fraction",
+        "mechanism",
+        "input_plane",
+        "output_plane",
+        "model_source",
+        "status"
+      ],
+      "properties": {
+        "input_power_w": { "type": "number", "minimum": 0.0 },
+        "loss_w": { "type": "number", "minimum": 0.0 },
+        "output_power_w": { "type": "number", "minimum": 0.0 },
+        "transmission_fraction": { "type": "number", "minimum": 0.0, "maximum": 1.0 },
+        "mechanism": { "const": "duplexer_return_transmission" },
+        "input_plane": { "const": "coupled_fiber_mode" },
+        "output_plane": { "const": "detector_input_plane" },
+        "model_source": { "const": "receiver.duplexer.return_power_transmission" },
+        "status": { "enum": ["applied", "blocked", "zero_input"] }
+      }
+    },
+    "detectorBoundarySection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "model",
+        "model_scope",
+        "hardware_readiness",
+        "status",
+        "status_reason",
+        "detector_response_status",
+        "detector_model",
+        "duplexer_type",
+        "return_power_transmission",
+        "source_power_w",
+        "power_on_target_w",
+        "power_coupled_into_fiber_w",
+        "power_lost_in_duplexer_w",
+        "power_at_detector_input_w",
+        "fiber_coupled_to_detector_input_link_loss_db",
+        "target_to_detector_input_link_loss_db",
+        "source_to_detector_input_round_trip_link_loss_db",
+        "field_at_fiber_output_sqrt_w",
+        "field_at_detector_input_sqrt_w",
+        "coherent_field_status",
+        "field_usable_for_coherent_propagation",
+        "power_ledger",
+        "maximum_energy_residual_w",
+        "energy_tolerance_w",
+        "energy_check_status",
+        "assumptions",
+        "warnings"
+      ],
+      "properties": {
+        "model": { "const": "passive_duplexer_detector_input_boundary" },
+        "model_scope": { "const": "analytical_optical_boundary_only" },
+        "hardware_readiness": { "const": "uncalibrated" },
+        "status": { "enum": ["pass", "blocked", "zero_input", "fail"] },
+        "status_reason": { "type": ["string", "null"] },
+        "detector_response_status": { "const": "not_evaluated" },
+        "detector_model": { "type": "string", "minLength": 1 },
+        "duplexer_type": {
+          "enum": ["ideal_circulator", "fiber_coupler", "free_space_beamsplitter"]
+        },
+        "return_power_transmission": { "type": "number", "minimum": 0.0, "maximum": 1.0 },
+        "source_power_w": { "type": "number", "minimum": 0.0 },
+        "power_on_target_w": { "type": ["number", "null"], "minimum": 0.0 },
+        "power_coupled_into_fiber_w": { "type": ["number", "null"], "minimum": 0.0 },
+        "power_lost_in_duplexer_w": { "type": ["number", "null"], "minimum": 0.0 },
+        "power_at_detector_input_w": { "type": ["number", "null"], "minimum": 0.0 },
+        "fiber_coupled_to_detector_input_link_loss_db": { "type": ["number", "null"], "minimum": 0.0 },
+        "target_to_detector_input_link_loss_db": { "type": ["number", "null"], "minimum": 0.0 },
+        "source_to_detector_input_round_trip_link_loss_db": { "type": ["number", "null"], "minimum": 0.0 },
+        "field_at_fiber_output_sqrt_w": { "type": "null" },
+        "field_at_detector_input_sqrt_w": { "type": "null" },
+        "coherent_field_status": { "const": "not_provided" },
+        "field_usable_for_coherent_propagation": { "const": false },
+        "power_ledger": {
+          "type": "array",
+          "maxItems": 1,
+          "items": { "$ref": "#/$defs/detectorBoundaryLedgerEntry" }
+        },
+        "maximum_energy_residual_w": { "type": ["number", "null"], "minimum": 0.0 },
+        "energy_tolerance_w": { "type": ["number", "null"], "exclusiveMinimum": 0.0 },
+        "energy_check_status": { "enum": ["pass", "fail", "not_evaluated"] },
+        "assumptions": { "$ref": "#/$defs/stringArray" },
+        "warnings": { "$ref": "#/$defs/stringArray" }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": { "status": { "const": "pass" } },
+            "required": ["status"]
+          },
+          "then": {
+            "properties": {
+              "return_power_transmission": { "type": "number", "exclusiveMinimum": 0.0, "maximum": 1.0 },
+              "power_on_target_w": { "type": "number", "exclusiveMinimum": 0.0 },
+              "power_coupled_into_fiber_w": { "type": "number", "exclusiveMinimum": 0.0 },
+              "power_lost_in_duplexer_w": { "type": "number", "minimum": 0.0 },
+              "power_at_detector_input_w": { "type": "number", "exclusiveMinimum": 0.0 },
+              "fiber_coupled_to_detector_input_link_loss_db": { "type": "number", "minimum": 0.0 },
+              "target_to_detector_input_link_loss_db": { "type": "number", "minimum": 0.0 },
+              "source_to_detector_input_round_trip_link_loss_db": { "type": "number", "minimum": 0.0 },
+              "power_ledger": {
+                "minItems": 1,
+                "maxItems": 1,
+                "items": { "properties": { "status": { "const": "applied" } } }
+              },
+              "maximum_energy_residual_w": { "type": "number", "minimum": 0.0 },
+              "energy_tolerance_w": { "type": "number", "exclusiveMinimum": 0.0 },
+              "energy_check_status": { "const": "pass" }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": { "status": { "const": "blocked" } },
+            "required": ["status"]
+          },
+          "then": {
+            "properties": {
+              "return_power_transmission": { "const": 0.0 },
+              "power_coupled_into_fiber_w": { "type": "number", "exclusiveMinimum": 0.0 },
+              "power_lost_in_duplexer_w": { "type": "number", "exclusiveMinimum": 0.0 },
+              "power_at_detector_input_w": { "const": 0.0 },
+              "fiber_coupled_to_detector_input_link_loss_db": { "type": "null" },
+              "target_to_detector_input_link_loss_db": { "type": "null" },
+              "source_to_detector_input_round_trip_link_loss_db": { "type": "null" },
+              "power_ledger": {
+                "minItems": 1,
+                "maxItems": 1,
+                "items": { "properties": { "status": { "const": "blocked" } } }
+              },
+              "maximum_energy_residual_w": { "type": "number", "minimum": 0.0 },
+              "energy_tolerance_w": { "type": "number", "exclusiveMinimum": 0.0 },
+              "energy_check_status": { "const": "pass" }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": { "status": { "const": "zero_input" } },
+            "required": ["status"]
+          },
+          "then": {
+            "properties": {
+              "power_coupled_into_fiber_w": { "const": 0.0 },
+              "power_lost_in_duplexer_w": { "const": 0.0 },
+              "power_at_detector_input_w": { "const": 0.0 },
+              "fiber_coupled_to_detector_input_link_loss_db": { "type": "null" },
+              "target_to_detector_input_link_loss_db": { "type": "null" },
+              "source_to_detector_input_round_trip_link_loss_db": { "type": "null" },
+              "power_ledger": {
+                "minItems": 1,
+                "maxItems": 1,
+                "items": { "properties": { "status": { "const": "zero_input" } } }
+              },
+              "maximum_energy_residual_w": { "type": "number", "minimum": 0.0 },
+              "energy_tolerance_w": { "type": "number", "exclusiveMinimum": 0.0 },
+              "energy_check_status": { "const": "pass" }
+            }
+          }
+        }
+      ]
+    },
     "reciprocalReturnSection": {
       "type": "object",
       "additionalProperties": false,
@@ -1909,6 +2232,8 @@
         "fiber_coupling_status_reason",
         "fiber_coupling",
         "detector_status",
+        "detector_status_reason",
+        "detector_boundary",
         "assumptions",
         "warnings"
       ],
@@ -1959,10 +2284,90 @@
             { "$ref": "#/$defs/fiberCouplingSection" }
           ]
         },
-        "detector_status": { "const": "not_evaluated" },
+        "detector_status": {
+          "enum": ["pass", "blocked", "zero_input", "not_evaluated", "fail"]
+        },
+        "detector_status_reason": { "type": ["string", "null"] },
+        "detector_boundary": {
+          "oneOf": [
+            { "type": "null" },
+            { "$ref": "#/$defs/detectorBoundarySection" }
+          ]
+        },
         "assumptions": { "$ref": "#/$defs/stringArray" },
         "warnings": { "$ref": "#/$defs/stringArray" }
-      }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": { "detector_status": { "const": "not_evaluated" } },
+            "required": ["detector_status"]
+          },
+          "then": {
+            "properties": { "detector_boundary": { "type": "null" } }
+          }
+        },
+        {
+          "if": {
+            "properties": { "detector_status": { "const": "pass" } },
+            "required": ["detector_status"]
+          },
+          "then": {
+            "properties": {
+              "detector_boundary": {
+                "type": "object",
+                "properties": { "status": { "const": "pass" } },
+                "required": ["status"]
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": { "detector_status": { "const": "blocked" } },
+            "required": ["detector_status"]
+          },
+          "then": {
+            "properties": {
+              "detector_boundary": {
+                "type": "object",
+                "properties": { "status": { "const": "blocked" } },
+                "required": ["status"]
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": { "detector_status": { "const": "zero_input" } },
+            "required": ["detector_status"]
+          },
+          "then": {
+            "properties": {
+              "detector_boundary": {
+                "type": "object",
+                "properties": { "status": { "const": "zero_input" } },
+                "required": ["status"]
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": { "detector_status": { "const": "fail" } },
+            "required": ["detector_status"]
+          },
+          "then": {
+            "properties": {
+              "detector_boundary": {
+                "type": "object",
+                "properties": { "status": { "const": "fail" } },
+                "required": ["status"]
+              }
+            }
+          }
+        }
+      ]
     },
     "qCheck": {
       "type": "object",
@@ -2190,6 +2595,34 @@
         "message": { "type": "string" }
       }
     },
+    "detectorBoundaryCheck": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "detector_input_status",
+        "energy_check_status",
+        "maximum_energy_residual_w",
+        "energy_tolerance_w",
+        "coherent_field_status",
+        "field_usable_for_coherent_propagation",
+        "detector_response_status",
+        "message"
+      ],
+      "properties": {
+        "status": { "enum": ["pass", "warning", "fail", "not_evaluated"] },
+        "detector_input_status": {
+          "enum": ["pass", "blocked", "zero_input", "not_evaluated", "fail"]
+        },
+        "energy_check_status": { "enum": ["pass", "fail", "not_evaluated"] },
+        "maximum_energy_residual_w": { "type": ["number", "null"], "minimum": 0.0 },
+        "energy_tolerance_w": { "type": ["number", "null"], "exclusiveMinimum": 0.0 },
+        "coherent_field_status": { "const": "not_provided" },
+        "field_usable_for_coherent_propagation": { "const": false },
+        "detector_response_status": { "const": "not_evaluated" },
+        "message": { "type": "string" }
+      }
+    },
     "stlClosestHitCheck": {
       "type": "object",
       "additionalProperties": false,
@@ -2227,6 +2660,7 @@
         "reciprocal_return",
         "reciprocal_return_power",
         "fiber_coupling",
+        "detector_boundary",
         "external_validation_status"
       ],
       "properties": {
@@ -2241,6 +2675,7 @@
         "reciprocal_return": { "$ref": "#/$defs/reciprocalReturnCheck" },
         "reciprocal_return_power": { "$ref": "#/$defs/reciprocalReturnPowerCheck" },
         "fiber_coupling": { "$ref": "#/$defs/fiberCouplingCheck" },
+        "detector_boundary": { "$ref": "#/$defs/detectorBoundaryCheck" },
         "external_validation_status": { "const": "not_evaluated" }
       }
     }

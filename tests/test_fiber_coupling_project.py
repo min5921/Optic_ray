@@ -317,7 +317,7 @@ def test_legacy_single_mode_overlap_name_is_accepted_with_warning(
     assert report.reciprocal_return["fiber_coupling_status"] == "pass"
 
 
-def test_phase2_v5_fiber_coupling_schema_round_trip(project_root: Path) -> None:
+def test_phase2_v6_fiber_coupling_schema_round_trip(project_root: Path) -> None:
     report = build_phase2_optical_train_report(
         load_project(project_root / "configs" / "project.yaml")
     )
@@ -328,8 +328,8 @@ def test_phase2_v5_fiber_coupling_schema_round_trip(project_root: Path) -> None:
     SchemaStore.load(project_root / "schemas").validate(
         payload,
         "phase2_optical_train_report.schema.json",
-        source="R3 Phase 2 v5 round-trip",
+        source="R3 Phase 2 v6 round-trip",
     )
-    assert payload["schema_version"] == 5
+    assert payload["schema_version"] == 6
     assert payload["summary"]["fiber_coupling_efficiency"] == pytest.approx(1.0)
     assert payload["analytical_checks"]["fiber_coupling"]["status"] == "pass"

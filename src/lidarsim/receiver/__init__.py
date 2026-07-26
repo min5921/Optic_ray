@@ -11,6 +11,15 @@ from .fiber_coupling_project import (
     ProjectFiberCoupling,
     evaluate_project_fiber_coupling,
 )
+from .detector_boundary import (
+    DetectorBoundaryPowerLedgerEntry,
+    DetectorInputBoundaryResult,
+    apply_duplexer_detector_boundary,
+)
+from .detector_boundary_project import (
+    ProjectDetectorBoundary,
+    evaluate_project_detector_boundary,
+)
 from .reciprocal import (
     ReciprocalCenterRayResult,
     ReciprocalClosureResidual,
@@ -41,10 +50,13 @@ __all__ = [
     "ProjectReciprocalReturn",
     "ProjectReciprocalReturnPower",
     "ProjectFiberCoupling",
+    "ProjectDetectorBoundary",
     "RECIPROCAL_ARCHITECTURE",
     "ReceiverReturn",
     "FiberCouplingResult",
     "FiberCouplingLedgerEntry",
+    "DetectorBoundaryPowerLedgerEntry",
+    "DetectorInputBoundaryResult",
     "GaussianModeAtPlane",
     "ReciprocalReturnPowerResult",
     "ReturnPowerLedgerEntry",
@@ -54,6 +66,8 @@ __all__ = [
     "evaluate_project_reciprocal_return",
     "evaluate_project_reciprocal_return_power",
     "evaluate_project_fiber_coupling",
+    "evaluate_project_detector_boundary",
+    "apply_duplexer_detector_boundary",
     "estimate_reciprocal_return_power",
     "estimate_single_mode_fiber_coupling",
     "reverse_ideal_thin_lens_center_ray",

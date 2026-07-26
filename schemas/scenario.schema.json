@@ -255,7 +255,7 @@
             "return_power_transmission": { "type": "number", "minimum": 0.0, "maximum": 1.0 }
           }
         },
-        "detector_model": { "type": ["string", "null"] }
+        "detector_model": { "type": ["string", "null"], "minLength": 1 }
       }
     },
     "simulation": {

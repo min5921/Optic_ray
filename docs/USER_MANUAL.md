@@ -26,7 +26,7 @@
 
 Phase 0·0.1과 Phase 1 Gaussian Beam Engine이 완료되었다. `lidarsim validate`는 project/scenario/experiment/catalog YAML을 검사하고 단위, 물리 범위, wavelength validity와 참조·배치를 검증한다. `placement`, `inspect-mesh`, `inspect-measurement`, `report`, `view`, `review`로 배치와 입력 contract를 확인할 수 있다. `lidarsim beam`은 active source의 point·elliptical·line Gaussian을 NumPy/float64로 자유공간 전파하고 radius, divergence, q-parameter, second moment와 power-normalized irradiance를 YAML/PNG로 저장한다. Numerical check와 실제 장비 calibration을 구분해 confidence, provenance, paraxial validity와 hardware readiness를 함께 표시한다.
 
-Phase 2의 vertical slice로 `lidarsim optical-train`이 추가되었다. 이 명령은 source에서 ideal thin-lens collimator를 거쳐 scanner mirror에서 정지 반사되고, rectangle-plane target footprint와 첫 Lambertian virtual-aperture estimate까지 계산한다. Phase 2.4-R1은 nearest-visible target hit에서 동일 scanner mirror·collimator·source fiber reference plane으로 되돌아가는 center-ray geometry와 closure residual을, R2는 같은 실제 geometry를 Gate로 사용하는 rectangle-plane Lambertian small-footprint scalar return-power ledger를 추가했다. R3는 catalog MFD, R1 actual lateral/angular residual과 사용자가 지정한 정렬 offset으로 `gaussian_alignment_proxy` 효율 및 coupled fiber power를 계산한다. 이 값은 diffuse-return upper-bound/reference이며 calibrated hardware prediction 또는 coherent output이 아니다. Phase 4.1-M1의 STL target은 CPU/float64 center-ray closest-hit geometry만 제공하며 STL footprint/radiometry와 R3 coupling은 `not_evaluated`다. 현재 static scanner pose와 Phase 3 reference helper를 통해 angle·ideal forward-line sample별 target 결과를 비교할 수 있지만 dynamic lag, jitter, bidirectional return stroke와 calibration table은 아직 적용하지 않는다. Duplexer/detector, beam footprint 면적별 STL occlusion, non-Lambertian BRDF/BSDF, detector noise, speckle와 coherent FMCW도 아직 구현되지 않았다.
+Phase 2의 vertical slice로 `lidarsim optical-train`이 추가되었다. 이 명령은 source에서 ideal thin-lens collimator를 거쳐 scanner mirror에서 정지 반사되고, rectangle-plane target footprint와 첫 Lambertian virtual-aperture estimate까지 계산한다. Phase 2.4-R1은 nearest-visible target hit에서 동일 scanner mirror·collimator·source fiber reference plane으로 되돌아가는 center-ray geometry와 closure residual을, R2는 같은 실제 geometry를 Gate로 사용하는 rectangle-plane Lambertian small-footprint scalar return-power ledger를 추가했다. R3는 catalog MFD와 actual/configured 정렬 offset으로 `gaussian_alignment_proxy` coupled power를 계산하고, R4는 configured passive duplexer transmission 뒤 detector optical input boundary까지 연결한다. R3/R4 값은 diffuse-return analytical upper-bound/reference이며 calibrated hardware prediction 또는 coherent output이 아니다. Phase 4.1-M1의 STL target은 CPU/float64 center-ray closest-hit geometry만 제공하며 STL footprint/radiometry와 R3/R4는 `not_evaluated`다. 현재 static scanner pose와 Phase 3 reference helper를 통해 angle·ideal forward-line sample별 target 결과를 비교할 수 있지만 dynamic lag, jitter, bidirectional return stroke와 calibration table은 아직 적용하지 않는다. Detector responsivity, photocurrent, noise, saturation, coherent mixing/FMCW, beam footprint 면적별 STL occlusion과 non-Lambertian BRDF/BSDF도 아직 구현되지 않았다.
 
 ## 3. 주요 파일 위치
 
@@ -647,7 +647,7 @@ receiver:
 
 `virtual_monostatic/virtual_aperture` 계산은 실제 동일 scanner·collimator 역경로의 power ledger, single-mode fiber mode coupling, duplexer와 detector를 생략한 분석용 aperture다. 기존 field `estimated_received_power_w`, 명시적인 `power_at_virtual_aperture_w`와 화면의 `Virtual aperture estimate`는 이 가상 plane의 같은 값이며 fiber에 결합되는 power가 아니다.
 
-현재 `lidarsim optical-train`은 rectangle-plane target hit가 있을 때 virtual-aperture 회귀값, R1 reciprocal center-ray geometry, R2 return-power ledger와 R3 Gaussian alignment proxy를 함께 계산한다. Virtual-aperture 결과는 임의 aperture가 차지하는 solid angle에 기반한 별도 회귀값이다. R2는 configured target가 nearest-visible contributing rectangle이고 R1 actual target hit가 footprint center와 tolerance 안에서 일치할 때만 target→same scanner→same collimator→fiber reference plane의 scalar power를 전달한다. R3는 이 power를 input으로 사용하되 diffuse Lambertian 반환광 전체를 deterministic Gaussian mode로 둔 optimistic upper-bound/reference이므로 실제 공간 mode decomposition이나 calibrated hardware prediction으로 해석하지 않는다.
+현재 `lidarsim optical-train`은 rectangle-plane target hit가 있을 때 virtual-aperture 회귀값과 R1~R4 reciprocal 결과를 함께 계산한다. Virtual-aperture 결과는 임의 aperture가 차지하는 solid angle에 기반한 별도 회귀값이다. R2는 configured target가 nearest-visible contributing rectangle이고 R1 actual target hit가 footprint center와 tolerance 안에서 일치할 때만 target→same scanner→same collimator→fiber reference plane의 scalar power를 전달한다. R3는 이 power를 input으로 사용하되 diffuse Lambertian 반환광 전체를 deterministic Gaussian mode로 둔 optimistic upper-bound/reference다. R4는 R3 coupled power에 passive duplexer transmission만 적용해 detector optical input boundary에서 종료한다. 따라서 R3/R4를 실제 공간 mode decomposition, calibrated hardware prediction 또는 detector 신호로 해석하지 않는다.
 
 이 프로젝트에서 목표로 하는 실제 수신 구조는 다음과 같다.
 
@@ -680,7 +680,7 @@ receiver:
   detector_model: none
 ```
 
-`fiber_coupling` 설정은 R3 계산에 적용된다. `mode_field_source: component_catalog`는 `fiber_element_id`가 참조하는 catalog component의 `mode_field_diameter_m`과 `gaussian_1e2_intensity` 정의를 사용한다. `lateral_offset_m`, `angular_offset_rad`는 R1 actual residual에 더해지는 receive-frame x/y 정렬 offset이며, 계산 결과 model은 설정 이름과 구분되는 `gaussian_alignment_proxy`다. `duplexer`는 R4용 설정으로 아직 detector power에 적용되지 않으므로 `detector_status`는 `not_evaluated`다.
+`fiber_coupling` 설정은 R3 계산에 적용된다. `mode_field_source: component_catalog`는 `fiber_element_id`가 참조하는 catalog component의 `mode_field_diameter_m`과 `gaussian_1e2_intensity` 정의를 사용한다. `lateral_offset_m`, `angular_offset_rad`는 R1 actual residual에 더해지는 receive-frame x/y 정렬 offset이며, 계산 결과 model은 설정 이름과 구분되는 `gaussian_alignment_proxy`다. R4는 `duplexer.type`과 `return_power_transmission`을 R3 coupled power에 적용한다. `detector_model`은 현재 경계 metadata일 뿐 detector response model을 실행하지 않는다.
 
 실행 후 `optical_train_report.yaml`에서 다음 항목을 확인한다.
 
@@ -694,11 +694,16 @@ receiver:
 - `summary.target_to_fiber_plane_link_loss_db`: target power에서 fiber reference plane까지의 R2 loss
 - `summary.fiber_coupling_efficiency`, `power_coupled_into_fiber_w`: R3 overlap 효율과 결합 파워
 - `summary.target_to_fiber_coupled_link_loss_db`: target power에서 coupled fiber mode까지의 loss
+- `reciprocal_return.detector_boundary`: R4 passive duplexer와 detector optical input boundary ledger
+- `summary.power_at_detector_input_w`: detector response 이전의 optical input power
+- `summary.fiber_coupled_to_detector_input_link_loss_db`: coupled fiber output→detector input loss
+- `summary.target_to_detector_input_link_loss_db`: target→detector optical input loss
+- `summary.source_to_detector_input_round_trip_link_loss_db`: resolved source power→detector input round-trip loss
 - `receiver_return.power_at_virtual_aperture_w`: R1/R2와 분리된 기존 회귀 중간값
 
-`workspace`, `dashboard`와 Streamlit UI는 actual return segment를 송신 ray와 다른 style로 표시한다. R2가 평가되면 target→mirror, mirror→collimator, collimator→fiber 구간에 각각 해당 plane power를 표시한다. R3 값은 fiber reference point metadata와 별도 metric/표로 표시하며 coupled power를 새로운 ray power로 가장하지 않는다. 계산된 0 W는 `0.0`, unsupported/not-evaluated power만 `null`이며, miss가 발생하면 실제 종료점 뒤의 segment를 만들지 않는다. Return beam radius는 아직 계산하지 않아 `null`이다.
+`workspace`, `dashboard`와 Streamlit UI는 actual return segment를 송신 ray와 다른 style로 표시한다. R2가 평가되면 target→mirror, mirror→collimator, collimator→fiber 구간에 각각 해당 plane power를 표시한다. R3/R4 값은 fiber reference point metadata와 별도 metric/표로 표시하며 coupled 또는 detector-boundary power를 새로운 공간 ray power로 가장하지 않는다. 계산된 0 W는 `0.0`, unsupported/not-evaluated power만 `null`이며, miss가 발생하면 실제 종료점 뒤의 segment를 만들지 않는다. Return beam radius는 아직 계산하지 않아 `null`이다.
 
-R3의 normalized field overlap은 mode-shape 진단값이다. Radiometric Lambertian adapter는 입력 coherent field가 없으므로 `coherent_field_status: not_provided`, `coupled_field_amplitude_sqrt_w: null`, `field_usable_for_coherent_propagation: false`를 보고한다. 임의의 zero/reference phase를 붙여 coherent FMCW 경계로 전달하면 안 된다. 자세한 구현 contract, output plane과 검증 항목은 [`specs/RECIPROCAL_FIBER_RETURN.md`](specs/RECIPROCAL_FIBER_RETURN.md)를 따른다.
+R3의 normalized field overlap은 mode-shape 진단값이다. Radiometric Lambertian adapter는 입력 coherent field가 없으므로 R3/R4 field를 모두 `null`, `coherent_field_status: not_provided`, `field_usable_for_coherent_propagation: false`로 보고한다. 임의의 zero/reference phase를 붙여 coherent FMCW 경계로 전달하면 안 된다. R4의 `detector_response_status: not_evaluated`는 optical boundary power가 계산되어도 photocurrent나 신호가 계산되지 않았다는 뜻이다. 자세한 구현 contract, output plane과 검증 항목은 [`specs/RECIPROCAL_FIBER_RETURN.md`](specs/RECIPROCAL_FIBER_RETURN.md)를 따른다.
 
 향후 변경 가능한 항목:
 
@@ -761,7 +766,7 @@ outputs:
 
 현재 `scan_path`는 `lidarsim scanner-path`로 생성되지만 ideal forward-line command reference다. Validator의 `reference_only` warning은 명령 실패가 아니라 실제 scanner dynamics·calibration이 포함되지 않았음을 뜻한다. 나머지 현재 지원 output은 각 전용 명령(`report`, `beam`, `optical-train`, `workspace`)에서 생성된다.
 
-현재 `received_aperture_power`와 기존 `link_budget`의 `estimated_received_power_w`는 `virtual_monostatic/virtual_aperture` plane까지의 analytical regression output이다. Reciprocal R2/R3 결과는 `reciprocal_return.return_power`와 `reciprocal_return.fiber_coupling`에서 return mirror, return collimator, fiber reference plane과 coupled mode를 분리한다. 기존 이름을 fiber-coupled power로 해석하지 않으며 detector input plane은 R4에서 추가한다.
+현재 `received_aperture_power`와 기존 `link_budget`의 `estimated_received_power_w`는 `virtual_monostatic/virtual_aperture` plane까지의 analytical regression output이다. Reciprocal R2~R4 결과는 `reciprocal_return.return_power`, `fiber_coupling`, `detector_boundary`에서 return mirror, collimator, fiber reference, coupled mode와 detector optical input plane을 분리한다. 기존 이름을 fiber-coupled 또는 detector power로 해석하지 않는다.
 
 ## 18. 여러 조건 비교
 
@@ -905,13 +910,13 @@ lidarsim scanner-sweep configs/project.yaml --angles-deg -5 0 5 --output results
 lidarsim scanner-path configs/project.yaml --samples 11 --output results/scanner_path.yaml
 ```
 
-`optical-train` 결과의 `optical_train.states`에는 source output부터 reflected output까지의 `BeamState`가 저장되고 forward `power_ledger`는 송신 aperture와 component loss를 기록한다. `target_footprints[]`에는 rectangle-plane 후보와 nearest-visible 기여 power가, `stl_intersections[]`에는 geometry-only STL closest hit가 저장된다. `reciprocal_return.path`는 R1 actual hit/closure를, `reciprocal_return.return_power`는 R2의 독립 scalar ledger를, `reciprocal_return.fiber_coupling`은 R3 alignment proxy와 독립 coupling ledger를 기록한다. R2는 target radiance의 emission cosine과 projected mirror-area cosine을 각각 한 번 적용하며, R1 center-ray aperture pass/miss만 1/0 Gate로 사용한다. Forward Gaussian aperture clipping fraction은 diffuse return에 재사용하지 않는다. Baseline은 `P_on_target ≈ 9.99997 mW`, `P_return_mirror ≈ P_fiber_plane ≈ P_coupled ≈ 1.80063 nW`, `eta_fiber ≈ 1`, target→coupled-fiber loss `≈ 67.4457 dB`이고, 별도 virtual aperture regression은 `≈ 2.49999 nW`다. 이 R3 값은 diffuse-return Gaussian upper-bound/reference다. STL full footprint/radiometry/coupling, diffraction, non-Lambertian BRDF, detector power/noise와 coherent field sum은 계산하지 않는다.
+`optical-train` 결과의 `optical_train.states`에는 source output부터 reflected output까지의 `BeamState`가 저장되고 forward `power_ledger`는 송신 aperture와 component loss를 기록한다. `target_footprints[]`에는 rectangle-plane 후보와 nearest-visible 기여 power가, `stl_intersections[]`에는 geometry-only STL closest hit가 저장된다. `reciprocal_return.path`는 R1 actual hit/closure를, `return_power`는 R2 scalar ledger를, `fiber_coupling`은 R3 alignment proxy를, `detector_boundary`는 R4 passive duplexer ledger를 기록한다. Baseline은 `P_on_target ≈ 9.99997 mW`, `P_return_mirror ≈ P_fiber_plane ≈ P_coupled ≈ P_detector_input ≈ 1.80063 nW`, `eta_fiber ≈ 1`, source→detector loss `≈ 67.4457 dB`이고, 별도 virtual aperture regression은 `≈ 2.49999 nW`다. 이 R3/R4 값은 diffuse-return analytical upper-bound/reference다. STL full footprint/radiometry/coupling, diffraction, non-Lambertian BRDF, detector response/noise와 coherent field sum은 계산하지 않는다.
 
 `scanner-sweep` 결과는 단일 `optical-train` 결과를 angle별로 반복 실행한 요약이다. YAML의 `samples[]`에는 command angle, reflected/final direction, target hit 좌표, target local coordinate, target power, received power, receiver FOV status와 link loss가 들어간다. CSV는 같은 값을 spreadsheet에서 비교하기 위한 경량 table이다. PNG는 angle에 따른 target local hit 위치와 received power 추세를 보여준다. 이 명령은 baseline config를 수정하지 않으며, sample별 `scenario_config_hash`로 angle이 반영된 reference snapshot을 구분한다.
 
 `scanner-path` 결과는 `scanner-sweep`의 angle별 static reference를 시간 순서에 맞게 배열한 한 줄 scan report다. YAML의 `samples[]`에는 `time_s`, `line_position`, command angle과 각 sample의 target/receiver 결과가 들어간다. CSV는 같은 값을 table로 저장하고, PNG는 command angle, target hit 좌표, received power를 시간축에서 보여준다. 이 명령은 “ideal forward-line command path”만 구현하므로 실제 구동기의 lag나 calibration error를 포함하는 full scanner dynamics로 해석하지 않는다.
 
-`workspace`는 optical assembly workspace의 초기 viewer 명령이다. 현재 configuration과 Phase 2/R1/M1/R2/R3 report를 읽어 `schema_version: 2`의 strict `ViewportScene`을 만들고 저장 전에 `viewport_scene.schema.json`으로 검증한 뒤, 다음 요소를 3D PNG로 그린다.
+`workspace`는 optical assembly workspace의 초기 viewer 명령이다. 현재 configuration과 Phase 2/R1/M1/R2~R4 report를 읽어 `schema_version: 2`의 strict `ViewportScene`을 만들고 저장 전에 `viewport_scene.schema.json`으로 검증한 뒤, 다음 요소를 3D PNG로 그린다.
 
 - source, collimator, scanner mirror, target, receiver
 - component local frame
@@ -924,12 +929,13 @@ lidarsim scanner-path configs/project.yaml --samples 11 --output results/scanner
 - target footprint overlay
 - target→mirror→collimator→fiber actual return segment와 평가된 R2 plane power
 - fiber reference-point metadata의 R3 coupling model, 효율, power와 coherent-field status
+- 같은 point metadata의 R4 detector optical boundary status, power와 loss
 - sidecar world placement가 적용된 STL target mesh
 - STL closest-hit marker와 winding 기반 geometric normal
 
 `--write-scene`으로 저장되는 YAML은 Streamlit, Plotly, Three.js 또는 React frontend가 소비할 data contract다. STL mesh가 크면 viewer용 triangle을 deterministic하게 줄이되 report가 지정한 hit triangle은 유지한다. Miss에는 가짜 hit ray나 footprint를 그리지 않는다. Streamlit UI에서는 interactive Plotly 3D viewer, component 선택, guide toggle, numeric placement와 첫 `MirrorTargetMate` preview를 지원하지만, `workspace` CLI 명령 자체는 read-only다. Drag/rotate gizmo, undo/redo와 일반 constraint solver는 아직 구현하지 않았다. UI 변경값은 반드시 variant config로 저장되어 CLI에서 재현된다.
 
-`dashboard`는 현재 Phase 2/R1/R2/R3 simulation을 한 HTML에서 검토하기 위한 read-only dashboard 명령이다. 기본 실행은 다음 파일을 함께 만든다.
+`dashboard`는 현재 Phase 2/R1~R4 simulation을 한 HTML에서 검토하기 위한 read-only dashboard 명령이다. 기본 실행은 다음 파일을 함께 만든다.
 
 - `ui_dashboard.html`
 - `ui_dashboard_phase2_report.yaml`
@@ -937,7 +943,7 @@ lidarsim scanner-path configs/project.yaml --samples 11 --output results/scanner
 - `ui_dashboard_workspace.png`
 - `ui_dashboard_optical_train.png`
 
-Dashboard HTML에는 workspace 그림, optical train radius/power 그림, summary, forward power ledger, target footprint, virtual-aperture regression, R2 reciprocal return plane power/ledger, R3 coupling 효율·power·loss·field status, warning과 assumptions가 포함된다. 외부 server 없이 browser에서 열 수 있도록 PNG는 HTML 안에 base64로 포함한다. 이 파일은 계속 read-only 결과 viewer이며, parameter/placement 편집은 `lidarsim ui`에서 수행한다.
+Dashboard HTML에는 workspace 그림, optical train radius/power 그림, summary, forward power ledger, target footprint, virtual-aperture regression, R2 reciprocal return plane power/ledger, R3 coupling과 R4 detector optical input boundary power/loss/status, warning과 assumptions가 포함된다. 외부 server 없이 browser에서 열 수 있도록 PNG는 HTML 안에 base64로 포함한다. 이 파일은 계속 read-only 결과 viewer이며, parameter/placement 편집은 `lidarsim ui`에서 수행한다.
 
 `--include-scanner-path`를 추가하면 같은 dashboard에 ideal forward-line scanner path section을 포함한다. 이때 다음 파일도 함께 저장된다.
 

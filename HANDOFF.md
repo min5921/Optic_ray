@@ -23,9 +23,10 @@
 - Phase 4.1-M1 Gate를 완료했다. Binary/ASCII STL triangle을 immutable NumPy float64 geometry로 보존하고 sidecar의 명시적 unit scale과 world placement를 적용한 뒤, CPU Möller–Trumbore reference가 center ray의 nearest positive hit, barycentric coordinate, winding 기반 geometric normal, distance, triangle ID와 front/back face를 계산한다. Degenerate triangle은 hit 후보에서 제외하며 parallel/behind/self-hit/no-hit를 구분한다.
 - Phase 2.4-R2 Gate를 완료했다. Configured nearest-visible contributing `rectangle_plane` Lambertian footprint와 R1 actual target hit가 tolerance 안에서 일치할 때만 target→projected scanner mirror→collimator receive plane→fiber reference plane의 scalar power를 계산한다. R1 mirror/collimator aperture pass/miss와 fiber-plane intersection을 Gate로 사용하며 forward Gaussian clipping fraction은 diffuse return에 재사용하지 않는다.
 - Phase 2.4-R3 Gate를 완료했다. R2 `power_at_fiber_plane_w`, catalog MFD, R1 actual lateral/angular residual과 configured mismatch를 `gaussian_alignment_proxy`에 연결해 `fiber_coupling_efficiency`, `power_coupled_into_fiber_w`와 coupling ledger를 계산한다. Baseline은 `eta_fiber ≈ 1`, `P_coupled ≈ 1.80063 nW`, target→coupled-fiber loss `≈ 67.4457 dB`다.
+- Phase 2.4-R4 Gate를 완료했다. R3 `power_coupled_into_fiber_w`에 configured passive duplexer return transmission을 적용해 detector optical input boundary의 power와 fiber/target/source 기준 loss를 계산한다. Baseline ideal circulator에서는 `P_detector_input ≈ 1.80063 nW`, fiber→detector loss `0 dB`, source→detector round-trip loss `≈ 67.4457 dB`다. 이 경계는 analytical/uncalibrated이며 detector response나 coherent field가 아니다.
 - Scene target는 안정적인 `geometry.asset_ref`로 asset registry의 `asset_id`를 참조하는 방식을 권장한다. Legacy `metadata_file`은 project-root-relative 경로이며 registry의 정확히 한 sidecar와 일치할 때만 허용한다. Target role, sidecar/scenario material 일치와 `placement.parent_frame: world`를 semantic validation에서 확인한다.
-- Phase 2 report는 R3 계약 추가에 따라 strict `schema_version: 5`다. `reciprocal_return.path`의 R1 geometry, `return_power`의 R2 ledger와 `fiber_coupling`의 R3 alignment proxy를 분리하고 plane별 power, target-hit residual Gate, energy check와 상태를 명시한다. 기존 `estimated_received_power_w`/`power_at_virtual_aperture_w`는 계속 별도 virtual-aperture regression intermediate다.
-- `ViewportScene`과 Plotly/Matplotlib renderer는 return ray를 `propagation_role: return`으로 구분하고 target→mirror→collimator→fiber 실제 segment에 평가된 R2 plane power를 표시한다. R3 결합 결과는 새 ray/beam/field 없이 fiber reference-point residual guide metadata에만 표시한다. 계산된 0 W는 `0.0`, 미평가만 `null`이며 return beam radius는 아직 `null`이다. 종료된 경로는 실제 termination point까지만 표시한다.
+- Phase 2 report는 R4 계약 추가에 따라 strict `schema_version: 6`다. `reciprocal_return.path`의 R1 geometry, `return_power`의 R2 ledger, `fiber_coupling`의 R3 alignment proxy와 `detector_boundary`의 R4 passive boundary를 분리하고 plane별 power, target-hit residual Gate, energy check와 상태를 명시한다. 기존 `estimated_received_power_w`/`power_at_virtual_aperture_w`는 계속 별도 virtual-aperture regression intermediate다.
+- `ViewportScene`과 Plotly/Matplotlib renderer는 return ray를 `propagation_role: return`으로 구분하고 target→mirror→collimator→fiber 실제 segment에 평가된 R2 plane power를 표시한다. R3 coupling과 R4 detector boundary 결과는 새 component/ray/beam/field 없이 fiber reference-point residual guide metadata에만 표시한다. 계산된 0 W는 `0.0`, 미평가만 `null`이며 return beam radius는 아직 `null`이다. 종료된 경로는 실제 termination point까지만 표시한다.
 - `ViewportScene`은 M1 mesh/mesh-hit 계약 추가에 따라 `schema_version: 2`다. Plotly와 Matplotlib은 sidecar world transform이 적용된 STL mesh, 실제 closest-hit marker와 geometric-normal segment를 표시한다. 큰 mesh의 display decimation은 deterministic하며 보고된 hit triangle을 보존한다. STL miss에는 가짜 hit ray나 footprint를 만들지 않는다.
 - 프로젝트의 중심 범위는 catalog 기반 또는 사용자 정의 광학 부품의 3D 배치, 포인트·라인·면적 빔, collimator 광학계, 사용자 정의 scanner, target interaction과 receiver return 분석이다.
 - Draft v0.2에는 model fidelity contract, commercial component catalog, optical/CAD import, coordinate frame, rigid transform, optical port, placement constraint, structured result, visualization과 tolerance analysis가 포함된다.
@@ -47,7 +48,7 @@
 - `lidarsim view`는 component origin, port axis, optical path, mirror normal, declared scan limit, target plane, receiver FOV, return guide와 STL bounds를 full 3D scene 및 X-Z detail PNG로 렌더링한다.
 - `lidarsim review`는 placement PNG, hardware readiness, component/port, output 지원 상태, convergence와 경고를 self-contained HTML로 생성한다.
 - `lidarsim beam`은 active source를 불변 `BeamState`로 만들고 circular·elliptical·line Gaussian의 M² 기반 자유공간 radius, q-parameter, second moment와 power-normalized irradiance를 full report·compact summary·PNG로 생성한다.
-- `lidarsim optical-train` 또는 `lidarsim train`은 송신 optical train, target footprint, virtual-aperture regression, R1 reciprocal geometry, R2 return ledger와 R3 fiber coupling을 함께 생성한다. Baseline은 `P_on_target ≈ 9.99997 mW`, `P_return_mirror ≈ P_fiber_plane ≈ P_coupled ≈ 1.80063 nW`, `eta_fiber ≈ 1`, target→coupled-fiber loss `≈ 67.4457 dB`다. `P_virtual_ap ≈ 2.49999 nW`는 별도 회귀값이다. Duplexer/detector power는 아직 없다.
+- `lidarsim optical-train` 또는 `lidarsim train`은 송신 optical train, target footprint, virtual-aperture regression과 R1~R4 reciprocal 결과를 함께 생성한다. Baseline은 `P_on_target ≈ 9.99997 mW`, `P_return_mirror ≈ P_fiber_plane ≈ P_coupled ≈ P_detector_input ≈ 1.80063 nW`, `eta_fiber ≈ 1`, source→detector round-trip loss `≈ 67.4457 dB`다. `P_virtual_ap ≈ 2.49999 nW`는 별도 회귀값이다. Detector responsivity, photocurrent, noise, saturation과 coherent field는 아직 계산하지 않는다.
 - Fiber MFD definition과 Gaussian approximation, catalog nominal match/explicit override, small-angle paraxial proxy, confidence·calibration·provenance를 검증·보고한다.
 - Power audit은 analytical tail truncation, base/refined grid quadrature와 grid convergence를 분리하며 second-moment 비교는 internal consistency로만 표시한다.
 - CLI distance는 `20 mm` 같은 단위 포함 값을 받고 기본 결과는 timestamp run directory에 저장해 덮어쓰지 않는다.
@@ -56,7 +57,7 @@
 - Local `.venv`는 `pyproject.toml`에서 `dev,ui` optional dependency까지 설치되어 있다. 최신 단계별 검증 수는 아래 검증 기록을 따른다.
 - 사용자 친화적인 로컬 simulation dashboard와 SolidWorks-like Optical Assembly Workspace 개발 방향은 `docs/UI_SIMULATION_DASHBOARD.md`에 분리해 정리했다.
 - UI MVP 0의 첫 vertical slice로 `ViewportScene` data contract, source/collimator/scanner mirror/target/receiver 표시 data, local frame, port axis, mirror normal, reflected ray, target plane, receiver FOV, beam path, target hit ray, footprint overlay와 headless Matplotlib 3D workspace PNG renderer가 구현되었다.
-- `lidarsim workspace configs/project.yaml --output results/ui_workspace.png --write-scene results/ui_workspace_scene.yaml`로 현재 Phase 2/R1/R2/R3 static simulation을 optical assembly workspace용 PNG와 YAML scene으로 확인할 수 있다.
+- `lidarsim workspace configs/project.yaml --output results/ui_workspace.png --write-scene results/ui_workspace_scene.yaml`로 현재 Phase 2/R1~R4 static simulation을 optical assembly workspace용 PNG와 YAML scene으로 확인할 수 있다. R4는 fiber 뒤 비공간 optical boundary metadata이며 가짜 detector geometry를 만들지 않는다.
 - UI MVP 0의 read-only dashboard 조각으로 `lidarsim dashboard configs/project.yaml --output results/ui_dashboard.html` 명령이 구현되었다. 추가 dependency 없이 Phase 2 report YAML, `ViewportScene` YAML, workspace PNG, optical train PNG와 self-contained dashboard HTML을 생성한다.
 - Numeric placement editor의 첫 CLI helper로 `lidarsim placement-variant`가 구현되었다. Absolute placement의 `translation_m/quaternion_wxyz`, port placement의 `axial_gap_m/transverse_offset_m/clocking_rad/angular_misalignment_rad`를 baseline을 덮어쓰지 않고 variant scenario/project YAML로 저장한다.
 - Phase 3의 첫 static scanner command angle slice가 진행되어 `scanner.static_command_angle_rad`가 mirror normal과 aperture axes에 적용된다. Reflected ray, target hit, footprint와 receiver return이 static command angle에 따라 바뀌며 `workspace`/`dashboard`에는 report 기반으로 반영된다.
@@ -73,7 +74,7 @@
 - UI 편집값이 3D에 반영되지 않은 것처럼 보이던 UX를 수정했다. Inspector 상단에 `변경값 반영 · 시뮬레이션` action과 pending/applied 상태를 표시하고, active config hash가 바뀌면 cached `UiSimulationRun`을 자동 갱신한다.
 - UI에서 같은 Scenario ID를 반복 적용할 때 기존 `configs/ui_runs` 작업 variant 때문에 실패하던 문제를 수정했다. 작업 variant 덮어쓰기는 기본으로 켜져 있고 기존 파일이 있으면 보존 방법을 안내하며, baseline config는 계속 수정하지 않는다.
 - 3D UI에 기본 `광학 헤드 확대`, `전체 광로`, `선택 부품 확대` view range를 추가했다. 10 m target 때문에 겹치던 source·collimator·scanner mirror를 근거리 동일 축척, component label과 확대 marker로 확인할 수 있다. Scanner static angle은 실제 기계각으로 명시하고 rotation-axis X/Y/Z는 고급 단위벡터 설정으로 분리했으며 non-unit 입력은 저장 시 명시적으로 정규화한다.
-- UI-S, reciprocal R1, CPU STL closest-hit M1, R2 return ledger와 R3 fiber coupling 검수 이슈를 닫았다. 현재 활성 Gate는 R4 duplexer/detector boundary다. STL full Gaussian footprint/radiometry, BVH, footprint-area occlusion, multi-bounce와 coherent scatterer map도 후속 범위다.
+- UI-S, reciprocal R1, CPU STL closest-hit M1과 R2~R4 검수 이슈를 닫았다. 현재 활성 Gate는 Phase 2.4 전체 최종 감사와 보완 보고서다. STL full Gaussian footprint/radiometry, BVH, footprint-area occlusion, multi-bounce와 coherent scatterer map도 후속 범위다.
 - `configs/ui_runs/baseline_1550nm_ui_variant*.yaml` 두 파일은 사용자 생성 미추적 작업물이므로 보존한다. 현재 `[10, 10, 0]` scanner rotation axis는 10 degree가 아니라 정규화 후 X-Y 대각 방향축이므로 사용자 의도를 확인하기 전에는 자동 교정하거나 커밋하지 않는다.
 
 ## 유지할 결정 사항
@@ -92,9 +93,17 @@
 
 ## 가장 좋은 다음 작업
 
-추천 1순위는 `Phase 2.4-R4`에서 R3 `power_coupled_into_fiber_w`를 configured circulator/coupler transmission과 detector input boundary에 연결하는 것이다. 0 transmission을 유효한 0 W로 보존하고 detector input power/ledger를 추가하되, radiometric R3의 임의 기준 위상을 coherent field로 전달하지 않는다.
+추천 1순위는 Phase 2.4-R1~R4 전체 결과를 다시 검수해 geometry·power·schema·UI 계약 간 불일치와 calibrated hardware로 가기 전에 보완할 항목을 우선순위화한 최종 감사 보고서를 작성하는 것이다. R4는 detector optical input boundary에서 의도적으로 끝나므로 responsivity·photocurrent·noise·saturation·coherent FMCW를 완료된 기능으로 오해하지 않도록 한다.
 
 ## 검증 기록
+
+- 2026-07-27 Phase 2.4-R4 checkpoint: R3 coupled power에 configured passive duplexer transmission을 적용하는 detector optical input boundary, 독립 power ledger, strict Phase 2 report schema v6와 CLI/Streamlit/dashboard/Viewport metadata를 구현했다.
+- Baseline은 `P_detector_input=1.8006278445836738e-09 W`, fiber→detector loss `0 dB`, target→detector loss `67.44574883534182 dB`, source→detector round-trip loss `67.44576038288172 dB`다. `detector_response_status: not_evaluated`, R4 field `null`, `coherent_field_status: not_provided`를 유지한다.
+- R4 core/report/UI/CLI focused suite `tests/test_detector_boundary.py tests/test_detector_boundary_project.py tests/test_reciprocal_project.py tests/test_fiber_coupling_project.py tests/test_return_power_project.py tests/test_optical_train.py tests/test_stl_project.py tests/test_ui_app.py tests/test_ui_workspace.py tests/test_cli.py`: normal/strict 모두 통과, 각각 `150 passed`.
+- R4 최종 전체 suite `python -m pytest -q`: 통과, `360 passed in 43.44s`. `python -W error::DeprecationWarning -W error::UserWarning -m pytest -q`: 통과, `360 passed in 42.60s`.
+- 독립 감사에서 발견한 cross-project R3 power 재사용의 source passive-bound 허점과 R4 status/result schema 종속성을 보강했다. 0 W·tiny source보다 큰 coupled power는 `fail/null`로 종료하고, summary↔reciprocal↔nested status 불일치와 `pass` 상태의 null power·empty ledger 변조 report를 schema v6가 거부한다.
+- `python -m lidarsim.cli validate configs/project.yaml`, `optical-train`, `workspace --write-scene`와 `dashboard` smoke: 모두 통과. Report의 detector status와 summary가 일치하고 계산된 0 dB가 보존되며, Viewport는 기존 5개 component와 6개 ray를 유지한 채 fiber residual guide 하나에만 R4 metadata를 추가함을 확인했다.
+- R4는 passive optical boundary의 analytical/uncalibrated reference다. Detector responsivity, photocurrent, noise, saturation, coherent mixing/FMCW와 별도 공간 detector geometry는 구현하지 않았다. 다음 Gate는 Phase 2.4 전체 최종 감사와 보완 보고서다.
 
 - 2026-07-27 Phase 2.4-R3 checkpoint: catalog MFD와 actual/configured 정렬 mismatch를 사용하는 `gaussian_alignment_proxy`, coupling energy ledger, strict Phase 2 report schema v5와 CLI/Streamlit/dashboard/Viewport fiber-point 표시를 구현했다.
 - Baseline은 `eta_fiber=1`, `P_coupled=1.80062784e-09 W`, target→coupled-fiber loss `67.4457488 dB`다. `P_virtual_ap=2.49999335e-09 W`와 R2 `P_fiber_plane=1.80062784e-09 W`는 각각 별도 plane 값이다.

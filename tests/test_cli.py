@@ -412,6 +412,12 @@ def test_optical_train_command_writes_schema_validated_report_and_plot(
     assert "eta_fiber=" in output.out
     assert "P_coupled=" in output.out
     assert "target_to_fiber_coupled_loss_db=" in output.out
+    assert "Detector optical boundary (" in output.out
+    assert "detector_response=" in output.out
+    assert "P_detector_input=" in output.out
+    assert "fiber_to_detector_loss_db=" in output.out
+    assert "target_to_detector_loss_db=" in output.out
+    assert "source_to_detector_round_trip_loss_db=" in output.out
     assert "unsupported=0" in output.out
 
 
@@ -498,10 +504,13 @@ def test_dashboard_command_writes_self_contained_workspace_html(
     assert "P_return_mirror=" in output.out
     assert "P_fiber_plane=" in output.out
     assert "P_coupled=" in output.out
+    assert "P_detector_input=" in output.out
     assert "Reciprocal return power — Phase 2.4-R2" in document
     assert "Single-mode fiber coupling — Phase 2.4-R3" in document
     assert "gaussian_alignment_proxy" in document
     assert "coherent output" in document
+    assert "Detector optical input boundary — Phase 2.4-R4" in document
+    assert "detector response" in document.lower()
 
 
 def test_dashboard_command_can_embed_scanner_path(

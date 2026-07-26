@@ -11,11 +11,13 @@ from lidarsim import __version__
 from lidarsim.config.immutable import deep_thaw
 from lidarsim.optics import ABCDMatrix, OpticalTrainResult, propagate_transmitter_train
 from lidarsim.receiver import (
+    ProjectDetectorBoundary,
     ProjectFiberCoupling,
     ProjectReciprocalReturn,
     ProjectReciprocalReturnPower,
     ReceiverReturn,
     estimate_lambertian_receiver_return,
+    evaluate_project_detector_boundary,
     evaluate_project_fiber_coupling,
     evaluate_project_reciprocal_return,
     evaluate_project_reciprocal_return_power,
@@ -50,7 +52,7 @@ class Phase2OpticalTrainReport:
 
     def to_dict(self) -> dict[str, Any]:
         return {
-            "schema_version": 5,
+            "schema_version": 6,
             "report_type": "phase2_optical_train",
             "manifest": deep_thaw(self.manifest),
             "summary": deep_thaw(self.summary),
@@ -511,10 +513,49 @@ def _fiber_coupling_check(result: ProjectFiberCoupling) -> dict[str, Any]:
     }
 
 
+def _detector_boundary_check(result: ProjectDetectorBoundary) -> dict[str, Any]:
+    boundary = result.result
+    if result.status == "fail":
+        status = "fail"
+        message = result.status_reason or "R4 upstream 또는 detector boundary energy check가 실패했습니다."
+    elif result.status == "not_evaluated":
+        status = "not_evaluated"
+        message = result.status_reason or "R4 detector-input boundary를 평가하지 않았습니다."
+    elif boundary is None:
+        status = "warning"
+        message = result.status_reason or "R4 detector-input boundary result가 없습니다."
+    elif result.energy_check_status == "fail":
+        status = "fail"
+        message = "Detector boundary power ledger energy residual이 tolerance를 초과했습니다."
+    elif result.status == "zero_input":
+        status = "warning"
+        message = "유효한 R3 fiber-coupled input이 0 W이므로 detector input도 0 W입니다."
+    elif result.status == "blocked":
+        status = "warning"
+        message = "Duplexer return transmission이 0이므로 detector input이 차단되었습니다."
+    else:
+        status = "pass"
+        message = "R3-to-detector passive duplexer ledger와 energy conservation을 검사합니다."
+    return {
+        "status": status,
+        "detector_input_status": result.status,
+        "energy_check_status": result.energy_check_status,
+        "maximum_energy_residual_w": result.maximum_energy_residual_w,
+        "energy_tolerance_w": result.energy_tolerance_w,
+        "coherent_field_status": result.coherent_field_status,
+        "field_usable_for_coherent_propagation": (
+            result.field_usable_for_coherent_propagation
+        ),
+        "detector_response_status": "not_evaluated",
+        "message": message,
+    }
+
+
 def _reciprocal_return_section(
     geometry: ProjectReciprocalReturn,
     power: ProjectReciprocalReturnPower,
     coupling: ProjectFiberCoupling,
+    detector_boundary: ProjectDetectorBoundary,
 ) -> dict[str, Any]:
     section = geometry.to_dict()
     section.update(
@@ -533,15 +574,24 @@ def _reciprocal_return_section(
             "fiber_coupling": (
                 None if coupling.status == "not_evaluated" else coupling.to_dict()
             ),
+            "detector_status": detector_boundary.status,
+            "detector_status_reason": detector_boundary.status_reason,
+            "detector_boundary": (
+                None
+                if detector_boundary.status == "not_evaluated"
+                else detector_boundary.to_dict()
+            ),
             "assumptions": (
                 list(geometry.assumptions)
                 + list(power.assumptions)
                 + list(coupling.assumptions)
+                + list(detector_boundary.assumptions)
             ),
             "warnings": (
                 list(geometry.warnings)
                 + list(power.warnings)
                 + list(coupling.warnings)
+                + list(detector_boundary.warnings)
             ),
         }
     )
@@ -557,6 +607,7 @@ def _accuracy(
     reciprocal_return: ProjectReciprocalReturn,
     reciprocal_return_power: ProjectReciprocalReturnPower,
     fiber_coupling: ProjectFiberCoupling,
+    detector_boundary: ProjectDetectorBoundary,
 ) -> dict[str, Any]:
     readiness = assess_readiness(project)
     warnings = [item.format() for item in project.warnings]
@@ -575,6 +626,7 @@ def _accuracy(
     warnings.extend(reciprocal_return.warnings)
     warnings.extend(reciprocal_return_power.warnings)
     warnings.extend(fiber_coupling.warnings)
+    warnings.extend(detector_boundary.warnings)
     warnings.append(
         "power_at_virtual_aperture_w는 기존 analytical regression intermediate입니다. "
         "R2 reciprocal return power와 별도이며 fiber 결합 또는 detector input power가 아닙니다."
@@ -594,6 +646,7 @@ def _accuracy(
             "source_to_static_mirror_rectangle_or_stl_center_ray_target_"
             "lambertian_virtual_aperture_and_reciprocal_center_ray_geometry_"
             "and_return_power_ledger_and_gaussian_alignment_proxy"
+            "_and_passive_detector_input_boundary"
         ),
         "assumptions": [
             "Source부터 collimator까지는 scalar paraxial Gaussian q-parameter로 계산합니다.",
@@ -608,6 +661,8 @@ def _accuracy(
             "R2 aperture acceptance는 actual R1 center-ray pass/miss만 사용하고 forward Gaussian clipping fraction을 재사용하지 않습니다.",
             "R3는 R2 fiber-plane power에 deterministic Gaussian alignment proxy overlap을 적용한 analytical upper-bound/reference입니다.",
             "Radiometric R3는 coherent input field를 만들거나 downstream으로 전달하지 않습니다.",
+            "R4는 R3 coupled power에 duplexer return transmission만 적용하고 detector input optical boundary에서 종료합니다.",
+            "R4 detector input은 analytical/uncalibrated reference이며 detector response와 coherent field를 만들지 않습니다.",
             "Aperture clipping 뒤 profile shape, diffraction과 edge scattering은 계산하지 않고 power loss만 반영합니다.",
             "Scanner time dynamics, STL full footprint/radiometry, BRDF/BSDF, detector noise와 coherent FMCW는 계산하지 않습니다.",
         ],
@@ -662,6 +717,16 @@ def build_phase2_optical_train_report(
         reciprocal_return,
         reciprocal_return_power,
     )
+    reciprocal_power_result = reciprocal_return_power.result
+    detector_boundary = evaluate_project_detector_boundary(
+        project,
+        fiber_coupling,
+        power_on_target_w=(
+            None
+            if reciprocal_power_result is None
+            else reciprocal_power_result.power_on_target_w
+        ),
+    )
     final_state = train.final_state
     q_check = _q_check(train)
     energy_check = _energy_check(train)
@@ -679,6 +744,7 @@ def build_phase2_optical_train_report(
         reciprocal_return_power
     )
     fiber_coupling_check = _fiber_coupling_check(fiber_coupling)
+    detector_boundary_check = _detector_boundary_check(detector_boundary)
     accuracy = _accuracy(
         project,
         train,
@@ -688,6 +754,7 @@ def build_phase2_optical_train_report(
         reciprocal_return,
         reciprocal_return_power,
         fiber_coupling,
+        detector_boundary,
     )
     timestamp = (created_at or datetime.now(UTC)).astimezone(UTC)
     total_loss_db = (
@@ -705,6 +772,7 @@ def build_phase2_optical_train_report(
         reciprocal_check["status"],
         reciprocal_power_check["status"],
         fiber_coupling_check["status"],
+        detector_boundary_check["status"],
         stl_check["status"],
     ]
     overall_status = (
@@ -724,9 +792,11 @@ def build_phase2_optical_train_report(
         reciprocal_return,
         reciprocal_return_power,
         fiber_coupling,
+        detector_boundary,
     )
     reciprocal_power = reciprocal_return_power.result
     coupling_result = fiber_coupling.result
+    detector_result = detector_boundary.result
     visible_target_id, visible_geometry_type = _visible_center_ray_target(
         footprints,
         stl_intersections,
@@ -804,6 +874,21 @@ def build_phase2_optical_train_report(
             "target_to_fiber_coupled_link_loss_db": (
                 fiber_coupling.target_to_fiber_coupled_link_loss_db
             ),
+            "detector_input_status": detector_boundary.status,
+            "power_at_detector_input_w": (
+                None
+                if detector_result is None
+                else detector_result.power_at_detector_input_w
+            ),
+            "fiber_coupled_to_detector_input_link_loss_db": (
+                detector_boundary.fiber_coupled_to_detector_input_link_loss_db
+            ),
+            "target_to_detector_input_link_loss_db": (
+                detector_boundary.target_to_detector_input_link_loss_db
+            ),
+            "source_to_detector_input_round_trip_link_loss_db": (
+                detector_boundary.source_to_detector_input_round_trip_link_loss_db
+            ),
         },
         accuracy=accuracy,
         model={
@@ -812,7 +897,7 @@ def build_phase2_optical_train_report(
             "validity": (
                 "Paraxial scalar Gaussian, ideal thin lens with deterministic off-axis chief ray, projected apertures, "
                 "static flat mirror reflection, rectangle-plane footprint, CPU STL center-ray closest-hit, "
-                "Lambertian return power and deterministic Gaussian alignment coupling proxy"
+                "Lambertian return power, deterministic Gaussian alignment coupling proxy and passive detector-input boundary"
             ),
             "limitations": [
                 "No aberration, diffraction, coating spectral curve, polarization or ghost reflection.",
@@ -825,6 +910,8 @@ def build_phase2_optical_train_report(
                 "R2 uses binary center-ray aperture acceptance; exact diffuse-return spatial aperture/solid-angle integration is not implemented.",
                 "R3 Gaussian alignment coupling is an optimistic proxy for diffuse return; spatial-mode reciprocity/decomposition is not implemented.",
                 "Radiometric R3 reports no coherent field and its normalized overlap cannot be propagated as an FMCW field.",
+                "R4 applies only configured duplexer return transmission and stops at the detector input optical boundary.",
+                "R4 detector input remains analytical/uncalibrated and contains no detector responsivity, photocurrent, saturation or noise model.",
                 "estimated_received_power_w and power_at_virtual_aperture_w are analytical virtual-aperture values, not fiber-coupled power.",
                 "No detector photocurrent, noise, saturation, FFT or CZT yet.",
                 "No measured/vendor black-box optical model execution yet.",
@@ -859,6 +946,7 @@ def build_phase2_optical_train_report(
             "reciprocal_return": reciprocal_check,
             "reciprocal_return_power": reciprocal_power_check,
             "fiber_coupling": fiber_coupling_check,
+            "detector_boundary": detector_boundary_check,
             "external_validation_status": "not_evaluated",
         },
     )

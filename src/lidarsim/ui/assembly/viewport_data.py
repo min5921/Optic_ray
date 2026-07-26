@@ -852,6 +852,16 @@ def _fiber_coupling_record(report_data: dict[str, Any]) -> dict[str, Any] | None
     return coupling if isinstance(coupling, dict) else None
 
 
+def _detector_boundary_record(report_data: dict[str, Any]) -> dict[str, Any] | None:
+    """R4 detector optical boundary를 strict report 위치에서만 읽는다."""
+
+    section = report_data.get("reciprocal_return")
+    if not isinstance(section, dict):
+        return None
+    detector = section.get("detector_boundary")
+    return detector if isinstance(detector, dict) else None
+
+
 def _intersection_point(hit_record: Any) -> Vec3 | None:
     """실제 hit가 명시된 경우에만 intersection point를 반환한다."""
 
@@ -1250,6 +1260,7 @@ def _make_guides(
     for path_index, path in enumerate(_reciprocal_path_records(report_data)):
         closure = path.get("closure") if isinstance(path.get("closure"), dict) else {}
         fiber_coupling = _fiber_coupling_record(report_data)
+        detector_boundary = _detector_boundary_record(report_data)
         for plane_name, hit_key in (
             ("mirror", "mirror_hit"),
             ("collimator", "collimator_hit"),
@@ -1299,6 +1310,40 @@ def _make_guides(
                 label = (
                     f"{label} | R3 eta={_format_optional_float(efficiency)}, "
                     f"P_coupled={_format_optional_float(coupled_power, suffix=' W')}"
+                )
+            if plane_name == "fiber" and detector_boundary is not None:
+                metadata.update(
+                    {
+                        "detector_boundary_model": detector_boundary.get("model"),
+                        "detector_input_status": detector_boundary.get("status"),
+                        "power_at_detector_input_w": detector_boundary.get(
+                            "power_at_detector_input_w"
+                        ),
+                        "fiber_coupled_to_detector_input_link_loss_db": (
+                            detector_boundary.get(
+                                "fiber_coupled_to_detector_input_link_loss_db"
+                            )
+                        ),
+                        "target_to_detector_input_link_loss_db": detector_boundary.get(
+                            "target_to_detector_input_link_loss_db"
+                        ),
+                        "source_to_detector_input_round_trip_link_loss_db": (
+                            detector_boundary.get(
+                                "source_to_detector_input_round_trip_link_loss_db"
+                            )
+                        ),
+                        "detector_response_status": detector_boundary.get(
+                            "detector_response_status"
+                        ),
+                        "detector_coherent_field_status": detector_boundary.get(
+                            "coherent_field_status"
+                        ),
+                        "detector_field_usable_for_coherent_propagation": (
+                            detector_boundary.get(
+                                "field_usable_for_coherent_propagation"
+                            )
+                        ),
+                    }
                 )
             _add_line(
                 guides,
@@ -1552,6 +1597,7 @@ def build_viewport_scene(
     if isinstance(reciprocal_section, dict) and _reciprocal_path_records(report_data):
         return_power = reciprocal_section.get("return_power")
         fiber_coupling = _fiber_coupling_record(report_data)
+        detector_boundary = _detector_boundary_record(report_data)
         if isinstance(return_power, dict):
             if fiber_coupling is None:
                 warnings_list.append(
@@ -1581,6 +1627,16 @@ def build_viewport_scene(
             )
             warnings_list.extend(
                 str(item) for item in fiber_coupling.get("warnings", ())
+            )
+        if detector_boundary is not None:
+            warnings_list.append(
+                "Phase 2.4-R4 detector 결과는 fiber output 뒤 passive duplexer의 "
+                "비공간 optical boundary입니다. Viewport는 detector component, ray, beam 또는 "
+                "field를 새로 만들지 않고 fiber reference metadata만 표시합니다. "
+                "Detector response와 hardware calibration은 평가하지 않습니다."
+            )
+            warnings_list.extend(
+                str(item) for item in detector_boundary.get("warnings", ())
             )
         for path in _reciprocal_path_records(report_data):
             warnings_list.extend(str(item) for item in path.get("warnings", ()))

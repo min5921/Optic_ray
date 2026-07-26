@@ -1,4 +1,4 @@
-"""Read-only optical workspace dashboard HTML through Phase 2.4-R3."""
+"""Read-only optical workspace dashboard HTML through Phase 2.4-R4."""
 
 from __future__ import annotations
 
@@ -74,6 +74,9 @@ def _warning_items(report_data: dict[str, Any], scene: ViewportScene) -> str:
         coupling = reciprocal.get("fiber_coupling")
         if isinstance(coupling, dict):
             warnings.extend(str(item) for item in coupling.get("warnings", ()))
+        detector = reciprocal.get("detector_boundary")
+        if isinstance(detector, dict):
+            warnings.extend(str(item) for item in detector.get("warnings", ()))
     unique = list(dict.fromkeys(warnings))
     return "".join(f"<li><pre>{_escape(item)}</pre></li>" for item in unique) or "<li>없음</li>"
 
@@ -230,6 +233,63 @@ def _fiber_coupling_rows(report_data: dict[str, Any]) -> str:
     )
 
 
+def _detector_boundary_rows(report_data: dict[str, Any]) -> str:
+    reciprocal = report_data.get("reciprocal_return")
+    if not isinstance(reciprocal, dict):
+        return '<tr><td colspan="14">detector boundary: not evaluated</td></tr>'
+    detector = reciprocal.get("detector_boundary")
+    if not isinstance(detector, dict):
+        return (
+            '<tr><td colspan="14">'
+            f"status: {_status_badge(reciprocal.get('detector_status', 'not_evaluated'))}"
+            "</td></tr>"
+        )
+    return (
+        "<tr>"
+        f"<td>{_status_badge(detector.get('status', reciprocal.get('detector_status')))}</td>"
+        f"<td><code>{_escape(detector.get('model', '-'))}</code></td>"
+        f"<td>{_escape(detector.get('model_scope', '-'))}</td>"
+        f"<td>{_status_badge(detector.get('hardware_readiness', 'uncalibrated'))}</td>"
+        f"<td>{_escape(detector.get('duplexer_type', '-'))}</td>"
+        f"<td>{_escape(detector.get('detector_model', '-'))}</td>"
+        f"<td>{_fmt(detector.get('return_power_transmission'))}</td>"
+        f"<td>{_fmt(detector.get('power_coupled_into_fiber_w'), unit='W')}</td>"
+        f"<td>{_fmt(detector.get('power_at_detector_input_w'), unit='W')}</td>"
+        f"<td>{_fmt(detector.get('fiber_coupled_to_detector_input_link_loss_db'), unit='dB')}</td>"
+        f"<td>{_fmt(detector.get('target_to_detector_input_link_loss_db'), unit='dB')}</td>"
+        f"<td>{_fmt(detector.get('source_to_detector_input_round_trip_link_loss_db'), unit='dB')}</td>"
+        f"<td>{_status_badge(detector.get('detector_response_status', 'not_evaluated'))}</td>"
+        f"<td>{_status_badge(detector.get('coherent_field_status', 'not_provided'))}</td>"
+        "</tr>"
+    )
+
+
+def _detector_boundary_ledger_rows(report_data: dict[str, Any]) -> str:
+    reciprocal = report_data.get("reciprocal_return")
+    detector = (
+        reciprocal.get("detector_boundary")
+        if isinstance(reciprocal, dict)
+        else None
+    )
+    if not isinstance(detector, dict):
+        return '<tr><td colspan="8">not evaluated</td></tr>'
+    rows: list[str] = []
+    for entry in detector.get("power_ledger", ()):
+        rows.append(
+            "<tr>"
+            f"<td>{_escape(entry.get('input_plane', '-'))}</td>"
+            f"<td>{_escape(entry.get('output_plane', '-'))}</td>"
+            f"<td>{_escape(entry.get('mechanism', '-'))}</td>"
+            f"<td>{_fmt(entry.get('input_power_w'), unit='W')}</td>"
+            f"<td>{_fmt(entry.get('output_power_w'), unit='W')}</td>"
+            f"<td>{_fmt(entry.get('loss_w'), unit='W')}</td>"
+            f"<td>{_fmt(entry.get('transmission_fraction'))}</td>"
+            f"<td>{_status_badge(entry.get('status', '-'))}</td>"
+            "</tr>"
+        )
+    return "".join(rows) or '<tr><td colspan="8">ledger is empty</td></tr>'
+
+
 def _scanner_path_rows(scanner_path_data: dict[str, Any]) -> str:
     rows = []
     for item in scanner_path_data["samples"]:
@@ -261,6 +321,9 @@ def _assumption_items(report_data: dict[str, Any]) -> str:
         coupling = reciprocal.get("fiber_coupling")
         if isinstance(coupling, dict):
             assumptions.extend(str(item) for item in coupling.get("assumptions", ()))
+        detector = reciprocal.get("detector_boundary")
+        if isinstance(detector, dict):
+            assumptions.extend(str(item) for item in detector.get("assumptions", ()))
     for footprint in report_data["target_footprints"]:
         assumptions.extend(str(item) for item in footprint.get("assumptions", ()))
     unique = list(dict.fromkeys(assumptions))
@@ -282,7 +345,7 @@ def write_workspace_dashboard_html(
     scanner_path_report_path: str | Path | None = None,
     scanner_path_csv_path: str | Path | None = None,
 ) -> Path:
-    """Phase 2.3 read-only optical workspace dashboard를 self-contained HTML로 저장한다."""
+    """Phase 2.4-R4 read-only optical workspace dashboard를 HTML로 저장한다."""
 
     report_data = report.to_dict() if hasattr(report, "to_dict") else dict(report)
     summary = report_data["summary"]
@@ -393,14 +456,20 @@ details {{ margin-top: 10px; }}
   {_card("Fiber coupling efficiency", _fmt(summary.get("fiber_coupling_efficiency")))}
   {_card("Coupled fiber power", _fmt(summary.get("power_coupled_into_fiber_w"), unit="W"))}
   {_card("Target→coupled-fiber loss", _fmt(summary.get("target_to_fiber_coupled_link_loss_db"), unit="dB"))}
+  {_card("Detector boundary status", _status_badge(summary.get("detector_input_status", "not_evaluated")))}
+  {_card("Detector optical input power", _fmt(summary.get("power_at_detector_input_w"), unit="W"))}
+  {_card("Fiber→detector loss", _fmt(summary.get("fiber_coupled_to_detector_input_link_loss_db"), unit="dB"))}
+  {_card("Target→detector loss", _fmt(summary.get("target_to_detector_input_link_loss_db"), unit="dB"))}
+  {_card("Source→detector round-trip loss", _fmt(summary.get("source_to_detector_input_round_trip_link_loss_db"), unit="dB"))}
 </div>
 <div class="callout">
 현재 dashboard는 read-only 결과 viewer입니다. Placement edit, snapping, constraint, scanner time dynamics는 아직 구현하지 않았으며,
 모든 값은 YAML config와 report에서 생성됩니다. Virtual aperture 값은 Phase 2.3 regression intermediate이고, Phase 2.4-R2는
 target에서 동일 scanner mirror와 collimator를 거친 fiber reference plane까지의 scalar analytical power를 별도로 표시합니다.
 Phase 2.4-R3의 <code>gaussian_alignment_proxy</code>는 이 plane power에 Gaussian 정렬 overlap을 적용한 diffuse-return
-upper-bound/reference이며 calibrated hardware prediction이 아닙니다. Mode-shape overlap의 임의 기준 위상은 coherent output이
-아니며 speckle과 detector response는 아직 포함하지 않습니다.
+upper-bound/reference이며 calibrated hardware prediction이 아닙니다. Phase 2.4-R4는 configured passive duplexer 뒤의
+detector optical input boundary까지만 계산합니다. Detector responsivity, photocurrent, noise, saturation, coherent mixing과
+FMCW signal은 포함하지 않습니다. Radiometric 경로의 임의 기준 위상을 coherent output으로 만들지 않습니다.
 </div>
 <section><h2>생성 파일</h2><table>
 <tr><th>파일</th><th>경로</th></tr>
@@ -437,6 +506,14 @@ upper-bound/reference이며 calibrated hardware prediction이 아닙니다. Mode
 <section><h2>Single-mode fiber coupling — Phase 2.4-R3</h2><table>
 <tr><th>Status</th><th>Model</th><th>Fiber-plane input</th><th>Coupling efficiency</th><th>Coupled power</th><th>Fiber-plane→mode loss</th><th>Target→coupled-fiber loss</th><th>Coherent field</th><th>Field usable</th><th>Readiness</th></tr>
 {_fiber_coupling_rows(report_data)}
+</table></section>
+<section><h2>Detector optical input boundary — Phase 2.4-R4</h2><table>
+<tr><th>Status</th><th>Model</th><th>Scope</th><th>Readiness</th><th>Duplexer</th><th>Detector model</th><th>Return transmission</th><th>Coupled-fiber input</th><th>Detector optical input</th><th>Fiber→detector loss</th><th>Target→detector loss</th><th>Source→detector loss</th><th>Detector response</th><th>Coherent field</th></tr>
+{_detector_boundary_rows(report_data)}
+</table>
+<h3>Detector-boundary power ledger</h3><table>
+<tr><th>Input plane</th><th>Output plane</th><th>Mechanism</th><th>Input</th><th>Output</th><th>Loss</th><th>Transmission</th><th>Status</th></tr>
+{_detector_boundary_ledger_rows(report_data)}
 </table></section>
 <section><h2>Receiver return — analytical virtual aperture</h2><table>
 <tr><th>Target</th><th>Status</th><th>FOV</th><th>Reflectivity</th><th>Distance</th><th>Virtual aperture estimate</th><th>Link loss</th></tr>

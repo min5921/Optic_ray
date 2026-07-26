@@ -794,6 +794,30 @@ def _optical_train(args: argparse.Namespace) -> int:
         "target_to_fiber_coupled_loss_db="
         f"{_optional_number(summary.get('target_to_fiber_coupled_link_loss_db'), suffix=' dB')}"
     )
+    detector = (
+        reciprocal.get("detector_boundary")
+        if isinstance(reciprocal, dict)
+        else None
+    )
+    detector_model = (
+        str(detector.get("model", "N/A"))
+        if isinstance(detector, dict)
+        else "N/A"
+    )
+    print(
+        f"Detector optical boundary ({detector_model}): "
+        f"status={summary.get('detector_input_status', 'not_evaluated')}, "
+        "detector_response="
+        f"{detector.get('detector_response_status', 'not_evaluated') if isinstance(detector, dict) else 'not_evaluated'}, "
+        "P_detector_input="
+        f"{_optional_number(summary.get('power_at_detector_input_w'), suffix=' W')}, "
+        "fiber_to_detector_loss_db="
+        f"{_optional_number(summary.get('fiber_coupled_to_detector_input_link_loss_db'), suffix=' dB')}, "
+        "target_to_detector_loss_db="
+        f"{_optional_number(summary.get('target_to_detector_input_link_loss_db'), suffix=' dB')}, "
+        "source_to_detector_round_trip_loss_db="
+        f"{_optional_number(summary.get('source_to_detector_input_round_trip_link_loss_db'), suffix=' dB')}"
+    )
     print(
         f"Target geometry: rectangle_hits={summary['rectangle_target_hit_count']}, "
         f"stl_hits={summary['stl_target_hit_count']}, "
@@ -1073,6 +1097,30 @@ def _dashboard(args: argparse.Namespace) -> int:
         f"{_optional_number(report.summary.get('power_coupled_into_fiber_w'), suffix=' W')}, "
         "target_to_fiber_coupled_loss_db="
         f"{_optional_number(report.summary.get('target_to_fiber_coupled_link_loss_db'), suffix=' dB')}"
+    )
+    detector = (
+        reciprocal.get("detector_boundary")
+        if isinstance(reciprocal, dict)
+        else None
+    )
+    detector_model = (
+        str(detector.get("model", "N/A"))
+        if isinstance(detector, dict)
+        else "N/A"
+    )
+    print(
+        f"Detector optical boundary ({detector_model}): "
+        f"status={report.summary.get('detector_input_status', 'not_evaluated')}, "
+        "detector_response="
+        f"{detector.get('detector_response_status', 'not_evaluated') if isinstance(detector, dict) else 'not_evaluated'}, "
+        "P_detector_input="
+        f"{_optional_number(report.summary.get('power_at_detector_input_w'), suffix=' W')}, "
+        "fiber_to_detector_loss_db="
+        f"{_optional_number(report.summary.get('fiber_coupled_to_detector_input_link_loss_db'), suffix=' dB')}, "
+        "target_to_detector_loss_db="
+        f"{_optional_number(report.summary.get('target_to_detector_input_link_loss_db'), suffix=' dB')}, "
+        "source_to_detector_round_trip_loss_db="
+        f"{_optional_number(report.summary.get('source_to_detector_input_round_trip_link_loss_db'), suffix=' dB')}"
     )
     for warning in report.accuracy["warnings"]:
         print(warning, file=sys.stderr)
