@@ -59,6 +59,14 @@ def _length_argument(value: str) -> float:
         raise argparse.ArgumentTypeError(str(exc)) from exc
 
 
+def _optional_number(value: Any, *, suffix: str = "") -> str:
+    """CLI summary에서 미평가와 계산된 0을 구별해 표시한다."""
+
+    if value is None:
+        return "not_evaluated"
+    return f"{float(value):.9g}{suffix}"
+
+
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="lidarsim", description="Optic Ray simulation tools")
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -756,7 +764,14 @@ def _optical_train(args: argparse.Namespace) -> int:
         f"Target/receiver: hits={summary['target_hit_count']}, "
         f"P_target={summary['estimated_power_on_target_w']:.9g} W, "
         f"P_virtual_ap={summary['estimated_received_power_w']:.9g} W, "
-        f"link_loss_db={summary['link_loss_db']}"
+        f"virtual_aperture_link_loss_db={summary['link_loss_db']}"
+    )
+    print(
+        "Reciprocal return power: "
+        f"P_return_mirror={_optional_number(summary.get('power_at_return_mirror_w'), suffix=' W')}, "
+        f"P_fiber_plane={_optional_number(summary.get('power_at_fiber_plane_w'), suffix=' W')}, "
+        "target_to_fiber_plane_loss_db="
+        f"{_optional_number(summary.get('target_to_fiber_plane_link_loss_db'), suffix=' dB')}"
     )
     print(
         f"Target geometry: rectangle_hits={summary['rectangle_target_hit_count']}, "
@@ -1006,7 +1021,16 @@ def _dashboard(args: argparse.Namespace) -> int:
     print(
         f"Summary: status={report.summary['overall_status']}, "
         f"P_virtual_ap={report.summary['estimated_received_power_w']:.9g} W, "
-        f"link_loss_db={report.summary['link_loss_db']}"
+        f"virtual_aperture_link_loss_db={report.summary['link_loss_db']}"
+    )
+    print(
+        "Reciprocal return power: "
+        "P_return_mirror="
+        f"{_optional_number(report.summary.get('power_at_return_mirror_w'), suffix=' W')}, "
+        "P_fiber_plane="
+        f"{_optional_number(report.summary.get('power_at_fiber_plane_w'), suffix=' W')}, "
+        "target_to_fiber_plane_loss_db="
+        f"{_optional_number(report.summary.get('target_to_fiber_plane_link_loss_db'), suffix=' dB')}"
     )
     for warning in report.accuracy["warnings"]:
         print(warning, file=sys.stderr)

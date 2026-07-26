@@ -21,6 +21,7 @@
 - centered circular aperture와 projected rectangular mirror aperture power 적분
 - rectangle-plane center-ray hit와 projected Gaussian footprint 적분
 - Lambertian small-footprint virtual-aperture 근사
+- Nearest-visible rectangle-plane Lambertian target의 R1 geometry-gated scalar return-power ledger
 - YAML configuration, report schema, power ledger와 CLI 재현
 - static scanner angle sweep와 ideal scanner command path reference
 - Plotly optical bench, numeric variant editor와 `MirrorTargetMate` preview
@@ -35,7 +36,7 @@ python -W error::DeprecationWarning -W error::UserWarning -m pytest -q
 → 139 passed
 ```
 
-현재 `estimated_received_power_w`와 `P_virtual_ap`는 virtual aperture plane의 분석용 중간값이다. 동일 scanner·collimator의 reverse traversal, single-mode fiber mode overlap, duplexer와 detector loss를 포함하지 않는다.
+현재 `estimated_received_power_w`와 `P_virtual_ap`는 virtual aperture plane의 분석용 중간값이다. 이 값 자체는 동일 scanner·collimator의 reverse traversal을 포함하지 않으며 R2 reciprocal return ledger와 별도로 유지한다. R2도 single-mode fiber mode overlap, duplexer와 detector loss는 포함하지 않는다.
 
 ## 3. 등록된 문제와 완료 조건
 
@@ -127,7 +128,7 @@ python -W error::DeprecationWarning -W error::UserWarning -m pytest -q
 - sidecar placement와 unit scale을 적용해 world-space triangle 생성
 - CPU center-ray/triangle intersection과 nearest positive hit 선택
 - hit point, geometric normal, triangle index, distance와 front/back face 보고
-- strict Phase 2 report schema v3의 `stl_intersections`와 strict `ViewportScene` v2 계약
+- M1 도입 당시 strict Phase 2 report schema v3, 현재 R2 확장 schema v4의 `stl_intersections`와 strict `ViewportScene` v2 계약
 - Plotly/Matplotlib viewport에 STL mesh, hit marker와 geometric normal 표시
 - material은 mesh/region 단위로 연결
 - 평면을 이루는 2-triangle STL과 기존 `rectangle_plane`의 hit point·normal·distance가 tolerance 안에서 일치하는 analytical test
@@ -142,7 +143,27 @@ Gate 결과:
 - CPU Möller–Trumbore reference가 nearest positive hit, barycentric coordinate, winding 기반 geometric normal, distance, triangle ID와 front/back face를 보고하며 parallel/behind/self-hit/no-hit를 구분한다.
 - Sidecar `unit_scale_m`과 world placement를 실제 world triangle에 적용한다. Target role, scenario/sidecar material 일치와 `parent_frame: world`를 검증한다.
 - 2-triangle plane parity, one-sided backface, mixed rectangle/STL nearest visibility, strict report/viewport schema, CLI report와 Plotly/Matplotlib overlay를 검증했다.
-- Phase 4.1-M1 Gate 완료. 다음 활성 단계는 `Phase 2.4-R2` return optical power ledger다.
+- Phase 4.1-M1 Gate 완료 후 `Phase 2.4-R2` return optical power ledger까지 순서대로 완료했다. 현재 활성 단계는 R3다.
+
+### 3.6 Phase 2.4-R2 — Return optical power ledger
+
+| ID | 문제 | 영향 | 완료 조건 |
+| --- | --- | --- | --- |
+| `R2-SOURCE-01` | 기존 virtual aperture 값을 shared scanner/collimator return power로 재사용할 수 있다. | 서로 다른 수신 plane과 aperture geometry를 같은 물리량으로 오해한다. | Virtual aperture regression을 유지하되 R2는 별도 `reciprocal_return.return_power`와 명시적 plane 이름을 사용한다. |
+| `R2-GEO-01` | Power 계산이 R1 actual hit/miss와 독립이면 return ray가 aperture를 놓쳐도 파워가 후속 plane으로 이동할 수 있다. | 배치 오차와 target mismatch가 수신 파워에 반영되지 않는다. | Nearest-visible configured rectangle footprint, R1 target-hit 일치와 mirror/collimator/fiber actual intersection을 Gate로 사용한다. |
+| `R2-APERTURE-01` | Forward Gaussian clipping fraction을 diffuse return aperture fraction으로 재사용할 위험이 있다. | 송신 Gaussian과 Lambertian 반환광의 공간 분포를 혼동한다. | R1 center-ray aperture pass는 1, miss/no-intersection은 0으로만 매핑하고 forward clipping fraction은 재사용하지 않는다. |
+| `R2-LEDGER-01` | Target radiance, mirror reflectivity와 reverse collimator transmission 사이의 plane별 energy 추적이 없다. | 손실의 출처와 target→fiber-plane link loss를 검수할 수 없다. | Small-footprint Lambertian target→projected mirror acceptance 뒤 mirror/collimator loss를 순차 ledger로 기록하고 모든 entry의 `input-loss=output`을 검사한다. |
+| `R2-SCOPE-01` | STL closest-hit가 생긴 뒤 mesh radiometry도 구현된 것으로 오해할 수 있다. | Geometry-only triangle hit를 실제 mesh return power로 과장한다. | R2는 `rectangle_plane + lambertian`만 평가하고 STL/지원하지 않는 재질은 명시적인 `not_evaluated`/`unsupported_material`로 남긴다. |
+
+2026-07-27 완료:
+
+- Configured nearest-visible contributing rectangle footprint와 R1 actual target hit가 기본 `1e-9 m` tolerance 안에서 일치할 때만 R2를 평가한다.
+- Target radiometric normal의 emission cosine과 mirror projected-area cosine을 서로 다른 항으로 각각 한 번 적용한다.
+- R1 mirror/collimator center-ray aperture와 fiber-plane intersection을 no-teleport Gate로 사용한다. Forward transmitter clipping ledger는 R2에 재사용하지 않는다.
+- Return mirror incident/after-aperture/after-reflection, return collimator incident/after-aperture/after-transmission과 fiber reference plane을 순서대로 기록한다. Strict Phase 2 report schema는 v4다.
+- Plotly/Matplotlib/CLI/Streamlit/dashboard는 `P_virtual_ap`와 `P_return_mirror`/`P_fiber_plane`을 분리한다. 계산된 0 W와 미평가 `null`도 구분한다.
+- Baseline은 `P_on_target ≈ 9.99997 mW`, `P_return_mirror ≈ P_fiber_plane ≈ 1.80063 nW`, `target_to_fiber_plane_link_loss ≈ 67.4457 dB`다. Virtual aperture regression은 약 `2.49999 nW`다.
+- Phase 2.4-R2 Gate 완료. 다음 활성 단계는 `Phase 2.4-R3` single-mode fiber coupling이다.
 
 ## 4. 승인된 활성 구현 순서
 
@@ -160,7 +181,7 @@ Gate 결과:
 
 `UI-S`의 코드 작업은 `Phase 2-S0/S1`과 병렬로 진행할 수 있다. 그러나 Git checkpoint와 완료 선언은 위 Gate 순서를 따른다. R1 결과가 생기면 같은 patch 또는 바로 다음 UI patch에서 return `RaySegment`, aperture residual과 fiber-port alignment overlay를 추가한다.
 
-2026-07-26 현재 `Phase 2-S0`, `Phase 2-S1`, `UI-S`, `Phase 2.4-R1`과 `Phase 4.1-M1`을 순서대로 완료했다. R1 return `RaySegment`, aperture/closure residual과 fiber reference-plane overlay, M1 CPU STL closest-hit, mixed target visibility와 mesh/hit overlay를 함께 닫았다. 활성 Gate는 `Phase 2.4-R2`다.
+2026-07-27 현재 `Phase 2-S0`, `Phase 2-S1`, `UI-S`, `Phase 2.4-R1`, `Phase 4.1-M1`과 `Phase 2.4-R2`를 순서대로 완료했다. R2는 nearest-visible Lambertian rectangle과 actual R1 geometry Gate를 사용한 target→fiber reference-plane scalar power ledger를 strict report/UI에 연결했다. 활성 Gate는 `Phase 2.4-R3`다.
 
 ## 5. 현재 사용자 variant 처리
 

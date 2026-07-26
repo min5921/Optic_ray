@@ -31,7 +31,7 @@ target
 
 ## 2. 현재 구현과의 구분
 
-기존 `virtual_monostatic/virtual_aperture` 모델은 target footprint에서 임의의 원형 aperture가 차지하는 solid angle을 사용해 첫 Lambertian return을 계산한다. 이 계산은 현재도 별도의 analytical regression intermediate로 유지한다. Phase 2.4-R1은 이 값과 섞지 않고 다음 geometry를 별도 `reciprocal_return` section에 구현한다.
+기존 `virtual_monostatic/virtual_aperture` 모델은 target footprint에서 임의의 원형 aperture가 차지하는 solid angle을 사용해 첫 Lambertian return을 계산한다. 이 계산은 현재도 별도의 analytical regression intermediate로 유지한다. Phase 2.4-R1은 이 값과 섞지 않고 다음 geometry를 별도 `reciprocal_return` section에 구현했다.
 
 - configured nearest-visible target hit에서 동일 scanner mirror로 향하는 center ray
 - 실제 mirror plane 교차, rectangular clear-aperture center-ray 판정과 ideal 재반사
@@ -42,7 +42,7 @@ target
 - plane parallel/behind 또는 aperture miss에서 no-teleport 종료
 - `ViewportScene`의 target→mirror→collimator→fiber return segment와 residual guide
 
-R1에는 다음 항목이 없다.
+R1에는 다음 항목이 없었다.
 
 - target radiance를 return mirror acceptance로 적분한 파워
 - return mirror reflectivity와 collimator transmission을 연결한 power ledger
@@ -51,7 +51,25 @@ R1에는 다음 항목이 없다.
 - circulator, beamsplitter 또는 2×2 coupler 손실
 - detector 또는 coherent mixer
 
-그러므로 현재 report의 `estimated_received_power_w`와 `power_at_virtual_aperture_w`는 물리적으로 같은 **virtual aperture 분석용 추정값**이다. 이를 R1 return path power, `power_coupled_into_fiber_w` 또는 detector power로 해석하면 안 된다. `reciprocal_return.power_status`, `fiber_coupling_status`, `detector_status`는 R1에서 명시적으로 `not_evaluated`다.
+Phase 2.4-R2는 이 가운데 rectangle-plane Lambertian target의 scalar return-power ledger를 구현했다. 계산 조건과 모델은 다음과 같다.
+
+- configured target가 center ray 기준 nearest-visible contributing `rectangle_plane`이어야 한다.
+- Material은 `optical.model: lambertian`과 `hemispherical_reflectivity`를 가져야 한다.
+- Footprint center와 R1 actual target hit가 기본 `1e-9 m` tolerance 안에서 일치해야 한다.
+- R1 mirror/collimator/fiber plane의 실제 intersection을 사용하며, aperture center-ray `pass`는 1, miss/no-intersection은 0으로 매핑한다.
+- Forward 송신 Gaussian clipping fraction은 diffuse return의 공간 분포와 같지 않으므로 return aperture transmission으로 재사용하지 않는다.
+- Target→mirror acceptance는 small-footprint/small-aperture 근사로 계산한다.
+
+```text
+P_return_mirror
+≈ P_on_target · reflectivity/π
+  · cos(theta_target_to_mirror)
+  · [A_mirror · |cos(theta_mirror_incidence)|] / R²
+```
+
+그 뒤 return mirror reflectivity와 reverse collimator transmission을 물리적 통과 순서로 적용하고 각 단계의 `input - loss = output`을 독립 ledger로 검사한다. 이 모델은 fiber reference plane에 도달하는 scalar power의 analytical upper-bound/reference이지 Lambertian 광을 하나의 Gaussian receive field로 바꾼 결과가 아니다.
+
+Report의 `estimated_received_power_w`와 `power_at_virtual_aperture_w`는 계속 물리적으로 같은 **virtual aperture 분석용 추정값**이며 R2와 별도다. 이를 `power_coupled_into_fiber_w` 또는 detector power로 해석하면 안 된다. R2 완료 후 `reciprocal_return.power_status`는 실제 평가 상태를 가지지만 `fiber_coupling_status`와 `detector_status`는 계속 `not_evaluated`다.
 
 ## 3. 기본 architecture 결정
 
@@ -144,7 +162,7 @@ receiver:
   detector_model: none
 ```
 
-`fiber_coupling`과 `duplexer`는 R3/R4에서 사용할 설정을 미리 검증·보존하는 placeholder다. R1은 이 값을 읽어 결합 파워나 detector power를 만들지 않는다. 기존 virtual-aperture 회귀값을 유지하기 위한 `position_m`, `direction`, `aperture_diameter_m`, `full_fov_rad`, `optical_efficiency`도 baseline receiver에 함께 남아 있지만 reciprocal fiber 또는 detector aperture를 뜻하지 않는다.
+`fiber_coupling`과 `duplexer`는 R3/R4에서 사용할 설정을 미리 검증·보존하는 placeholder다. R1/R2는 이 값을 읽어 결합 파워나 detector power를 만들지 않는다. 기존 virtual-aperture 회귀값을 유지하기 위한 `position_m`, `direction`, `aperture_diameter_m`, `full_fov_rad`, `optical_efficiency`도 baseline receiver에 함께 남아 있지만 reciprocal fiber 또는 detector aperture를 뜻하지 않는다.
 
 Component port도 역방향 traversal을 표현해야 한다.
 
@@ -157,7 +175,7 @@ Port 이름은 광 진행 방향을 고정하는 명령이 아니라 component r
 
 ## 7. 결과 contract
 
-R1 report에는 strict `reciprocal_return` section이 있다.
+Strict Phase 2 report schema v4의 `reciprocal_return` section은 R1 geometry와 R2 power를 분리한다.
 
 - `architecture`, `return_path`, `target_id`
 - mirror/collimator/fiber reference plane의 frame, intersection과 local coordinate
@@ -167,20 +185,24 @@ R1 report에는 strict `reciprocal_return` section이 있다.
 - transmit reference 대비 plane별 위치·각도와 최대 closure residual
 - `power_status`, `fiber_coupling_status`, `detector_status`
 
-R2~R4에서는 서로 다른 plane의 파워를 한 field에 섞지 않고 다음 이름으로 확장한다.
+R2에서 구현된 plane 이름은 다음과 같다.
 
 - `power_at_virtual_aperture_w`: 기존 analytical regression intermediate
 - `power_at_return_mirror_w`
-- `return_mirror_transmission`
+- `power_after_return_mirror_aperture_w`
 - `power_after_return_mirror_w`
 - `power_at_return_collimator_w`
-- `return_collimator_transmission`
+- `power_after_return_collimator_aperture_w`
+- `power_after_return_collimator_w`
 - `power_at_fiber_plane_w`
+- `target_to_fiber_plane_link_loss_db`
+
+R3/R4에서 추가할 이름은 다음과 같다.
+
 - `fiber_coupling_efficiency`
 - `power_coupled_into_fiber_w`
 - `duplexer_return_transmission`
 - `power_at_detector_input_w`
-- `target_to_fiber_link_loss_db`
 - `round_trip_link_loss_db`
 
 각 단계는 input, loss, output, mechanism과 source를 갖는 power ledger entry로 남긴다. `link_loss_db`는 어느 두 plane 사이의 값인지 field 이름과 report metadata에 명시한다.
@@ -227,7 +249,7 @@ R2~R4에서는 서로 다른 plane의 파워를 한 field에 섞지 않고 다�
 - viewport에 STL mesh와 hit marker overlay
 - STL triangle을 optical scatterer 하나로 취급하지 않음
 
-상태: 2026-07-26 완료. Binary/ASCII STL triangle을 immutable NumPy float64로 보존하고 sidecar unit/world placement를 적용한 CPU Möller–Trumbore center-ray nearest positive hit를 구현했다. Stable `geometry.asset_ref`를 권장하며 legacy `metadata_file`은 project-root-relative registry reference로만 허용한다. Strict Phase 2 report schema v3의 `stl_intersections`와 strict `ViewportScene` v2는 hit point, geometric normal, distance, triangle ID/front-back face, mesh/hit overlay와 geometry-only `footprint_status/radiometry_status: not_evaluated`를 구분한다. 평면 2-triangle parity, one-sided backface와 mixed rectangle/STL nearest visibility를 검증했다. BVH, full footprint-area visibility/occlusion, multi-bounce, mesh footprint/radiometry와 coherent scatterer map은 포함하지 않는다. 다음 R2는 rectangle-plane analytical baseline을 유지하고, STL은 확인된 hit-local geometry와 normal만 제공한다.
+상태: 2026-07-26 완료. Binary/ASCII STL triangle을 immutable NumPy float64로 보존하고 sidecar unit/world placement를 적용한 CPU Möller–Trumbore center-ray nearest positive hit를 구현했다. Stable `geometry.asset_ref`를 권장하며 legacy `metadata_file`은 project-root-relative registry reference로만 허용한다. 현재 strict Phase 2 report schema v4의 `stl_intersections`와 strict `ViewportScene` v2는 hit point, geometric normal, distance, triangle ID/front-back face, mesh/hit overlay와 geometry-only `footprint_status/radiometry_status: not_evaluated`를 구분한다. 평면 2-triangle parity, one-sided backface와 mixed rectangle/STL nearest visibility를 검증했다. BVH, full footprint-area visibility/occlusion, multi-bounce, mesh footprint/radiometry와 coherent scatterer map은 포함하지 않는다. 완료된 R2도 rectangle-plane analytical baseline만 사용하며 STL은 확인된 hit-local geometry와 normal만 제공한다.
 
 ### Phase 2.4-R2 — Return optical power ledger
 
@@ -236,6 +258,8 @@ R2~R4에서는 서로 다른 plane의 파워를 한 field에 섞지 않고 다�
 - collimator clear aperture와 reverse transmission 적용
 - 각 plane의 power와 loss를 ledger에 기록
 - rectangle-plane analytical case를 첫 기준으로 유지하며 STL closest-hit만으로 mesh 전체 footprint 또는 BRDF 적분이 완료됐다고 표시하지 않음
+
+상태: 2026-07-27 완료. Configured nearest-visible rectangle-plane Lambertian footprint와 R1 actual target hit의 동일성을 먼저 검증하고, 실제 R1 mirror/collimator/fiber plane path가 없는 경우 `not_evaluated`로 남긴다. Target radiance에서 projected mirror clear area가 subtend하는 acceptance를 small-footprint 근사로 계산한 뒤 mirror aperture Gate·reflectivity, collimator aperture Gate·reverse transmission과 fiber-plane intersection Gate를 순차 ledger로 기록한다. R1 center-ray aperture 상태만 binary acceptance로 사용하고 forward Gaussian clipping fraction은 재사용하지 않는다. Strict report schema v4, energy residual, aperture rejection, unsupported material/STL, target-hit mismatch, CLI와 Plotly/Matplotlib plane-power 표시를 검증했다. Baseline은 `P_on_target ≈ 9.99997 mW`, `P_return_mirror ≈ P_fiber_plane ≈ 1.80063 nW`, `target_to_fiber_plane_link_loss ≈ 67.4457 dB`다. 별도 virtual aperture regression은 약 `2.49999 nW`다. 다음 Gate는 R3다.
 
 ### Phase 2.4-R3 — Single-mode fiber coupling
 
@@ -264,6 +288,8 @@ R2~R4에서는 서로 다른 plane의 파워를 한 field에 섞지 않고 다�
 - STL plane parity: 2-triangle plane과 `rectangle_plane`의 nearest hit point·normal·distance 일치
 - STL hit selection: behind/parallel miss와 여러 triangle 중 최근접 양의 hit 선택
 - aperture rejection: return ray/beam이 mirror 또는 collimator aperture를 벗어나면 결합 파워가 감소하는지 검사
+- R2 geometry Gate: footprint center와 R1 target hit가 tolerance 밖이면 power를 계산하지 않는지 검사
+- R2 aperture source: forward Gaussian clipping fraction을 diffuse return aperture acceptance로 재사용하지 않는지 검사
 - aligned mode: 동일한 정규화 Gaussian mode의 `eta_fiber = 1` 검사
 - lateral/angular mismatch: mismatch가 증가하면 coupling이 단조 감소하는지 검사
 - MFD mismatch: analytical Gaussian overlap 식과 일치하는지 검사
@@ -285,4 +311,4 @@ R2~R4에서는 서로 다른 plane의 파워를 한 field에 섞지 않고 다�
 
 ## 11. 현재 한계
 
-이 문서는 목표 물리 구조와 구현 계약을 정리한 것이다. R0, Phase 2-S, UI-S와 R1 reciprocal center-ray geometry는 구현되었다. 다음 미구현 Gate는 Phase 4.1-M1 STL closest-hit이며, 그 뒤 R2 return power ledger, R3 fiber mode overlap, R4 duplexer와 detector boundary가 남아 있다. R1은 diffuse target의 spatial return power 또는 coherent field를 계산하지 않는 geometry validation이다. 기존 virtual aperture 계산을 유지하는 이유는 regression과 수치 비교를 위한 것이며 실제 fiber-coupled hardware prediction을 주장하기 위한 것이 아니다.
+이 문서는 목표 물리 구조와 구현 계약을 정리한 것이다. R0, Phase 2-S, UI-S, R1 reciprocal center-ray geometry, Phase 4.1-M1 STL closest-hit와 R2 rectangle-plane scalar return-power ledger를 구현했다. 다음 미구현 Gate는 R3 fiber mode overlap이며 그 뒤 R4 duplexer와 detector boundary가 남아 있다. R2는 nearest-visible Lambertian rectangle의 small-footprint analytical reference이고 STL radiometry, spatial receive-mode acceptance와 coherent field를 계산하지 않는다. 기존 virtual aperture 계산은 regression과 수치 비교를 위해 별도로 유지하며 실제 fiber-coupled hardware prediction을 주장하지 않는다.

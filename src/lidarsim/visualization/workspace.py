@@ -230,6 +230,7 @@ def _draw_guides(ax: Any, data: dict[str, Any]) -> None:
 
 def _draw_rays(ax: Any, data: dict[str, Any]) -> None:
     shown_roles: set[str] = set()
+    return_power_labels: list[str] = []
     for ray in data["rays"]:
         start = _as_array(ray["start_m"])
         end = _as_array(ray["end_m"])
@@ -237,9 +238,16 @@ def _draw_rays(ax: Any, data: dict[str, Any]) -> None:
         is_return = role == "return"
         is_stl_hit = ray["status"] == "stl_target_hit_geometry_only"
         is_target_hit = ray["status"] == "target_hit" or is_stl_hit
+        has_return_power = is_return and ray.get("power_w") is not None
         color = "#0ea5e9" if is_return else "#e03131" if is_target_hit else "#ff6b00"
         linewidth = 2.0 if is_return else 2.2 if is_target_hit else 1.8
-        legend_role = "stl_hit" if is_stl_hit else role
+        legend_role = (
+            "return_power"
+            if has_return_power
+            else "stl_hit"
+            if is_stl_hit
+            else role
+        )
         ax.plot(
             [start[0], end[0]],
             [start[1], end[1]],
@@ -249,8 +257,10 @@ def _draw_rays(ax: Any, data: dict[str, Any]) -> None:
             alpha=0.95,
             linestyle="--" if is_return else "-",
             label=(
-                "Reciprocal return (geometry-only)"
-                if is_return and role not in shown_roles
+                "Reciprocal return (analytical power)"
+                if has_return_power and legend_role not in shown_roles
+                else "Reciprocal return (geometry-only)"
+                if is_return and legend_role not in shown_roles
                 else "STL center ray (geometry-only)"
                 if is_stl_hit and legend_role not in shown_roles
                 else "Transmit beam path"
@@ -258,7 +268,25 @@ def _draw_rays(ax: Any, data: dict[str, Any]) -> None:
                 else None
             ),
         )
+        if has_return_power:
+            plane_name = str(ray.get("plane_power_name") or "return_power")
+            return_power_labels.append(f"{plane_name}: {float(ray['power_w']):.3g} W")
         shown_roles.add(legend_role)
+    if return_power_labels and hasattr(ax, "text2D"):
+        keyword_arguments: dict[str, Any] = {
+            "color": "#0369a1",
+            "fontsize": 6,
+            "verticalalignment": "bottom",
+            "bbox": {"facecolor": "white", "edgecolor": "#7dd3fc", "alpha": 0.78},
+        }
+        if hasattr(ax, "transAxes"):
+            keyword_arguments["transform"] = ax.transAxes
+        ax.text2D(
+            0.02,
+            0.02,
+            "R2 reciprocal plane power\n" + "\n".join(return_power_labels),
+            **keyword_arguments,
+        )
 
 
 def _footprint_polygon(footprint: dict[str, Any], *, samples: int = 96) -> np.ndarray:

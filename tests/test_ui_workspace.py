@@ -91,6 +91,25 @@ def _exact_reciprocal_path() -> dict[str, object]:
     }
 
 
+def _attach_r2_return_power(
+    report: dict[str, object],
+    *,
+    mirror_power_w: float = 1.8e-9,
+    after_mirror_power_w: float = 1.6e-9,
+    fiber_plane_power_w: float = 1.5e-9,
+) -> None:
+    reciprocal = report["reciprocal_return"]
+    assert isinstance(reciprocal, dict)
+    reciprocal["power_status"] = "pass" if fiber_plane_power_w > 0.0 else "zero_power"
+    reciprocal["return_power"] = {
+        "status": reciprocal["power_status"],
+        "power_at_return_mirror_w": mirror_power_w,
+        "power_after_return_mirror_w": after_mirror_power_w,
+        "power_at_fiber_plane_w": fiber_plane_power_w,
+        "warnings": ["R2 analytical scalar power"],
+    }
+
+
 def test_viewport_scene_contains_optical_bench_objects(project_root: Path) -> None:
     project = load_project(project_root / "configs" / "project.yaml")
 
@@ -108,6 +127,35 @@ def test_viewport_scene_contains_optical_bench_objects(project_root: Path) -> No
     assert len(scene.footprints) == 1
 
 
+def test_baseline_r2_report_power_is_visible_on_three_reciprocal_segments(
+    project_root: Path,
+) -> None:
+    project = load_project(project_root / "configs" / "project.yaml")
+    report = build_phase2_optical_train_report(project)
+
+    scene = build_viewport_scene(project, report=report)
+    return_rays = [ray for ray in scene.rays if ray.propagation_role == "return"]
+
+    assert [ray.plane_power_name for ray in return_rays] == [
+        "power_at_return_mirror_w",
+        "power_after_return_mirror_w",
+        "power_at_fiber_plane_w",
+    ]
+    assert [ray.power_w for ray in return_rays] == pytest.approx(
+        [
+            report.reciprocal_return["return_power"]["power_at_return_mirror_w"],
+            report.reciprocal_return["return_power"]["power_after_return_mirror_w"],
+            report.reciprocal_return["return_power"]["power_at_fiber_plane_w"],
+        ]
+    )
+    assert return_rays[0].power_w == pytest.approx(
+        report.summary["power_at_return_mirror_w"]
+    )
+    assert return_rays[-1].power_w == pytest.approx(
+        report.summary["power_at_fiber_plane_w"]
+    )
+
+
 def test_viewport_scene_round_trips_as_yaml(project_root: Path) -> None:
     project = load_project(project_root / "configs" / "project.yaml")
     scene = build_viewport_scene(project)
@@ -121,7 +169,7 @@ def test_viewport_scene_round_trips_as_yaml(project_root: Path) -> None:
     assert payload["scenario_id"] == "baseline_1550nm"
     assert payload["model_scope"] == (
         "source_to_static_mirror_rectangle_or_stl_center_ray_target_lambertian_virtual_aperture_"
-        "and_reciprocal_center_ray_geometry"
+        "and_reciprocal_center_ray_geometry_and_return_power_ledger"
     )
     assert payload["placement_edits"] == []
     assert payload["constraints"] == []
@@ -306,6 +354,44 @@ def test_reciprocal_viewport_serializes_and_validates_strict_schema(
     assert all(ray["power_w"] is None for ray in return_rays)
 
 
+def test_r2_return_plane_power_maps_to_actual_segments_and_preserves_zero(
+    project_root: Path,
+) -> None:
+    project = load_project(project_root / "configs" / "project.yaml")
+    report = _report_with_reciprocal_path(project, path=_exact_reciprocal_path())
+    _attach_r2_return_power(
+        report,
+        mirror_power_w=1.8e-9,
+        after_mirror_power_w=1.6e-9,
+        fiber_plane_power_w=0.0,
+    )
+
+    scene = build_viewport_scene(project, report=report)
+    return_rays = [ray for ray in scene.rays if ray.propagation_role == "return"]
+
+    assert [ray.plane_power_name for ray in return_rays] == [
+        "power_at_return_mirror_w",
+        "power_after_return_mirror_w",
+        "power_at_fiber_plane_w",
+    ]
+    assert [ray.power_w for ray in return_rays] == pytest.approx([1.8e-9, 1.6e-9, 0.0])
+    assert all(ray.radius_start_m is None for ray in return_rays)
+    assert all(ray.radius_end_m is None for ray in return_rays)
+    assert any("R2 return overlay" in warning for warning in scene.warnings)
+    assert not any("R1 return overlay" in warning for warning in scene.warnings)
+
+    payload = scene.to_dict()
+    SchemaStore.load(project_root / "schemas").validate(
+        payload,
+        "viewport_scene.schema.json",
+        source="R2 reciprocal power viewport",
+    )
+    serialized_return = [
+        ray for ray in payload["rays"] if ray["propagation_role"] == "return"
+    ]
+    assert serialized_return[-1]["power_w"] == 0.0
+
+
 def test_reciprocal_coordinates_and_styles_match_plotly_and_matplotlib(
     project_root: Path,
     tmp_path: Path,
@@ -347,6 +433,48 @@ def test_reciprocal_coordinates_and_styles_match_plotly_and_matplotlib(
 
     output = render_viewport_scene(scene, tmp_path / "r1_zero_residual_guides.png", dpi=72)
     assert output.read_bytes().startswith(b"\x89PNG\r\n\x1a\n")
+
+
+def test_r2_return_power_labels_match_plotly_and_matplotlib(
+    project_root: Path,
+) -> None:
+    project = load_project(project_root / "configs" / "project.yaml")
+    report = _report_with_reciprocal_path(project, path=_exact_reciprocal_path())
+    _attach_r2_return_power(report)
+    scene = build_viewport_scene(project, report=report)
+    expected = [ray for ray in scene.rays if ray.propagation_role == "return"]
+
+    figure = build_interactive_viewport_figure(scene)
+    plotly_return = [trace for trace in figure.data if trace.legendgroup == "return_path"]
+    assert len(plotly_return) == 3
+    for trace, ray in zip(plotly_return, expected, strict=True):
+        assert trace.name == "Reciprocal return (analytical power)"
+        assert ray.plane_power_name in trace.hovertemplate
+        assert f"{ray.power_w:.6g} W" in trace.hovertemplate
+        assert "return beam radius: not evaluated" in trace.hovertemplate
+
+    class _RecordingAxis:
+        def __init__(self) -> None:
+            self.lines: list[tuple[tuple[object, ...], dict[str, object]]] = []
+            self.labels: list[str] = []
+
+        def plot(self, *args: object, **kwargs: object) -> None:
+            self.lines.append((args, kwargs))
+
+        def text2D(self, *args: object, **kwargs: object) -> None:
+            self.labels.append(str(args[2]))
+
+    axis = _RecordingAxis()
+    _draw_rays(axis, scene.to_dict())
+    return_lines = [line for line in axis.lines if line[1].get("color") == "#0ea5e9"]
+    assert len(return_lines) == 3
+    assert return_lines[0][1]["label"] == "Reciprocal return (analytical power)"
+    assert axis.labels == [
+        "R2 reciprocal plane power\n"
+        + "\n".join(
+            f"{ray.plane_power_name}: {float(ray.power_w):.3g} W" for ray in expected
+        )
+    ]
 
 
 def test_rotated_oblique_footprint_axes_flow_from_physics_to_both_renderers(

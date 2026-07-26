@@ -119,6 +119,7 @@ outputs:
   - received_aperture_power
   - link_budget
   - reciprocal_return_geometry
+  - reciprocal_return_power
   - energy_ledger
   - convergence_report
   - layout_3d

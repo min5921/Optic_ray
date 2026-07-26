@@ -359,7 +359,9 @@ def build_interactive_viewport_figure(
         is_stl_hit = ray.status == "stl_target_hit_geometry_only"
         color = "#0ea5e9" if is_return else "#f59e0b" if ray.status == "target_hit" or is_stl_hit else "#ef4444"
         trace_name = (
-            "Reciprocal return (geometry-only)"
+            "Reciprocal return (analytical power)"
+            if is_return and ray.power_w is not None
+            else "Reciprocal return (geometry-only)"
             if is_return
             else "STL center ray (geometry-only)"
             if is_stl_hit
@@ -374,6 +376,12 @@ def build_interactive_viewport_figure(
             if ray.power_w is None
             else f"{ray.power_w:.6g} W"
         )
+        power_label = ray.plane_power_name or "power"
+        radius_text = (
+            "<br>return beam radius: not evaluated"
+            if is_return
+            else ""
+        )
         figure.add_trace(
             go.Scatter3d(
                 x=(start[0], end[0]),
@@ -386,8 +394,8 @@ def build_interactive_viewport_figure(
                     "dash": "dash" if is_return else "solid",
                 },
                 hovertemplate=(
-                    f"<b>{ray.label}</b><br>power: {power_text}"
-                    f"<br>length: {ray.length_m:.6g} m<extra></extra>"
+                    f"<b>{ray.label}</b><br>{power_label}: {power_text}"
+                    f"<br>length: {ray.length_m:.6g} m{radius_text}<extra></extra>"
                 ),
                 name=trace_name,
                 legendgroup=legend_group,

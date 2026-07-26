@@ -571,7 +571,9 @@ def test_phase2_report_is_schema_valid(project_root: Path) -> None:
     )
     assert report.summary["estimated_received_power_w"] > 0.0
     assert report.summary["link_loss_db"] is not None
-    assert report.accuracy["scope"].endswith("reciprocal_center_ray_geometry")
+    assert report.accuracy["scope"].endswith(
+        "reciprocal_center_ray_geometry_and_return_power_ledger"
+    )
     assert any("fiber 결합" in warning for warning in report.accuracy["warnings"])
     assert any(
         "virtual aperture plane" in assumption

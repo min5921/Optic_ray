@@ -237,7 +237,7 @@ Guidelines/snapping, 일반 constraint/mate와 drag/rotate editor는 아직 완�
 - scanner hardware dynamics
 - STL footprint/occlusion과 coherent FMCW
 
-물리 `Phase 2-S0/S1`과 UI-S는 2026-07-26까지 완료되었다. UI numeric offset·tilt는 실제 ray-plane hit, clipping, chief ray와 no-teleport miss에 연결되고, 여러 객체 변경은 atomic variant transaction으로 저장된다. 그래도 aberration, diffraction, stochastic tolerance와 측정 calibration이 없으므로 UI 결과를 hardware-accurate prediction이라고 표시하지 않는다. 다음 활성 Gate는 `Phase 2.4-R1`이다.
+물리 `Phase 2-S0/S1`, UI-S, Phase 2.4-R1, Phase 4.1-M1과 Phase 2.4-R2는 2026-07-27까지 완료되었다. UI numeric offset·tilt는 실제 ray-plane hit와 no-teleport miss에 연결되고, actual reciprocal return segment에는 평가된 R2 plane power가 표시된다. 그래도 fiber mode overlap, detector, aberration, diffraction, stochastic tolerance와 측정 calibration이 없으므로 UI 결과를 hardware-accurate prediction이라고 표시하지 않는다. 다음 활성 Gate는 `Phase 2.4-R3`이다.
 
 ### 4.4 현재 구현된 UI MVP 0 slice
 
@@ -428,7 +428,8 @@ source
 - receiver FOV cone
 - beam path
 - reflected ray
-- planned return ray: target→same mirror→same collimator→fiber
+- actual return ray: target→same mirror→same collimator→fiber
+- R2 return mirror/collimator/fiber-plane scalar power
 - target hit marker
 - footprint overlay
 - fiber receive port와 mode-coupling residual
@@ -1126,7 +1127,7 @@ Optical Assembly Workspace의 초기 MVP는 다음 범위까지 완료했다.
 
 이후 Streamlit optional dependency, `src/lidarsim/ui/app.py`, project 선택, validate/simulation action, summary·warning·report, Plotly viewport, numeric variant editor와 `MirrorTargetMate`까지 구현했다.
 
-현재 안정화와 후속 단계로 넘긴 항목:
+현재 구현된 안정화·물리 overlay:
 
 - project-wide pending draft와 config diff
 - atomic variant save/simulation transaction
@@ -1134,6 +1135,10 @@ Optical Assembly Workspace의 초기 MVP는 다음 범위까지 완료했다.
 - 실제 off-axis ray-plane/port intersection 결과 표시
 - reciprocal mirror/collimator/fiber return path overlay
 - STL mesh import preview와 closest-hit marker
+
+후속 단계로 넘긴 항목:
+
+- R3 single-mode fiber coupling efficiency와 coupled power
 - port/coaxial/focal-distance snapping과 constraint list
 
 제외:
@@ -1169,15 +1174,15 @@ Optical Assembly Workspace의 초기 MVP는 다음 범위까지 완료했다.
 1. [완료] `UI-S` 안정화
    - project-wide draft, atomic variant run과 stable provenance
    - footprint world orientation과 `ViewportScene` schema
-2. [현재] 물리 `Phase 2.4-R1` reciprocal center-ray vertical slice
+2. [완료] 물리 `Phase 2.4-R1` reciprocal center-ray vertical slice
    - target hit→same scanner mirror→same collimator receive plane→fiber port
    - angular/lateral mismatch와 round-trip closure residual
    - 계산된 return `RaySegment`와 residual을 3D viewport에 overlay
-3. `Phase 4.1-M1` CPU STL target closest-hit
+3. [완료] `Phase 4.1-M1` CPU STL target closest-hit
    - FreeCAD STL mesh preview, nearest hit point·normal·distance
    - 2-triangle plane과 `rectangle_plane` parity test
-4. `Phase 2.4-R2→R3→R4`
-   - return mirror/collimator power ledger
+4. [R2 완료, 현재 R3] `Phase 2.4-R2→R3→R4`
+   - return mirror/collimator power ledger와 UI plane-power 표시
    - single-mode fiber overlap과 coupled power
    - circulator/coupler와 detector input boundary
 5. 이후 UI 확장

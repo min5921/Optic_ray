@@ -43,7 +43,9 @@ def test_baseline_reciprocal_project_exact_retrace_and_virtual_intermediate(
     assert path["fiber_hit"]["intersection"]["hit"] is True
     assert path["closure"]["maximum_position_residual_m"] < 1.0e-12
     assert path["closure"]["maximum_angular_residual_rad"] < 1.0e-12
-    assert reciprocal["power_status"] == "not_evaluated"
+    assert reciprocal["power_status"] == "pass"
+    assert reciprocal["return_power"] is not None
+    assert reciprocal["return_power"]["power_at_fiber_plane_w"] > 0.0
     assert reciprocal["fiber_coupling_status"] == "not_evaluated"
     assert reciprocal["detector_status"] == "not_evaluated"
     assert report.summary["power_at_virtual_aperture_w"] > 0.0
@@ -202,7 +204,8 @@ def test_reciprocal_report_schema_and_yaml_round_trip(project_root: Path) -> Non
         "phase2_optical_train_report.schema.json",
         source="round-trip",
     )
-    assert loaded["schema_version"] == 3
+    assert loaded["schema_version"] == 4
     assert loaded["reciprocal_return"]["status"] == "pass"
     assert loaded["analytical_checks"]["reciprocal_return"]["status"] == "pass"
+    assert loaded["analytical_checks"]["reciprocal_return_power"]["status"] == "pass"
     assert loaded["receiver_return"]["power_at_virtual_aperture_w"] > 0.0

@@ -19,13 +19,14 @@
 - Flat diffuse target
 - 회귀 검증용 virtual monostatic circular receiver aperture
 - Virtual aperture plane에 도달하는 analytical optical power
+- 동일 scanner/collimator/fiber reference plane의 reciprocal center ray와 rectangle-plane scalar return-power ledger
+- CPU STL center-ray closest-hit geometry
 - Matplotlib validation plot과 Plotly interactive 3D layout viewer
 - 검사·preview metadata용 YAML sidecar를 가진 FreeCAD-exported STL geometry
 
 후속 범위:
 
-- 동일 scanner/collimator를 통과하는 reciprocal center ray와 return power ledger
-- CPU STL ray-triangle closest-hit, footprint와 visibility
+- STL full footprint, 면적 visibility와 radiometry
 - Single-mode fiber overlap, circulator/coupler와 detector input plane
 - Area top-hat diffraction
 - 전체 CAD constraint solver
@@ -146,16 +147,17 @@ Plane은 10 m 거리의 nominal ±10 deg optical scan을 포함할 만큼 충분
 
 | Parameter | 초기값 |
 |---|---:|
-| Architecture | Virtual monostatic receiver |
-| Aperture center | `[0, 0, 0]` m |
-| Aperture normal | World `+x` |
-| Aperture diameter | 25 mm |
-| Optical efficiency | 0.80 |
-| FOV | Full angle 25 deg |
+| Architecture | Reciprocal single-mode fiber path; virtual aperture regression 병행 |
+| Virtual regression aperture center | `[0, 0, 0]` m |
+| Virtual regression aperture normal | World `+x` |
+| Virtual regression aperture diameter | 25 mm |
+| Virtual regression optical efficiency | 0.80 |
+| Virtual regression FOV | Full angle 25 deg |
 | Detector model | 후속 단계 |
-| Primary result | Receiver aperture의 optical power |
+| 현재 primary intermediate | Fiber reference plane의 R2 scalar power |
+| Regression intermediate | Virtual receiver aperture의 optical power |
 
-Virtual co-location을 사용해 첫 radiometric validation에서는 duplexer, reverse scanner/collimator path와 single-mode fiber coupling을 model하지 않는다. 이 25 mm aperture는 analytical regression intermediate다. 목표 physical assembly는 target 반환광이 동일 scanner mirror와 collimator를 역으로 통과해 동일 single-mode fiber에 결합되고 circulator/coupler를 통해 detector로 전달되는 구조이며, 상세 구현 순서는 [`RECIPROCAL_FIBER_RETURN.md`](RECIPROCAL_FIBER_RETURN.md)를 따른다.
+25 mm virtual co-location 값은 reverse path를 포함하지 않는 analytical regression intermediate로 유지한다. 별도 R2 경로는 nearest-visible rectangle-plane Lambertian target에서 동일 scanner mirror와 collimator를 통과해 fiber reference plane에 도달하는 scalar power를 계산한다. 아직 single-mode fiber overlap, duplexer와 detector는 적용하지 않는다. 상세 구현 순서는 [`RECIPROCAL_FIBER_RETURN.md`](RECIPROCAL_FIBER_RETURN.md)를 따른다.
 
 ## 8. Numerical·validation baseline
 

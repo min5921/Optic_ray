@@ -1,16 +1,35 @@
 from __future__ import annotations
 
 from pathlib import Path
+from types import SimpleNamespace
 
 from lidarsim.config import load_project
 from lidarsim.ui.app import (
     _component_options,
     _format_power,
     _project_argument,
+    _render_metrics,
     _result_directory,
     _selection_event_element_id,
     _text,
 )
+
+
+class _MetricColumn:
+    def __init__(self) -> None:
+        self.calls: list[tuple[str, str, str | None]] = []
+
+    def metric(self, label: str, value: str, *, help: str | None = None) -> None:
+        self.calls.append((label, value, help))
+
+
+class _MetricStreamlit:
+    def __init__(self) -> None:
+        self.columns_result = [_MetricColumn() for _ in range(5)]
+
+    def columns(self, count: int) -> list[_MetricColumn]:
+        assert count == 5
+        return self.columns_result
 
 
 def test_ui_project_argument_prefers_environment(
@@ -48,3 +67,28 @@ def test_ui_project_settings_drive_language_power_and_result_root(
     assert _result_directory(project, "variant", "1234567890") == (
         copied_project.parents[1] / "results" / "ui_runs" / "variant_12345678"
     ).resolve()
+
+
+def test_r2_metrics_distinguish_calculated_zero_from_not_evaluated() -> None:
+    streamlit = _MetricStreamlit()
+    run = SimpleNamespace(
+        summary={
+            "estimated_power_on_target_w": 0.01,
+            "estimated_received_power_w": 2.5e-9,
+            "power_at_return_mirror_w": 0.0,
+            "power_at_fiber_plane_w": None,
+            "target_to_fiber_plane_link_loss_db": None,
+        }
+    )
+
+    _render_metrics(streamlit, run, language="ko", power_unit="nW")
+
+    values = [column.calls[0][1] for column in streamlit.columns_result]
+    assert values == ["1e+07 nW", "2.5 nW", "0 nW", "N/A", "N/A"]
+    labels = [column.calls[0][0] for column in streamlit.columns_result]
+    assert labels[1:] == [
+        "Virtual aperture (regression)",
+        "Return mirror power",
+        "Fiber-plane power",
+        "Target→fiber-plane loss",
+    ]

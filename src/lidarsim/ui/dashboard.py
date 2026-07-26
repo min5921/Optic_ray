@@ -1,4 +1,4 @@
-"""Read-only Phase 2.3 optical workspace dashboard HTML."""
+"""Read-only optical workspace dashboard HTML through Phase 2.4-R2."""
 
 from __future__ import annotations
 
@@ -65,6 +65,12 @@ def _warning_items(report_data: dict[str, Any], scene: ViewportScene) -> str:
         warnings.extend(str(item) for item in footprint.get("warnings", ()))
     for item in report_data["receiver_return"].get("returns", ()):
         warnings.extend(str(warning) for warning in item.get("warnings", ()))
+    reciprocal = report_data.get("reciprocal_return")
+    if isinstance(reciprocal, dict):
+        warnings.extend(str(item) for item in reciprocal.get("warnings", ()))
+        return_power = reciprocal.get("return_power")
+        if isinstance(return_power, dict):
+            warnings.extend(str(item) for item in return_power.get("warnings", ()))
     unique = list(dict.fromkeys(warnings))
     return "".join(f"<li><pre>{_escape(item)}</pre></li>" for item in unique) or "<li>없음</li>"
 
@@ -149,6 +155,51 @@ def _receiver_rows(report_data: dict[str, Any]) -> str:
     return "".join(rows)
 
 
+def _reciprocal_power_rows(report_data: dict[str, Any]) -> str:
+    reciprocal = report_data.get("reciprocal_return")
+    if not isinstance(reciprocal, dict):
+        return '<tr><td colspan="7">reciprocal return: not evaluated</td></tr>'
+    return_power = reciprocal.get("return_power")
+    if not isinstance(return_power, dict):
+        return (
+            '<tr><td colspan="7">'
+            f"power status: {_status_badge(reciprocal.get('power_status', 'not_evaluated'))}"
+            "</td></tr>"
+        )
+    return (
+        "<tr>"
+        f"<td>{_status_badge(reciprocal.get('power_status', return_power.get('status')))}</td>"
+        f"<td>{_fmt(return_power.get('power_on_target_w'), unit='W')}</td>"
+        f"<td>{_fmt(return_power.get('power_at_return_mirror_w'), unit='W')}</td>"
+        f"<td>{_fmt(return_power.get('power_after_return_mirror_w'), unit='W')}</td>"
+        f"<td>{_fmt(return_power.get('power_at_fiber_plane_w'), unit='W')}</td>"
+        f"<td>{_fmt(return_power.get('target_to_fiber_plane_link_loss_db'), unit='dB')}</td>"
+        f"<td>{_status_badge(return_power.get('energy_check_status'))}</td>"
+        "</tr>"
+    )
+
+
+def _reciprocal_power_ledger_rows(report_data: dict[str, Any]) -> str:
+    reciprocal = report_data.get("reciprocal_return")
+    return_power = reciprocal.get("return_power") if isinstance(reciprocal, dict) else None
+    if not isinstance(return_power, dict):
+        return '<tr><td colspan="7">not evaluated</td></tr>'
+    rows: list[str] = []
+    for entry in return_power.get("power_ledger", ()):
+        rows.append(
+            "<tr>"
+            f"<td>{_escape(entry.get('plane', '-'))}</td>"
+            f"<td>{_escape(entry.get('mechanism', '-'))}</td>"
+            f"<td>{_fmt(entry.get('input_power_w'), unit='W')}</td>"
+            f"<td>{_fmt(entry.get('output_power_w'), unit='W')}</td>"
+            f"<td>{_fmt(entry.get('loss_w'), unit='W')}</td>"
+            f"<td>{_fmt(entry.get('transmission_fraction'))}</td>"
+            f"<td>{_status_badge(entry.get('status', '-'))}</td>"
+            "</tr>"
+        )
+    return "".join(rows) or '<tr><td colspan="7">ledger is empty</td></tr>'
+
+
 def _scanner_path_rows(scanner_path_data: dict[str, Any]) -> str:
     rows = []
     for item in scanner_path_data["samples"]:
@@ -171,6 +222,12 @@ def _assumption_items(report_data: dict[str, Any]) -> str:
     assumptions: list[str] = []
     assumptions.extend(str(item) for item in report_data["model"].get("limitations", ()))
     assumptions.extend(str(item) for item in report_data["receiver_return"].get("assumptions", ()))
+    reciprocal = report_data.get("reciprocal_return")
+    if isinstance(reciprocal, dict):
+        assumptions.extend(str(item) for item in reciprocal.get("assumptions", ()))
+        return_power = reciprocal.get("return_power")
+        if isinstance(return_power, dict):
+            assumptions.extend(str(item) for item in return_power.get("assumptions", ()))
     for footprint in report_data["target_footprints"]:
         assumptions.extend(str(item) for item in footprint.get("assumptions", ()))
     unique = list(dict.fromkeys(assumptions))
@@ -295,13 +352,17 @@ details {{ margin-top: 10px; }}
   {_card("Total transmission", _fmt(summary["total_transmission"]))}
   {_card("Target hits", _fmt(summary["target_hit_count"]))}
   {_card("Power on target", _fmt(summary["estimated_power_on_target_w"], unit="W"))}
-  {_card("Virtual aperture estimate", _fmt(summary["estimated_received_power_w"], unit="W"))}
-  {_card("Link loss", _fmt(summary["link_loss_db"], unit="dB"))}
+  {_card("Virtual aperture (regression)", _fmt(summary["estimated_received_power_w"], unit="W"))}
+  {_card("Virtual-aperture loss", _fmt(summary["link_loss_db"], unit="dB"))}
+  {_card("Return mirror power", _fmt(summary.get("power_at_return_mirror_w"), unit="W"))}
+  {_card("Fiber-plane power", _fmt(summary.get("power_at_fiber_plane_w"), unit="W"))}
+  {_card("Target→fiber-plane loss", _fmt(summary.get("target_to_fiber_plane_link_loss_db"), unit="dB"))}
 </div>
 <div class="callout">
 현재 dashboard는 read-only 결과 viewer입니다. Placement edit, snapping, constraint, scanner time dynamics는 아직 구현하지 않았으며,
-모든 값은 YAML config와 Phase 2.3 report에서 생성됩니다. 표시된 virtual aperture estimate에는 target에서 동일 scanner mirror와
-collimator를 거쳐 single-mode fiber로 결합되는 실제 수신 광로가 포함되지 않습니다.
+모든 값은 YAML config와 report에서 생성됩니다. Virtual aperture 값은 Phase 2.3 regression intermediate이고, Phase 2.4-R2는
+target에서 동일 scanner mirror와 collimator를 거친 fiber reference plane까지의 scalar analytical power를 별도로 표시합니다.
+Single-mode fiber 결합, coherent field, speckle과 detector response는 아직 포함하지 않습니다.
 </div>
 <section><h2>생성 파일</h2><table>
 <tr><th>파일</th><th>경로</th></tr>
@@ -326,6 +387,14 @@ collimator를 거쳐 single-mode fiber로 결합되는 실제 수신 광로가 �
 <section><h2>Target footprint</h2><table>
 <tr><th>Target</th><th>Status</th><th>Distance</th><th>Major radius</th><th>Minor radius</th><th>Power on target</th><th>Clipped</th></tr>
 {_target_rows(report_data)}
+</table></section>
+<section><h2>Reciprocal return power — Phase 2.4-R2</h2><table>
+<tr><th>Status</th><th>Target power</th><th>Return mirror incident</th><th>After return mirror</th><th>Fiber reference plane</th><th>Target→fiber-plane loss</th><th>Energy check</th></tr>
+{_reciprocal_power_rows(report_data)}
+</table>
+<h3>Return power ledger</h3><table>
+<tr><th>Plane</th><th>Mechanism</th><th>Input</th><th>Output</th><th>Loss</th><th>Transmission</th><th>Status</th></tr>
+{_reciprocal_power_ledger_rows(report_data)}
 </table></section>
 <section><h2>Receiver return — analytical virtual aperture</h2><table>
 <tr><th>Target</th><th>Status</th><th>FOV</th><th>Reflectivity</th><th>Distance</th><th>Virtual aperture estimate</th><th>Link loss</th></tr>

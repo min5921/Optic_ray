@@ -12,9 +12,11 @@ from lidarsim.config.immutable import deep_thaw
 from lidarsim.optics import ABCDMatrix, OpticalTrainResult, propagate_transmitter_train
 from lidarsim.receiver import (
     ProjectReciprocalReturn,
+    ProjectReciprocalReturnPower,
     ReceiverReturn,
     estimate_lambertian_receiver_return,
     evaluate_project_reciprocal_return,
+    evaluate_project_reciprocal_return_power,
 )
 from lidarsim.results.accuracy import assess_readiness
 from lidarsim.scene import (
@@ -46,7 +48,7 @@ class Phase2OpticalTrainReport:
 
     def to_dict(self) -> dict[str, Any]:
         return {
-            "schema_version": 3,
+            "schema_version": 4,
             "report_type": "phase2_optical_train",
             "manifest": deep_thaw(self.manifest),
             "summary": deep_thaw(self.summary),
@@ -428,6 +430,68 @@ def _reciprocal_return_check(
     }
 
 
+def _reciprocal_return_power_check(
+    result: ProjectReciprocalReturnPower,
+) -> dict[str, Any]:
+    power = result.result
+    if result.status == "not_evaluated":
+        status = "not_evaluated"
+        message = result.status_reason or "R2 reciprocal return power를 평가하지 않았습니다."
+    elif result.status == "unsupported_material":
+        status = "warning"
+        message = result.status_reason or "R2가 지원하지 않는 target material입니다."
+    elif power is None:
+        status = "warning"
+        message = result.status_reason or "R2 reciprocal return power result가 없습니다."
+    elif power.energy_check_status == "fail":
+        status = "fail"
+        message = "Return power ledger energy conservation residual이 tolerance를 초과했습니다."
+    elif power.status == "terminated":
+        status = "warning"
+        message = "R1 actual geometry에서 return power가 명시적으로 0 W로 종료되었습니다."
+    elif power.status == "zero_power":
+        status = "warning"
+        message = "Return ledger는 일관되지만 catalog/geometry 조건으로 최종 power가 0 W입니다."
+    else:
+        status = "pass"
+        message = "Target-to-fiber-plane R2 return ledger와 energy conservation을 검사합니다."
+    return {
+        "status": status,
+        "power_status": result.status,
+        "energy_check_status": None if power is None else power.energy_check_status,
+        "maximum_energy_residual_w": (
+            None if power is None else power.maximum_energy_residual_w
+        ),
+        "energy_tolerance_w": None if power is None else power.energy_tolerance_w,
+        "target_hit_residual_m": result.target_hit_residual_m,
+        "target_hit_tolerance_m": result.target_hit_tolerance_m,
+        "message": message,
+    }
+
+
+def _reciprocal_return_section(
+    geometry: ProjectReciprocalReturn,
+    power: ProjectReciprocalReturnPower,
+) -> dict[str, Any]:
+    section = geometry.to_dict()
+    section.update(
+        {
+            "power_status": power.status,
+            "power_status_reason": power.status_reason,
+            "power_geometry_type": power.geometry_type,
+            "material_ref": power.material_ref,
+            "material_model": power.material_model,
+            "material_reflectivity": power.material_reflectivity,
+            "target_hit_residual_m": power.target_hit_residual_m,
+            "target_hit_tolerance_m": power.target_hit_tolerance_m,
+            "return_power": None if power.result is None else power.result.to_dict(),
+            "assumptions": list(geometry.assumptions) + list(power.assumptions),
+            "warnings": list(geometry.warnings) + list(power.warnings),
+        }
+    )
+    return section
+
+
 def _accuracy(
     project: Any,
     result: OpticalTrainResult,
@@ -435,6 +499,7 @@ def _accuracy(
     stl_intersections: tuple[StlTargetIntersection, ...],
     returns: tuple[ReceiverReturn, ...],
     reciprocal_return: ProjectReciprocalReturn,
+    reciprocal_return_power: ProjectReciprocalReturnPower,
 ) -> dict[str, Any]:
     readiness = assess_readiness(project)
     warnings = [item.format() for item in project.warnings]
@@ -451,10 +516,10 @@ def _accuracy(
     for receiver_return in returns:
         warnings.extend(receiver_return.warnings)
     warnings.extend(reciprocal_return.warnings)
+    warnings.extend(reciprocal_return_power.warnings)
     warnings.append(
         "power_at_virtual_aperture_w는 기존 analytical regression intermediate입니다. "
-        "R1은 동일 scanner mirror/collimator/fiber reference plane의 center-ray geometry만 "
-        "계산하며 return power, fiber 결합과 duplexer/detector loss는 아직 계산하지 않습니다."
+        "R2 reciprocal return power와 별도이며 fiber 결합 또는 detector input power가 아닙니다."
     )
     if result.unsupported_elements:
         warnings.append(
@@ -469,7 +534,8 @@ def _accuracy(
         "calibration_evidence": readiness.calibration_evidence,
         "scope": (
             "source_to_static_mirror_rectangle_or_stl_center_ray_target_"
-            "lambertian_virtual_aperture_and_reciprocal_center_ray_geometry"
+            "lambertian_virtual_aperture_and_reciprocal_center_ray_geometry_"
+            "and_return_power_ledger"
         ),
         "assumptions": [
             "Source부터 collimator까지는 scalar paraxial Gaussian q-parameter로 계산합니다.",
@@ -480,7 +546,8 @@ def _accuracy(
             "Target roll은 geometry.width_axis로 고정하고 material surface sidedness를 intersection과 radiometry에 동일하게 적용합니다.",
             "Mirror aperture와 target footprint 적분은 base/refined Gauss-Legendre 수렴 잔차를 보고합니다.",
             "Receiver return은 Lambertian small-footprint analytical virtual-aperture approximation입니다.",
-            "Reciprocal return은 nearest-visible target에서 same mirror/collimator/fiber plane까지의 geometry-only R1입니다.",
+            "Reciprocal return은 nearest-visible rectangle target에서 same mirror/collimator/fiber plane까지의 R1 geometry와 R2 scalar-power ledger입니다.",
+            "R2 aperture acceptance는 actual R1 center-ray pass/miss만 사용하고 forward Gaussian clipping fraction을 재사용하지 않습니다.",
             "Aperture clipping 뒤 profile shape, diffraction과 edge scattering은 계산하지 않고 power loss만 반영합니다.",
             "Scanner time dynamics, STL full footprint/radiometry, BRDF/BSDF, detector noise와 coherent FMCW는 계산하지 않습니다.",
         ],
@@ -525,6 +592,11 @@ def build_phase2_optical_train_report(
         train,
         footprints,
     )
+    reciprocal_return_power = evaluate_project_reciprocal_return_power(
+        project,
+        footprints,
+        reciprocal_return,
+    )
     final_state = train.final_state
     q_check = _q_check(train)
     energy_check = _energy_check(train)
@@ -538,6 +610,9 @@ def build_phase2_optical_train_report(
     )
     receiver_check = _receiver_return_check(receiver_returns)
     reciprocal_check = _reciprocal_return_check(reciprocal_return)
+    reciprocal_power_check = _reciprocal_return_power_check(
+        reciprocal_return_power
+    )
     accuracy = _accuracy(
         project,
         train,
@@ -545,6 +620,7 @@ def build_phase2_optical_train_report(
         stl_intersections,
         receiver_returns,
         reciprocal_return,
+        reciprocal_return_power,
     )
     timestamp = (created_at or datetime.now(UTC)).astimezone(UTC)
     total_loss_db = (
@@ -560,6 +636,7 @@ def build_phase2_optical_train_report(
         receiver_check["status"],
         scene_ledger["status"],
         reciprocal_check["status"],
+        reciprocal_power_check["status"],
         stl_check["status"],
     ]
     overall_status = (
@@ -575,6 +652,11 @@ def build_phase2_optical_train_report(
         else "pass"
     )
     receiver_section = _receiver_return_section(receiver_returns)
+    reciprocal_section = _reciprocal_return_section(
+        reciprocal_return,
+        reciprocal_return_power,
+    )
+    reciprocal_power = reciprocal_return_power.result
     visible_target_id, visible_geometry_type = _visible_center_ray_target(
         footprints,
         stl_intersections,
@@ -621,6 +703,23 @@ def build_phase2_optical_train_report(
             "stl_closest_hit_status": stl_check["status"],
             "receiver_return_status": receiver_check["status"],
             "reciprocal_return_status": reciprocal_check["status"],
+            "power_at_return_mirror_w": (
+                None if reciprocal_power is None else reciprocal_power.power_at_return_mirror_w
+            ),
+            "power_at_return_collimator_w": (
+                None
+                if reciprocal_power is None
+                else reciprocal_power.power_at_return_collimator_w
+            ),
+            "power_at_fiber_plane_w": (
+                None if reciprocal_power is None else reciprocal_power.power_at_fiber_plane_w
+            ),
+            "target_to_fiber_plane_link_loss_db": (
+                None
+                if reciprocal_power is None
+                else reciprocal_power.target_to_fiber_plane_link_loss_db
+            ),
+            "reciprocal_return_power_status": reciprocal_return_power.status,
         },
         accuracy=accuracy,
         model={
@@ -637,7 +736,8 @@ def build_phase2_optical_train_report(
                 "No scanner motor lag, jitter, bidirectional return stroke or calibration table yet.",
                 "STL center-ray closest-hit is implemented; no STL full footprint clipping, area visibility, occlusion graph or BVH yet.",
                 "No non-Lambertian BRDF/BSDF, roughness, speckle or coherent FMCW yet.",
-                "R1 reciprocal target-to-scanner-to-collimator-to-fiber center-ray geometry is implemented; return spatial power integration is not.",
+                "R1 reciprocal center-ray geometry and R2 small-footprint Lambertian scalar return-power ledger are implemented.",
+                "R2 uses binary center-ray aperture acceptance; exact diffuse-return spatial aperture/solid-angle integration is not implemented.",
                 "estimated_received_power_w and power_at_virtual_aperture_w are analytical virtual-aperture values, not fiber-coupled power.",
                 "No detector photocurrent, noise, saturation, FFT or CZT yet.",
                 "No measured/vendor black-box optical model execution yet.",
@@ -649,7 +749,7 @@ def build_phase2_optical_train_report(
         stl_intersections=tuple(item.to_dict() for item in stl_intersections),
         scene_energy_ledger=scene_ledger,
         receiver_return=receiver_section,
-        reciprocal_return=reciprocal_return.to_dict(),
+        reciprocal_return=reciprocal_section,
         analytical_checks={
             "check_scope": "internal_consistency_only",
             "q_parameter": q_check,
@@ -670,6 +770,7 @@ def build_phase2_optical_train_report(
             },
             "receiver_return": receiver_check,
             "reciprocal_return": reciprocal_check,
+            "reciprocal_return_power": reciprocal_power_check,
             "external_validation_status": "not_evaluated",
         },
     )

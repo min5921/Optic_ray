@@ -20,7 +20,7 @@
     "analytical_checks"
   ],
   "properties": {
-    "schema_version": { "const": 3 },
+    "schema_version": { "const": 4 },
     "report_type": { "const": "phase2_optical_train" },
     "manifest": { "$ref": "#/$defs/manifest" },
     "summary": { "$ref": "#/$defs/summary" },
@@ -113,7 +113,12 @@
         "target_footprint_status",
         "stl_closest_hit_status",
         "receiver_return_status",
-        "reciprocal_return_status"
+        "reciprocal_return_status",
+        "power_at_return_mirror_w",
+        "power_at_return_collimator_w",
+        "power_at_fiber_plane_w",
+        "target_to_fiber_plane_link_loss_db",
+        "reciprocal_return_power_status"
       ],
       "properties": {
         "overall_status": { "enum": ["pass", "warning", "fail"] },
@@ -146,7 +151,14 @@
         "target_footprint_status": { "enum": ["pass", "warning", "fail"] },
         "stl_closest_hit_status": { "enum": ["pass", "warning", "fail", "not_evaluated"] },
         "receiver_return_status": { "enum": ["pass", "warning", "fail"] },
-        "reciprocal_return_status": { "enum": ["pass", "warning", "fail", "terminated", "not_evaluated"] }
+        "reciprocal_return_status": { "enum": ["pass", "warning", "fail", "terminated", "not_evaluated"] },
+        "power_at_return_mirror_w": { "type": ["number", "null"], "minimum": 0.0 },
+        "power_at_return_collimator_w": { "type": ["number", "null"], "minimum": 0.0 },
+        "power_at_fiber_plane_w": { "type": ["number", "null"], "minimum": 0.0 },
+        "target_to_fiber_plane_link_loss_db": { "type": ["number", "null"], "minimum": 0.0 },
+        "reciprocal_return_power_status": {
+          "enum": ["pass", "zero_power", "terminated", "unsupported_material", "not_evaluated", "fail"]
+        }
       }
     },
     "accuracy": {
@@ -184,7 +196,7 @@
           ]
         },
         "scope": {
-          "const": "source_to_static_mirror_rectangle_or_stl_center_ray_target_lambertian_virtual_aperture_and_reciprocal_center_ray_geometry"
+          "const": "source_to_static_mirror_rectangle_or_stl_center_ray_target_lambertian_virtual_aperture_and_reciprocal_center_ray_geometry_and_return_power_ledger"
         },
         "assumptions": { "$ref": "#/$defs/stringArray" },
         "warnings": { "$ref": "#/$defs/stringArray" }
@@ -1560,6 +1572,121 @@
         "reuse_transmit_path": { "const": true }
       }
     },
+    "returnPowerLedgerEntry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "input_power_w",
+        "loss_w",
+        "output_power_w",
+        "mechanism",
+        "plane",
+        "model_source",
+        "transmission_fraction",
+        "status",
+        "warning"
+      ],
+      "properties": {
+        "input_power_w": { "type": "number", "minimum": 0.0 },
+        "loss_w": { "type": "number", "minimum": 0.0 },
+        "output_power_w": { "type": "number", "minimum": 0.0 },
+        "mechanism": {
+          "enum": [
+            "lambertian_target_to_mirror_acceptance",
+            "return_mirror_aperture",
+            "return_mirror_reflectivity",
+            "return_collimator_aperture",
+            "reverse_collimator_transmission",
+            "fiber_reference_plane_geometry"
+          ]
+        },
+        "plane": {
+          "enum": [
+            "return_mirror_incident",
+            "return_mirror_after_aperture",
+            "return_mirror_reflected",
+            "return_collimator_after_aperture",
+            "return_collimator_transmitted",
+            "fiber_reference_plane"
+          ]
+        },
+        "model_source": { "type": "string", "minLength": 1 },
+        "transmission_fraction": { "type": "number", "minimum": 0.0, "maximum": 1.0 },
+        "status": { "enum": ["applied", "rejected"] },
+        "warning": { "type": ["string", "null"] }
+      }
+    },
+    "reciprocalReturnPowerResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "model",
+        "status",
+        "termination_reason",
+        "power_on_target_w",
+        "target_reflectivity",
+        "target_to_mirror_distance_m",
+        "target_to_mirror_cosine",
+        "mirror_incidence_cosine",
+        "mirror_clear_area_m2",
+        "projected_mirror_area_m2",
+        "raw_target_to_mirror_fraction",
+        "target_to_mirror_fraction",
+        "mirror_aperture_status",
+        "collimator_aperture_status",
+        "fiber_plane_status",
+        "power_at_return_mirror_w",
+        "power_after_return_mirror_aperture_w",
+        "power_after_return_mirror_w",
+        "power_at_return_collimator_w",
+        "power_after_return_collimator_aperture_w",
+        "power_after_return_collimator_w",
+        "power_at_fiber_plane_w",
+        "target_to_fiber_plane_link_loss_db",
+        "power_ledger",
+        "maximum_energy_residual_w",
+        "energy_tolerance_w",
+        "energy_check_status",
+        "assumptions",
+        "warnings"
+      ],
+      "properties": {
+        "model": { "const": "lambertian_small_footprint_reciprocal_power_ledger" },
+        "status": { "enum": ["pass", "zero_power", "terminated", "fail"] },
+        "termination_reason": { "type": ["string", "null"] },
+        "power_on_target_w": { "type": "number", "minimum": 0.0 },
+        "target_reflectivity": { "type": "number", "minimum": 0.0, "maximum": 1.0 },
+        "target_to_mirror_distance_m": { "type": "number", "exclusiveMinimum": 0.0 },
+        "target_to_mirror_cosine": { "type": "number", "minimum": 0.0, "maximum": 1.0 },
+        "mirror_incidence_cosine": { "type": "number", "minimum": 0.0, "maximum": 1.0 },
+        "mirror_clear_area_m2": { "type": "number", "exclusiveMinimum": 0.0 },
+        "projected_mirror_area_m2": { "type": "number", "minimum": 0.0 },
+        "raw_target_to_mirror_fraction": { "type": "number", "minimum": 0.0 },
+        "target_to_mirror_fraction": { "type": "number", "minimum": 0.0, "maximum": 1.0 },
+        "mirror_aperture_status": { "enum": ["pass", "miss", "no_intersection", "not_checked"] },
+        "collimator_aperture_status": { "enum": ["pass", "miss", "no_intersection", "not_checked"] },
+        "fiber_plane_status": { "enum": ["pass", "miss", "no_intersection", "not_checked"] },
+        "power_at_return_mirror_w": { "type": "number", "minimum": 0.0 },
+        "power_after_return_mirror_aperture_w": { "type": "number", "minimum": 0.0 },
+        "power_after_return_mirror_w": { "type": "number", "minimum": 0.0 },
+        "power_at_return_collimator_w": { "type": "number", "minimum": 0.0 },
+        "power_after_return_collimator_aperture_w": { "type": "number", "minimum": 0.0 },
+        "power_after_return_collimator_w": { "type": "number", "minimum": 0.0 },
+        "power_at_fiber_plane_w": { "type": "number", "minimum": 0.0 },
+        "target_to_fiber_plane_link_loss_db": { "type": ["number", "null"], "minimum": 0.0 },
+        "power_ledger": {
+          "type": "array",
+          "minItems": 6,
+          "maxItems": 6,
+          "items": { "$ref": "#/$defs/returnPowerLedgerEntry" }
+        },
+        "maximum_energy_residual_w": { "type": "number", "minimum": 0.0 },
+        "energy_tolerance_w": { "type": "number", "exclusiveMinimum": 0.0 },
+        "energy_check_status": { "enum": ["pass", "fail"] },
+        "assumptions": { "$ref": "#/$defs/stringArray" },
+        "warnings": { "$ref": "#/$defs/stringArray" }
+      }
+    },
     "reciprocalReturnSection": {
       "type": "object",
       "additionalProperties": false,
@@ -1571,6 +1698,14 @@
         "target_id",
         "path",
         "power_status",
+        "power_status_reason",
+        "power_geometry_type",
+        "material_ref",
+        "material_model",
+        "material_reflectivity",
+        "target_hit_residual_m",
+        "target_hit_tolerance_m",
+        "return_power",
         "fiber_coupling_status",
         "detector_status",
         "assumptions",
@@ -1593,7 +1728,26 @@
             { "$ref": "#/$defs/reciprocalCenterRayPath" }
           ]
         },
-        "power_status": { "const": "not_evaluated" },
+        "power_status": {
+          "enum": ["pass", "zero_power", "terminated", "unsupported_material", "not_evaluated", "fail"]
+        },
+        "power_status_reason": { "type": ["string", "null"] },
+        "power_geometry_type": { "type": ["string", "null"] },
+        "material_ref": { "type": ["string", "null"] },
+        "material_model": { "type": ["string", "null"] },
+        "material_reflectivity": {
+          "type": ["number", "null"],
+          "minimum": 0.0,
+          "maximum": 1.0
+        },
+        "target_hit_residual_m": { "type": ["number", "null"], "minimum": 0.0 },
+        "target_hit_tolerance_m": { "type": "number", "exclusiveMinimum": 0.0 },
+        "return_power": {
+          "oneOf": [
+            { "type": "null" },
+            { "$ref": "#/$defs/reciprocalReturnPowerResult" }
+          ]
+        },
         "fiber_coupling_status": { "const": "not_evaluated" },
         "detector_status": { "const": "not_evaluated" },
         "assumptions": { "$ref": "#/$defs/stringArray" },
@@ -1774,6 +1928,32 @@
         "message": { "type": "string" }
       }
     },
+    "reciprocalReturnPowerCheck": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "power_status",
+        "energy_check_status",
+        "maximum_energy_residual_w",
+        "energy_tolerance_w",
+        "target_hit_residual_m",
+        "target_hit_tolerance_m",
+        "message"
+      ],
+      "properties": {
+        "status": { "enum": ["pass", "warning", "fail", "not_evaluated"] },
+        "power_status": {
+          "enum": ["pass", "zero_power", "terminated", "unsupported_material", "not_evaluated", "fail"]
+        },
+        "energy_check_status": { "type": ["string", "null"], "enum": ["pass", "fail", null] },
+        "maximum_energy_residual_w": { "type": ["number", "null"], "minimum": 0.0 },
+        "energy_tolerance_w": { "type": ["number", "null"], "exclusiveMinimum": 0.0 },
+        "target_hit_residual_m": { "type": ["number", "null"], "minimum": 0.0 },
+        "target_hit_tolerance_m": { "type": "number", "exclusiveMinimum": 0.0 },
+        "message": { "type": "string" }
+      }
+    },
     "stlClosestHitCheck": {
       "type": "object",
       "additionalProperties": false,
@@ -1809,6 +1989,7 @@
         "scene_energy_ledger",
         "receiver_return",
         "reciprocal_return",
+        "reciprocal_return_power",
         "external_validation_status"
       ],
       "properties": {
@@ -1821,6 +2002,7 @@
         "scene_energy_ledger": { "$ref": "#/$defs/sceneEnergyCheck" },
         "receiver_return": { "$ref": "#/$defs/receiverCheck" },
         "reciprocal_return": { "$ref": "#/$defs/reciprocalReturnCheck" },
+        "reciprocal_return_power": { "$ref": "#/$defs/reciprocalReturnPowerCheck" },
         "external_validation_status": { "const": "not_evaluated" }
       }
     }

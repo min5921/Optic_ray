@@ -23,6 +23,7 @@ IMPLEMENTED_OUTPUTS = {
     "received_aperture_power",
     "link_budget",
     "reciprocal_return_geometry",
+    "reciprocal_return_power",
 }
 
 # 계산 경로는 존재하지만 아직 calibrated hardware output으로 해석할 수 없는
@@ -984,9 +985,10 @@ def validate_scenario_physics(
                 source=source_text,
                 path="receiver.architecture",
                 message=(
-                    "reciprocal_single_mode_fiber는 현재 center-ray geometry reference입니다. "
+                    "reciprocal_single_mode_fiber는 현재 center-ray geometry와 "
+                    "Lambertian scalar return-power reference입니다. "
                     "기존 virtual aperture power는 regression intermediate로 유지되며 "
-                    "return power, fiber coupling과 detector power를 뜻하지 않습니다."
+                    "fiber coupling과 detector power를 뜻하지 않습니다."
                 ),
                 severity="warning",
             )

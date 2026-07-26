@@ -886,6 +886,48 @@ def _return_path_points(path: dict[str, Any]) -> tuple[tuple[str, Vec3], ...]:
     return tuple(points)
 
 
+_RETURN_SEGMENT_POWER_FIELDS = {
+    ("target", "mirror"): "power_at_return_mirror_w",
+    ("mirror", "collimator"): "power_after_return_mirror_w",
+    ("collimator", "fiber"): "power_at_fiber_plane_w",
+}
+
+
+def _reciprocal_return_segment_power(
+    report_data: dict[str, Any],
+    *,
+    start_plane: str,
+    end_plane: str,
+) -> tuple[float | None, str | None]:
+    """R2 report의 plane power를 실제 reciprocal segment에 연결한다.
+
+    R1 또는 unsupported/not-evaluated R2 report에는 ``return_power``가 없으므로
+    명시적으로 ``(None, None)``을 반환한다. 계산된 0 W는 결측값과 구별해
+    반드시 ``0.0``으로 보존한다.
+    """
+
+    field_name = _RETURN_SEGMENT_POWER_FIELDS.get((start_plane, end_plane))
+    if field_name is None:
+        return None, None
+    section = report_data.get("reciprocal_return")
+    if not isinstance(section, dict):
+        return None, None
+    return_power = section.get("return_power")
+    if not isinstance(return_power, dict):
+        return None, None
+    if field_name not in return_power:
+        raise ValueError(
+            f"평가된 reciprocal_return.return_power에 {field_name!r}가 없습니다."
+        )
+    value = return_power[field_name]
+    if isinstance(value, bool):
+        raise ValueError(f"{field_name}은 0 이상의 유한한 power여야 합니다.")
+    power_w = float(value)
+    if not math.isfinite(power_w) or power_w < 0.0:
+        raise ValueError(f"{field_name}은 0 이상의 유한한 power여야 합니다.")
+    return power_w, field_name
+
+
 def _display_triangle_indices(
     source_triangle_count: int,
     *,
@@ -1369,6 +1411,11 @@ def _make_rays(report_data: dict[str, Any]) -> tuple[RaySegment, ...]:
                     atol=1.0e-12,
                 )
             )
+            power_w, plane_power_name = _reciprocal_return_segment_power(
+                report_data,
+                start_plane=start_name,
+                end_plane=end_name,
+            )
             rays.append(
                 RaySegment(
                     segment_id=(
@@ -1384,13 +1431,13 @@ def _make_rays(report_data: dict[str, Any]) -> tuple[RaySegment, ...]:
                     optical_path_id=path_id,
                     source_element_id=element_ids[start_name],
                     target_element_id=element_ids[end_name],
-                    power_w=None,
+                    power_w=power_w,
                     radius_start_m=None,
                     radius_end_m=None,
                     status="return_terminated" if is_terminated_segment else "return_propagated",
                     label=f"Return: {labels[start_name]} → {labels[end_name]}",
                     propagation_role="return",
-                    plane_power_name=None,
+                    plane_power_name=plane_power_name,
                 )
             )
     return tuple(rays)
@@ -1457,10 +1504,20 @@ def build_viewport_scene(
         )
     reciprocal_section = report_data.get("reciprocal_return")
     if isinstance(reciprocal_section, dict) and _reciprocal_path_records(report_data):
-        warnings_list.append(
-            "Phase 2.4-R1 return overlay는 center-ray geometry-only이며 power, radiance, "
-            "diffraction 또는 fiber coupling을 나타내지 않습니다."
-        )
+        return_power = reciprocal_section.get("return_power")
+        if isinstance(return_power, dict):
+            warnings_list.append(
+                "Phase 2.4-R2 return overlay의 power는 작은 Lambertian footprint와 "
+                "center-ray aperture pass/miss를 사용한 scalar analytical plane power입니다. "
+                "Return beam radius, spatial aperture integral, coherent field와 fiber mode "
+                "coupling을 나타내지 않습니다."
+            )
+            warnings_list.extend(str(item) for item in return_power.get("warnings", ()))
+        else:
+            warnings_list.append(
+                "Phase 2.4-R1 return overlay는 center-ray geometry-only이며 power, radiance, "
+                "diffraction 또는 fiber coupling을 나타내지 않습니다."
+            )
         warnings_list.extend(str(item) for item in reciprocal_section.get("warnings", ()))
         for path in _reciprocal_path_records(report_data):
             warnings_list.extend(str(item) for item in path.get("warnings", ()))

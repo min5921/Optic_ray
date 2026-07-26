@@ -285,6 +285,10 @@ def test_one_sided_stl_backface_is_reported_but_not_visible(
     assert item["intersection"]["hit"] is True
     assert item["intersection"]["front_face"] is False
     assert item["contributes_to_center_ray_visibility"] is False
+    assert report.reciprocal_return["power_status"] == "not_evaluated"
+    assert report.reciprocal_return["return_power"] is None
+    assert report.summary["power_at_return_mirror_w"] is None
+    assert report.summary["power_at_fiber_plane_w"] is None
 
 
 @pytest.mark.parametrize(
@@ -326,6 +330,11 @@ def test_mixed_rectangle_and_stl_use_global_nearest_visibility(
         assert report.target_footprints[0]["estimated_power_on_target_w"] == 0.0
         assert report.stl_intersections[0]["visibility_status"] == "visible_nearest"
         assert report.scene_energy_ledger["status"] == "warning"
+        assert report.reciprocal_return["power_status"] == "not_evaluated"
+        assert report.reciprocal_return["return_power"] is None
+        assert report.summary["power_at_return_mirror_w"] is None
+        assert report.summary["power_at_return_collimator_w"] is None
+        assert report.summary["power_at_fiber_plane_w"] is None
 
 
 def test_upstream_termination_marks_stl_intersection_not_evaluated(
@@ -378,7 +387,7 @@ def test_optical_train_cli_writes_stl_closest_hit_report(
     loaded = yaml.safe_load(output_path.read_text(encoding="utf-8"))
 
     assert exit_code == 0
-    assert loaded["schema_version"] == 3
+    assert loaded["schema_version"] == 4
     assert loaded["stl_intersections"][0]["status"] == "hit"
     assert loaded["summary"]["stl_target_hit_count"] == 1
     assert "stl_hits=1" in output.out

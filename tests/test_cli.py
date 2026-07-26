@@ -392,6 +392,10 @@ def test_optical_train_command_writes_schema_validated_report_and_plot(
     assert report["summary"]["aperture_status"] == "pass"
     assert plot_path.read_bytes().startswith(b"\x89PNG\r\n\x1a\n")
     assert "Phase 2 optical train report:" in output.out
+    assert "P_virtual_ap=" in output.out
+    assert "P_return_mirror=" in output.out
+    assert "P_fiber_plane=" in output.out
+    assert "target_to_fiber_plane_loss_db=" in output.out
     assert "unsupported=0" in output.out
 
 
@@ -466,6 +470,9 @@ def test_dashboard_command_writes_self_contained_workspace_html(
     )
     assert "Workspace dashboard:" in output.out
     assert "P_virtual_ap=" in output.out
+    assert "P_return_mirror=" in output.out
+    assert "P_fiber_plane=" in output.out
+    assert "Reciprocal return power — Phase 2.4-R2" in document
 
 
 def test_dashboard_command_can_embed_scanner_path(

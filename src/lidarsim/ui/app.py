@@ -56,8 +56,10 @@ _TEXT = {
         "discard_all": "전체 Draft 버리기",
         "draft": "Project Draft",
         "target_power": "Target power",
-        "receiver_power": "Virtual aperture estimate",
-        "link_loss": "Link loss",
+        "receiver_power": "Virtual aperture (regression)",
+        "return_mirror_power": "Return mirror power",
+        "fiber_plane_power": "Fiber-plane power",
+        "return_link_loss": "Target→fiber-plane loss",
     },
     "en": {
         "title": "Optic Ray Assembly Workspace",
@@ -84,8 +86,10 @@ _TEXT = {
         "discard_all": "Discard entire draft",
         "draft": "Project Draft",
         "target_power": "Target power",
-        "receiver_power": "Virtual aperture estimate",
-        "link_loss": "Link loss",
+        "receiver_power": "Virtual aperture (regression)",
+        "return_mirror_power": "Return mirror power",
+        "fiber_plane_power": "Fiber-plane power",
+        "return_link_loss": "Target→fiber-plane loss",
     },
 }
 
@@ -287,7 +291,7 @@ def _render_metrics(
     power_unit: str,
 ) -> None:
     summary = run.summary
-    columns = st.columns(3)
+    columns = st.columns(5)
     columns[0].metric(
         _text(language, "target_power"),
         _format_power(float(summary["estimated_power_on_target_w"]), power_unit),
@@ -296,14 +300,34 @@ def _render_metrics(
         _text(language, "receiver_power"),
         _format_power(float(summary["estimated_received_power_w"]), power_unit),
         help=(
-            "현재 값은 분석용 virtual aperture 추정값입니다. 동일 scanner/collimator의 "
-            "역방향 광로와 single-mode fiber 결합은 아직 포함하지 않습니다."
+            "기존 Phase 2.3 analytical virtual-aperture regression intermediate입니다. "
+            "R2 reciprocal return power와 서로 다른 plane의 값입니다."
         ),
     )
-    link_loss = summary.get("link_loss_db")
+    return_mirror_power = summary.get("power_at_return_mirror_w")
     columns[2].metric(
-        _text(language, "link_loss"),
-        "N/A" if link_loss is None else f"{float(link_loss):.6g} dB",
+        _text(language, "return_mirror_power"),
+        (
+            "N/A"
+            if return_mirror_power is None
+            else _format_power(float(return_mirror_power), power_unit)
+        ),
+        help="Lambertian target에서 scanner mirror clear area에 입사한 R2 scalar power입니다.",
+    )
+    fiber_plane_power = summary.get("power_at_fiber_plane_w")
+    columns[3].metric(
+        _text(language, "fiber_plane_power"),
+        (
+            "N/A"
+            if fiber_plane_power is None
+            else _format_power(float(fiber_plane_power), power_unit)
+        ),
+        help="Return mirror와 collimator를 지난 fiber reference plane power이며 mode coupling 전입니다.",
+    )
+    return_loss = summary.get("target_to_fiber_plane_link_loss_db")
+    columns[4].metric(
+        _text(language, "return_link_loss"),
+        "N/A" if return_loss is None else f"{float(return_loss):.6g} dB",
     )
 
 
