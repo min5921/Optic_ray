@@ -92,10 +92,17 @@ def _wireframe_coordinates(vertices: np.ndarray) -> tuple[list[float | None], ..
 
 def _footprint_coordinates(footprint: Any, *, samples: int = 72) -> np.ndarray:
     normal = normalize_vector(footprint.normal, name="footprint normal")
-    major = np.asarray(footprint.orientation_axis_world, dtype=np.float64)
-    major = major - float(np.dot(major, normal)) * normal
-    major = normalize_vector(major, name="footprint major axis")
-    minor = normalize_vector(np.cross(normal, major), name="footprint minor axis")
+    major = normalize_vector(footprint.major_axis_world, name="footprint major axis")
+    minor = normalize_vector(footprint.minor_axis_world, name="footprint minor axis")
+    if abs(float(np.dot(major, minor))) > 1.0e-9:
+        raise ValueError("Footprint major/minor world axis는 서로 직교해야 합니다.")
+    if not math.isclose(
+        float(np.dot(np.cross(major, minor), normal)),
+        1.0,
+        rel_tol=0.0,
+        abs_tol=1.0e-9,
+    ):
+        raise ValueError("Footprint world axes는 target normal과 오른손 좌표계여야 합니다.")
     center = np.asarray(footprint.hit_center_m, dtype=np.float64)
     angles = np.linspace(0.0, 2.0 * math.pi, samples, endpoint=True)
     return (

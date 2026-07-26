@@ -207,7 +207,10 @@
         "normal",
         "major_radius_m",
         "minor_radius_m",
+        "major_axis_world",
+        "minor_axis_world",
         "orientation_axis_world",
+        "axis_convention",
         "area_m2",
         "power_on_target_w",
         "clipped_by_target_bounds",
@@ -219,7 +222,12 @@
         "normal": { "$ref": "#/$defs/vec3" },
         "major_radius_m": { "type": "number", "exclusiveMinimum": 0.0 },
         "minor_radius_m": { "type": "number", "exclusiveMinimum": 0.0 },
+        "major_axis_world": { "$ref": "#/$defs/vec3" },
+        "minor_axis_world": { "$ref": "#/$defs/vec3" },
         "orientation_axis_world": { "$ref": "#/$defs/vec3" },
+        "axis_convention": {
+          "const": "unit_orthogonal_right_handed_major_minor_target_normal"
+        },
         "area_m2": { "type": "number", "exclusiveMinimum": 0.0 },
         "power_on_target_w": { "type": "number", "minimum": 0.0 },
         "clipped_by_target_bounds": { "type": "boolean" },

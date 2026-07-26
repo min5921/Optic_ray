@@ -89,6 +89,15 @@ python -W error::DeprecationWarning -W error::UserWarning -m pytest -q
 | `UI-S-04` | 3D footprint 장축 방향이 실제 projection eigenvector가 아니라 target width axis에 고정된다. | 경사 입사에서 footprint 크기는 맞아도 화면 방향이 틀릴 수 있다. | 물리 계산이 major/minor world axis를 반환하고 viewport가 같은 축을 사용한다. |
 | `UI-S-05` | `result_root`, `display_units`, `ui.language` 등 일부 project UI 설정이 화면에 반영되지 않는다. | config를 바꿔도 UI 동작이 재현되지 않는다. | 지원 설정을 실제 UI에 연결하고, 아직 지원하지 않는 설정은 validation 또는 명시적 warning으로 표시한다. |
 
+2026-07-26 UI-S checkpoint:
+
+- `UI-S-01` 완료: 불변 project-wide draft가 여러 객체의 변경을 보존하고 변경 객체·field·unified YAML diff와 discard/apply 상태를 표시한다.
+- `UI-S-02` 완료: config/provenance snapshot과 staging result directory를 하나의 transaction으로 다루며 render 강제 실패 후에도 기존 variant와 result bundle이 byte-for-byte 유지됨을 검증했다.
+- `UI-S-03` 완료: baseline/parent/variant identity를 provenance sidecar에 분리하고 반복 저장에서 project ID와 description이 누적되지 않는다.
+- `UI-S-04` 완료: footprint metric eigensystem이 right-handed major/minor local·world axis를 반환하고 report, viewport contract와 두 renderer가 같은 축을 사용한다.
+- `UI-S-05` 완료: `result_root`, `ui.language`, `ui.autosave_drafts`와 `display_units.power`를 연결했다. 고정 단위를 사용하는 나머지 editor는 해당 제한을 화면에 warning으로 밝힌다.
+- UI-S Gate 완료. 다음 활성 단계는 Phase 2.4-R1 reciprocal center-ray report/viewport 통합이다.
+
 `UI-S`는 `Phase 2-S0/S1`과 병행할 수 있지만, `S1-GEO-01` 완료 전에는 UI numeric placement를 물리적으로 정확한 assembly editor라고 표시하지 않는다.
 
 ### 3.4 Phase 4.1-M1 — CPU STL target closest-hit MVP

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import math
 
+import numpy as np
 import pytest
 
 from lidarsim.beam import BeamState
@@ -179,9 +180,24 @@ def test_rectangle_plane_footprint_reports_power_and_area() -> None:
 def test_oblique_footprint_expands_projected_major_axis() -> None:
     beam = _beam()
     normal = estimate_rectangle_plane_footprint(beam, _intersection(beam=beam))
+    incidence_angle = math.pi / 4.0
+    target_normal = np.array(
+        [-math.cos(incidence_angle), 0.0, math.sin(incidence_angle)],
+        dtype=np.float64,
+    )
+    projected_incidence = np.array(
+        [math.sin(incidence_angle), 0.0, math.cos(incidence_angle)],
+        dtype=np.float64,
+    )
+    target_roll = math.pi / 3.0
+    width_axis = (
+        math.cos(target_roll) * np.array([0.0, 1.0, 0.0], dtype=np.float64)
+        + math.sin(target_roll) * projected_incidence
+    )
     oblique_hit = _intersection(
         beam=beam,
-        normal=[-math.sqrt(0.5), 0.0, math.sqrt(0.5)],
+        normal=target_normal,
+        width_axis=width_axis,
     )
     oblique = estimate_rectangle_plane_footprint(beam, oblique_hit)
 
@@ -189,6 +205,42 @@ def test_oblique_footprint_expands_projected_major_axis() -> None:
     assert oblique.projected_footprint_major_radius_m is not None
     assert oblique.projected_footprint_major_radius_m > normal.projected_footprint_major_radius_m
     assert oblique_hit.incidence_angle_rad == pytest.approx(math.pi / 4.0)
+    assert oblique.projected_footprint_major_radius_m >= (
+        oblique.projected_footprint_minor_radius_m
+    )
+
+    major_local = np.asarray(
+        oblique.projected_footprint_major_axis_local_uv,
+        dtype=np.float64,
+    )
+    minor_local = np.asarray(
+        oblique.projected_footprint_minor_axis_local_uv,
+        dtype=np.float64,
+    )
+    major_world = np.asarray(
+        oblique.projected_footprint_major_axis_world,
+        dtype=np.float64,
+    )
+    minor_world = np.asarray(
+        oblique.projected_footprint_minor_axis_world,
+        dtype=np.float64,
+    )
+    assert np.linalg.norm(major_local) == pytest.approx(1.0)
+    assert np.linalg.norm(minor_local) == pytest.approx(1.0)
+    assert np.linalg.det(np.column_stack((major_local, minor_local))) == pytest.approx(1.0)
+    assert np.linalg.norm(major_world) == pytest.approx(1.0)
+    assert np.linalg.norm(minor_world) == pytest.approx(1.0)
+    assert float(np.dot(major_world, minor_world)) == pytest.approx(0.0, abs=1.0e-12)
+    assert np.cross(major_world, minor_world) == pytest.approx(target_normal, abs=1.0e-12)
+    assert abs(float(np.dot(major_world, projected_incidence))) == pytest.approx(1.0)
+    assert major_world == pytest.approx(
+        major_local[0] * oblique_hit.width_axis
+        + major_local[1] * oblique_hit.height_axis,
+        abs=1.0e-12,
+    )
+    assert oblique.to_dict()["projected_footprint_axis_convention"] == (
+        "unit_orthogonal_right_handed_major_minor_target_normal"
+    )
 
 
 def test_lambertian_receiver_return_is_positive_inside_fov() -> None:

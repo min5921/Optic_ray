@@ -16,6 +16,7 @@ import numpy as np
 from lidarsim.geometry import AssemblyPlacement, resolve_assembly
 from lidarsim.geometry.transform import normalize_vector
 from lidarsim.results import Phase2OpticalTrainReport, build_phase2_optical_train_report
+from lidarsim.scene.footprint import FOOTPRINT_AXIS_CONVENTION
 from lidarsim.scene.targets import rectangle_plane_axes
 
 
@@ -220,11 +221,38 @@ class FootprintOverlay:
     normal: Vec3
     major_radius_m: float
     minor_radius_m: float
-    orientation_axis_world: Vec3
+    major_axis_world: Vec3
+    minor_axis_world: Vec3
+    axis_convention: str
     area_m2: float
     power_on_target_w: float
     clipped_by_target_bounds: bool
     status: str
+
+    def __post_init__(self) -> None:
+        normal = normalize_vector(self.normal, name="footprint normal")
+        major = normalize_vector(self.major_axis_world, name="footprint major axis")
+        minor = normalize_vector(self.minor_axis_world, name="footprint minor axis")
+        if abs(float(np.dot(major, minor))) > 1.0e-9:
+            raise ValueError("Footprint major/minor world axis는 서로 직교해야 합니다.")
+        handedness = float(np.dot(np.cross(major, minor), normal))
+        if not math.isclose(handedness, 1.0, rel_tol=0.0, abs_tol=1.0e-9):
+            raise ValueError(
+                "Footprint axis는 cross(major, minor)=normal인 오른손 좌표계여야 합니다."
+            )
+        if self.major_radius_m + 1.0e-15 < self.minor_radius_m:
+            raise ValueError("Footprint major radius는 minor radius 이상이어야 합니다.")
+        if self.axis_convention != FOOTPRINT_AXIS_CONVENTION:
+            raise ValueError(f"지원하지 않는 footprint axis convention입니다: {self.axis_convention!r}")
+        object.__setattr__(self, "normal", _vec3(normal, name="footprint normal"))
+        object.__setattr__(self, "major_axis_world", _vec3(major, name="footprint major axis"))
+        object.__setattr__(self, "minor_axis_world", _vec3(minor, name="footprint minor axis"))
+
+    @property
+    def orientation_axis_world(self) -> Vec3:
+        """이전 viewport consumer를 위한 major-axis alias."""
+
+        return self.major_axis_world
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -233,7 +261,10 @@ class FootprintOverlay:
             "normal": list(self.normal),
             "major_radius_m": self.major_radius_m,
             "minor_radius_m": self.minor_radius_m,
+            "major_axis_world": list(self.major_axis_world),
+            "minor_axis_world": list(self.minor_axis_world),
             "orientation_axis_world": list(self.orientation_axis_world),
+            "axis_convention": self.axis_convention,
             "area_m2": self.area_m2,
             "power_on_target_w": self.power_on_target_w,
             "clipped_by_target_bounds": self.clipped_by_target_bounds,
@@ -684,10 +715,15 @@ def _make_footprints(report_data: dict[str, Any]) -> tuple[FootprintOverlay, ...
                 normal=_vec3(target_intersection["target_normal"], name="footprint.normal"),
                 major_radius_m=float(footprint["projected_footprint_major_radius_m"]),
                 minor_radius_m=float(footprint["projected_footprint_minor_radius_m"]),
-                orientation_axis_world=_vec3(
-                    target_intersection["width_axis_world"],
-                    name="footprint.orientation",
+                major_axis_world=_vec3(
+                    footprint["projected_footprint_major_axis_world"],
+                    name="footprint.major_axis",
                 ),
+                minor_axis_world=_vec3(
+                    footprint["projected_footprint_minor_axis_world"],
+                    name="footprint.minor_axis",
+                ),
+                axis_convention=str(footprint["projected_footprint_axis_convention"]),
                 area_m2=float(footprint["approximate_footprint_area_m2"]),
                 power_on_target_w=float(footprint["estimated_power_on_target_w"]),
                 clipped_by_target_bounds=bool(footprint["clipped_by_target_bounds"]),

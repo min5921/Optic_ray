@@ -907,7 +907,7 @@ Phase 2-S0 신뢰도·계약 안정화
 
 `UI-S`는 `Phase 2-S0/S1`과 병행할 수 있지만, 각 단계의 완료 선언과 checkpoint는 위 Gate 순서를 따른다. 상세 문제 ID, 영향과 완료 조건은 [`specs/IMPLEMENTATION_AUDIT_2026-07-15.md`](specs/IMPLEMENTATION_AUDIT_2026-07-15.md)에 기록한다. Phase 2.2 target footprint와 Phase 2.3 virtual-aperture return은 Phase 4·5 기능을 앞당겨 검증한 vertical slice이며 Phase 4·5 전체 완료를 뜻하지 않는다.
 
-2026-07-23 Phase 2-S0과 Phase 2-S1 Gate를 완료했다. Calibration evidence, zero-power, 방향 벡터, `gaussian_m2` 지원 경계, nearest-visible target energy와 strict schema에 더해 collimator·mirror 실제 hit, no-teleport miss, off-axis ideal-lens chief ray, scanner pivot, target width-axis/단면 정책과 mirror·footprint quadrature 수렴 판정이 regression test를 통과했다. 다음 활성 단계는 `UI-S`다.
+2026-07-26 Phase 2-S0, Phase 2-S1과 UI-S Gate를 완료했다. Calibration evidence, zero-power, 방향 벡터, nearest-visible target energy, strict schema, actual-hit/no-teleport geometry, scanner pivot·target sidedness·quadrature에 더해 project-wide draft, atomic simulation rollback, stable provenance, footprint eigensystem world axis와 project UI setting 연결을 regression test로 검증했다. 다음 활성 단계는 `Phase 2.4-R1`이다.
 
 ### Phase 0 — Contract, Configuration, Coordinate와 Viewer Skeleton
 
@@ -1019,7 +1019,7 @@ Phase 4.1-M1의 첫 STL 범위는 CPU/float64 center-ray nearest-hit로 제한�
 
 UI early slice 상태 (2026-07-10): `ViewportScene` 기반 Matplotlib headless viewer와 self-contained read-only dashboard에 이어, optional Streamlit `lidarsim ui`를 Plotly interactive 3D optical bench로 확장했다. 사용자는 orbit·zoom, component marker selection, guide toggle과 beam/reflected ray·target footprint·receiver FOV overlay를 확인하고, 선택한 source/scanner/target/receiver/component의 parameter와 absolute/port numeric placement를 편집할 수 있다. 편집값과 current simulation이 다르면 미반영 상태를 명시하고 inspector 상단 action으로 variant 저장·검증·3D 갱신을 수행하며, active config hash가 외부에서 바뀌어도 stale session result를 자동 재계산한다. 첫 UI Phase C helper인 `MirrorTargetMate`는 현재 center ray를 target rectangle center로 반사하는 required normal과 base pose를 static scanner angle까지 고려해 preview하고, 사용자가 적용한 뒤에만 absolute placement quaternion과 local mechanical axis에 일관된 `scanner.rotation_axis_world`로 저장한다. 모든 변경은 `configs/ui_runs/` variant YAML로 serialize하고 schema/unit/physical/placement validation을 통과한 뒤 `results/ui_runs/` bundle을 생성하므로 CLI에서 같은 project를 재현할 수 있다. 아직 geometry-face picking, receiver `LookAtMate`, port/coaxial snap, persistent constraint list, undo/redo, drag/rotate gizmo, multi-run comparison과 tolerance analysis는 구현하지 않았다.
 
-UI-S 안정화 상태 (2026-07-15 검수): 현재 inspector는 선택 객체 하나의 pending edit만 수집하고, variant 저장과 simulation이 하나의 atomic transaction이 아니며, 반복 저장 provenance와 projected footprint 방향에도 보완이 필요하다. Project-wide draft와 config diff, 실패 시 기존 variant 보존, 안정적인 baseline/parent provenance, 물리 engine이 반환한 footprint world axis, `ViewportScene` schema를 R1 UI overlay 전에 구현한다.
+UI-S 완료 상태 (2026-07-26): 선택을 바꿔도 여러 객체 편집을 보존하는 `ProjectDraft`, 변경 객체/field/YAML diff, 선택·전체 discard를 구현했다. Variant·project·provenance와 result directory는 validation→simulation→render 실패 시 이전 성공 상태로 rollback한다. 최초 baseline, 직전 parent와 현재 variant identity를 sidecar에 분리하고 반복 저장 ID/description을 안정화했다. Projected Gaussian eigensystem의 major/minor local·world axis를 report·strict schema·Plotly·Matplotlib이 공유하며, `result_root`, language, autosave와 power display unit을 실제 UI 동작에 연결했다. 다음 UI 물리 overlay는 R1 return path다.
 
 ### Phase 7 — Coherent FMCW와 Speckle
 

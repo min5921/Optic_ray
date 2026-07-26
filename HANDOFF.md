@@ -1,6 +1,6 @@
 # 프로젝트 인계 문서
 
-마지막 갱신: 2026-07-23 (Asia/Seoul)
+마지막 갱신: 2026-07-26 (Asia/Seoul)
 
 ## 현재 상태
 
@@ -16,6 +16,9 @@
 - Phase 2-S0 전체 Gate를 완료했다. 여러 rectangle-plane 후보 중 nearest positive center-ray hit 하나만 scene energy와 receiver return에 기여하며 `scene_energy_ledger`가 oversubscription을 검사한다. Component/material의 실행 필드, 전체 Phase 2 report와 `ViewportScene schema_version: 1`을 strict schema로 검증한다.
 - Phase 2-S1 geometry checkpoint를 완료했다. Collimator·mirror는 실제 ray-plane hit까지 전파하며 component origin으로 beam을 재배치하지 않는다. Plane parallel/behind와 clear-aperture center-ray miss는 명시적 0 W `terminated` path가 된다. Off-axis collimator decenter는 projected aperture와 paraxial chief-ray에 반영되고 scanner command는 catalog pivot 기준으로 surface frame을 회전한다.
 - Phase 2-S1 전체 Gate를 완료했다. Rectangle target의 `width_axis`가 roll을 고정하고 right-handed local frame을 만든다. Material의 `one_sided/two_sided` 정책을 backface intersection과 Lambertian radiometric normal에 동일하게 적용한다. Mirror aperture와 target footprint 적분은 base/refined result, relative residual, tolerance와 convergence status를 보고하며 refined power를 사용한다.
+- UI-S Gate를 완료했다. 불변 `ProjectDraft`가 여러 객체 편집을 보존하고 변경 객체·field·YAML diff와 discard/apply 상태를 표시한다. `ui.autosave_drafts`, `ui.language`, `display_units.power`와 `result_root`가 실제 UI에 연결된다.
+- UI variant scenario/project/provenance와 result bundle을 rollback 단위로 묶었다. Validation, simulation 또는 render 실패 시 기존 성공 파일을 복원하며, 강제 render 실패 test가 byte snapshot과 result marker 보존을 검증한다. Baseline/parent/variant provenance를 분리해 반복 저장 ID·description 누적을 막았다.
+- Projected Gaussian footprint는 metric eigensystem의 major/minor local·world unit axis를 보고하고 `cross(major, minor)=target_normal`을 유지한다. Phase 2/ViewportScene strict schema, Plotly와 Matplotlib이 같은 축을 사용한다.
 - 프로젝트의 중심 범위는 catalog 기반 또는 사용자 정의 광학 부품의 3D 배치, 포인트·라인·면적 빔, collimator 광학계, 사용자 정의 scanner, target interaction과 receiver return 분석이다.
 - Draft v0.2에는 model fidelity contract, commercial component catalog, optical/CAD import, coordinate frame, rigid transform, optical port, placement constraint, structured result, visualization과 tolerance analysis가 포함된다.
 - Phase 0~5의 임시 초기값은 `docs/specs/INITIAL_BASELINE.md`에 정리되어 있으며 모든 값은 configuration으로 교체할 수 있다.
@@ -62,7 +65,7 @@
 - UI 편집값이 3D에 반영되지 않은 것처럼 보이던 UX를 수정했다. Inspector 상단에 `변경값 반영 · 시뮬레이션` action과 pending/applied 상태를 표시하고, active config hash가 바뀌면 cached `UiSimulationRun`을 자동 갱신한다.
 - UI에서 같은 Scenario ID를 반복 적용할 때 기존 `configs/ui_runs` 작업 variant 때문에 실패하던 문제를 수정했다. 작업 variant 덮어쓰기는 기본으로 켜져 있고 기존 파일이 있으면 보존 방법을 안내하며, baseline config는 계속 수정하지 않는다.
 - 3D UI에 기본 `광학 헤드 확대`, `전체 광로`, `선택 부품 확대` view range를 추가했다. 10 m target 때문에 겹치던 source·collimator·scanner mirror를 근거리 동일 축척, component label과 확대 marker로 확인할 수 있다. Scanner static angle은 실제 기계각으로 명시하고 rotation-axis X/Y/Z는 고급 단위벡터 설정으로 분리했으며 non-unit 입력은 저장 시 명시적으로 정규화한다.
-- 현재 주요 검수 이슈는 UI single-object pending draft와 non-atomic variant run, footprint 표시 방향, 일부 project UI setting 미연결과 STL hit 미구현이다. Phase 2-S0 계약과 Phase 2-S1 actual-hit/no-teleport/scanner-pivot/target-sidedness/numerical-convergence Gate는 2026-07-23에 닫았다.
+- UI-S 검수 이슈는 2026-07-26에 닫았다. 현재 핵심 미구현은 reciprocal R1 report/viewport 통합, CPU STL closest-hit, R2 return ledger, R3 fiber coupling과 R4 detector boundary다.
 - `configs/ui_runs/baseline_1550nm_ui_variant*.yaml` 두 파일은 사용자 생성 미추적 작업물이므로 보존한다. 현재 `[10, 10, 0]` scanner rotation axis는 10 degree가 아니라 정규화 후 X-Y 대각 방향축이므로 사용자 의도를 확인하기 전에는 자동 교정하거나 커밋하지 않는다.
 
 ## 유지할 결정 사항
@@ -81,9 +84,15 @@
 
 ## 가장 좋은 다음 작업
 
-추천 1순위는 `UI-S`의 project-wide draft patch와 atomic variant simulation/rollback이다. 이어서 stable provenance, physical footprint major/minor world axis와 project UI setting 연결을 닫는다.
+추천 1순위는 `Phase 2.4-R1` 순수 reciprocal center-ray geometry를 active project, Phase 2 report/schema와 `ViewportScene` return `RaySegment`에 통합하고 exact-retrace/perturbation Gate를 닫는 것이다. 그 다음 `Phase 4.1-M1` CPU STL closest-hit를 통합한다.
 
 ## 검증 기록
+
+- 2026-07-26 UI-S checkpoint: project-wide draft/diff/discard, stable baseline-parent-variant provenance, project UI settings, physical footprint eigensystem axes, strict report/viewport contract과 Plotly/Matplotlib 축 일치를 구현했다.
+- Variant config/provenance snapshot과 staging result directory를 하나의 transaction으로 연결했다. 정상 적용과 render 강제 실패 rollback test를 추가했다.
+- UI-S checkpoint suite `python -m pytest -q`: 통과, `175 passed in 31.54s`.
+- UI-S checkpoint suite `python -W error::DeprecationWarning -W error::UserWarning -m pytest -q`: 통과, `175 passed in 31.27s`.
+- `python -m lidarsim.cli validate configs/project.yaml`: 통과. Config hash `8b7318ba7d9a649c2299ff52a5e4feb146355db4ec5f02f1049b264118e4a645`와 기존 analytical/virtual-aperture 경고를 확인했다.
 
 - 2026-07-23 Phase 2-S1 완료 checkpoint: target `geometry.width_axis`, right-handed rectangle frame과 material `optical.surface_sidedness`를 추가했다. One-sided backface는 miss, two-sided backface는 입사면 radiometric normal을 Lambertian return에도 사용한다.
 - Mirror aperture와 target footprint에 base/refined Gauss-Legendre 결과, relative residual, tolerance와 convergence status를 추가하고 최종 power에는 refined 결과를 사용한다. 극단적 edge-clipping convergence warning regression을 추가했다.

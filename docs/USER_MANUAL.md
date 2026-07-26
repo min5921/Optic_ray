@@ -977,7 +977,7 @@ Scanner의 `Static command angle (deg)`가 실제 미러 기계각이다. 값을
 
 값을 바꾸면 inspector 상단 상태가 `편집값이 아직 3D와 config에 반영되지 않았습니다`로 바뀐다. 이 상태에서는 3D와 power metric이 마지막 실행 결과를 계속 표시한다. 상단의 `변경값 반영 · 시뮬레이션`을 눌러야 현재 편집값을 variant YAML로 저장·검증하고 3D와 metric을 다시 계산한다. 실행 중 active project/scenario YAML을 외부 editor에서 수정한 경우에도 config hash 변화가 감지되면 stale session 결과를 버리고 자동 재계산한다.
 
-현재 pending edit는 선택한 객체 하나만 추적한다. Source 값을 바꾼 뒤 적용하지 않고 mirror 등 다른 객체로 이동하면 이전 입력이 저장 대상에서 빠질 수 있으므로, `UI-S` project-wide draft가 구현되기 전에는 객체를 바꾸기 전에 변경값을 적용하거나 원래 값으로 되돌린다.
+여러 객체의 pending edit는 project-wide draft에 함께 보존된다. `Project Draft` section에서 변경 객체, field와 unified YAML diff를 확인하고 선택 객체 또는 전체 변경을 폐기할 수 있다. `ui.autosave_drafts: true`면 객체를 바꿔도 자동 보존하고, `false`면 객체를 바꾸기 전에 `선택 객체를 Draft에 추가`를 눌러야 한다.
 
 같은 작업을 반복 수정할 수 있도록 `같은 ID의 기존 UI variant 덮어쓰기`는 기본으로 켜져 있다. 이 옵션은 `configs/ui_runs/` 아래의 해당 작업 사본만 갱신하며 baseline config는 덮어쓰지 않는다. 이전 variant도 별도로 보존하려면 `Scenario ID`를 새 이름으로 바꾼 뒤 실행한다.
 
@@ -994,7 +994,7 @@ browser 입력
 → results/ui_runs/<scenario>_<hash>/
 ```
 
-Validation이 실패하면 잘못된 새 variant file은 rollback한다. 다만 현재는 simulation/render 실패까지 포함한 완전한 atomic transaction이 아니므로, 중요한 기존 variant를 보존하려면 새 Scenario ID를 사용한다. Full rollback은 `UI-S` 범위다. 성공한 project는 다음처럼 CLI에서 재현할 수 있다.
+Variant scenario/project, `*_provenance.yaml`과 result bundle은 하나의 rollback 단위로 다룬다. Validation, optical simulation, schema check 또는 PNG/HTML rendering이 실패하면 기존 variant·provenance·성공 result directory를 유지한다. Provenance sidecar는 최초 baseline, 직전 parent와 현재 variant identity/hash를 분리해 반복 저장을 추적한다. 성공한 project는 다음처럼 CLI에서 재현할 수 있다.
 
 ```powershell
 lidarsim validate configs/ui_runs/my_variant_project.yaml

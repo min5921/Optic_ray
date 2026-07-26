@@ -79,15 +79,12 @@ UI Phase 0.1은 처음에는 read-only/result dashboard로 시작했다. 이후 
 아직 SolidWorks-like placement workflow로 보기 어려운 핵심 gap:
 
 - 실제 geometry face picking과 component drag/rotate gizmo
-- 여러 객체의 미반영 편집을 함께 보존하는 project-wide draft
-- validate뿐 아니라 simulation/render 실패까지 포함한 atomic save/rollback
-- 실제 ray-plane/port intersection에 기반한 off-axis·tilt·aperture miss
 - port-to-port snap, coaxial/focal-distance guideline과 persistent constraint list
-- undo/redo와 config diff 기반 history
+- undo/redo history
 - STL mesh import preview, triangle hit와 hit-local footprint
 - reciprocal mirror/collimator/fiber return overlay
 
-따라서 현재 UI는 사용 가능한 interactive analytical workspace지만, 자유 배치 결과를 실제 광학계와 동일하다고 해석하지 않는다. 남은 문제와 완료 Gate는 [`specs/IMPLEMENTATION_AUDIT_2026-07-15.md`](specs/IMPLEMENTATION_AUDIT_2026-07-15.md)를 따른다.
+2026-07-26 UI-S Gate에서 project-wide draft, config diff/discard, simulation/render 실패 rollback, stable baseline/parent provenance, actual ray-plane/no-teleport geometry, physical footprint major/minor world axis와 project UI setting 연결을 완료했다. 따라서 현재 UI는 사용 가능한 interactive analytical workspace이지만, aberration·diffraction·tolerance·calibration이 없으므로 자유 배치 결과를 실제 광학계와 동일하다고 해석하지 않는다. 남은 문제와 완료 Gate는 [`specs/IMPLEMENTATION_AUDIT_2026-07-15.md`](specs/IMPLEMENTATION_AUDIT_2026-07-15.md)를 따른다.
 
 ## 4. 진행 규칙과 첫 구현 순서
 
@@ -240,7 +237,7 @@ Guidelines/snapping, 일반 constraint/mate와 drag/rotate editor는 아직 완�
 - scanner hardware dynamics
 - STL footprint/occlusion과 coherent FMCW
 
-물리 `Phase 2-S0/S1`은 2026-07-23에 완료되어 UI numeric offset·tilt가 실제 ray-plane hit, clipping, chief ray와 no-teleport miss에 연결된다. 그래도 aberration, diffraction, stochastic tolerance와 측정 calibration이 없으므로 UI 결과를 hardware-accurate prediction이라고 표시하지 않는다. 다음 활성 Gate는 이 section의 `UI-S`다.
+물리 `Phase 2-S0/S1`과 UI-S는 2026-07-26까지 완료되었다. UI numeric offset·tilt는 실제 ray-plane hit, clipping, chief ray와 no-teleport miss에 연결되고, 여러 객체 변경은 atomic variant transaction으로 저장된다. 그래도 aberration, diffraction, stochastic tolerance와 측정 calibration이 없으므로 UI 결과를 hardware-accurate prediction이라고 표시하지 않는다. 다음 활성 Gate는 `Phase 2.4-R1`이다.
 
 ### 4.4 현재 구현된 UI MVP 0 slice
 
@@ -1169,10 +1166,10 @@ Optical Assembly Workspace의 초기 MVP는 다음 범위까지 완료했다.
 
 ## 14. 추천 다음 작업
 
-1. `UI-S` 안정화 (`Phase 2-S0/S1` 완료)
+1. [완료] `UI-S` 안정화
    - project-wide draft, atomic variant run과 stable provenance
    - footprint world orientation과 `ViewportScene` schema
-2. 물리 `Phase 2.4-R1` reciprocal center-ray vertical slice
+2. [현재] 물리 `Phase 2.4-R1` reciprocal center-ray vertical slice
    - target hit→same scanner mirror→same collimator receive plane→fiber port
    - angular/lateral mismatch와 round-trip closure residual
    - 계산된 return `RaySegment`와 residual을 3D viewport에 overlay

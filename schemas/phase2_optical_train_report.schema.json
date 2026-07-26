@@ -34,6 +34,12 @@
     "analytical_checks": { "$ref": "#/$defs/analyticalChecks" }
   },
   "$defs": {
+    "vec2": {
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 2,
+      "items": { "type": "number" }
+    },
     "vec3": {
       "type": "array",
       "minItems": 3,
@@ -829,6 +835,11 @@
         "beam_radius_y_m",
         "projected_footprint_major_radius_m",
         "projected_footprint_minor_radius_m",
+        "projected_footprint_major_axis_local_uv",
+        "projected_footprint_minor_axis_local_uv",
+        "projected_footprint_major_axis_world",
+        "projected_footprint_minor_axis_world",
+        "projected_footprint_axis_convention",
         "projected_radius_u_m",
         "projected_radius_v_m",
         "approximate_footprint_area_m2",
@@ -901,6 +912,33 @@
         "projected_footprint_minor_radius_m": {
           "type": ["number", "null"],
           "exclusiveMinimum": 0.0
+        },
+        "projected_footprint_major_axis_local_uv": {
+          "oneOf": [
+            { "type": "null" },
+            { "$ref": "#/$defs/vec2" }
+          ]
+        },
+        "projected_footprint_minor_axis_local_uv": {
+          "oneOf": [
+            { "type": "null" },
+            { "$ref": "#/$defs/vec2" }
+          ]
+        },
+        "projected_footprint_major_axis_world": {
+          "oneOf": [
+            { "type": "null" },
+            { "$ref": "#/$defs/vec3" }
+          ]
+        },
+        "projected_footprint_minor_axis_world": {
+          "oneOf": [
+            { "type": "null" },
+            { "$ref": "#/$defs/vec3" }
+          ]
+        },
+        "projected_footprint_axis_convention": {
+          "const": "unit_orthogonal_right_handed_major_minor_target_normal"
         },
         "projected_radius_u_m": {
           "type": ["number", "null"],

@@ -16,13 +16,94 @@ from lidarsim.ui.assembly import (
     build_viewport_scene,
     preview_mirror_target_mate,
 )
-from lidarsim.ui.runner import UiSimulationRun, run_ui_simulation
+from lidarsim.ui.runner import (
+    UiSimulationRun,
+    run_ui_simulation,
+    run_ui_variant_transaction,
+)
 from lidarsim.ui.simulation_variant import (
     AssemblyElementEdits,
+    ProjectDraft,
     SimulationParameterEdits,
     SimulationVariantResult,
-    create_simulation_variant,
+    preview_project_draft,
 )
+
+
+_TEXT = {
+    "ko": {
+        "title": "Optic Ray Workspace",
+        "subtitle": "Interactive optical bench · numeric placement · MirrorTargetMate preview",
+        "project": "프로젝트",
+        "selected_object": "선택 객체",
+        "guides": "가이드",
+        "ports": "광축 / 포트 축",
+        "frames": "부품 로컬 좌표계",
+        "mirror_normal": "미러 법선",
+        "target_plane": "표적 평면",
+        "receiver_fov": "수신기 FOV",
+        "baseline": "Baseline으로 돌아가기",
+        "view_range": "3D 보기 범위",
+        "head_view": "광학 헤드 확대",
+        "full_view": "전체 광로",
+        "selected_view": "선택 부품 확대",
+        "variant_settings": "Variant 저장 설정",
+        "overwrite": "같은 ID의 기존 UI variant 덮어쓰기",
+        "scanner_path": "Ideal scanner path도 계산",
+        "apply": "변경값 반영 · 시뮬레이션",
+        "stage": "선택 객체를 Draft에 추가",
+        "discard_selected": "선택 객체 변경 버리기",
+        "discard_all": "전체 Draft 버리기",
+        "draft": "Project Draft",
+        "target_power": "Target power",
+        "receiver_power": "Virtual aperture estimate",
+        "link_loss": "Link loss",
+    },
+    "en": {
+        "title": "Optic Ray Assembly Workspace",
+        "subtitle": "Interactive optical bench · numeric placement · MirrorTargetMate preview",
+        "project": "Project",
+        "selected_object": "Selected object",
+        "guides": "Guides",
+        "ports": "Optical / port axes",
+        "frames": "Component local frames",
+        "mirror_normal": "Mirror normal",
+        "target_plane": "Target plane",
+        "receiver_fov": "Receiver FOV",
+        "baseline": "Return to baseline",
+        "view_range": "3D view range",
+        "head_view": "Optical head close-up",
+        "full_view": "Full optical path",
+        "selected_view": "Selected component close-up",
+        "variant_settings": "Variant save settings",
+        "overwrite": "Overwrite existing UI variant with the same ID",
+        "scanner_path": "Include ideal scanner path",
+        "apply": "Apply draft · run simulation",
+        "stage": "Add selected object to draft",
+        "discard_selected": "Discard selected-object edits",
+        "discard_all": "Discard entire draft",
+        "draft": "Project Draft",
+        "target_power": "Target power",
+        "receiver_power": "Virtual aperture estimate",
+        "link_loss": "Link loss",
+    },
+}
+
+
+def _text(language: str, key: str) -> str:
+    selected = language if language in _TEXT else "ko"
+    return _TEXT[selected][key]
+
+
+def _format_power(power_w: float, unit: str) -> str:
+    scales = {"W": 1.0, "mW": 1.0e-3, "uW": 1.0e-6, "nW": 1.0e-9}
+    if unit == "dBm":
+        if power_w <= 0.0:
+            return "-∞ dBm"
+        return f"{10.0 * math.log10(power_w / 1.0e-3):.6g} dBm"
+    scale = scales.get(unit, 1.0)
+    resolved_unit = unit if unit in scales else "W"
+    return f"{power_w / scale:.6g} {resolved_unit}"
 
 
 def _project_argument() -> Path:
@@ -45,13 +126,14 @@ def _component_options(project: Any, current_ref: str) -> list[str]:
     )
 
 
-def _result_directory(project_path: Path, scenario_id: str, config_hash: str) -> Path:
-    return (
-        find_project_root(project_path)
-        / "results"
-        / "ui_runs"
-        / f"{scenario_id}_{config_hash[:8]}"
-    )
+def _result_directory(project: Any, scenario_id: str, config_hash: str) -> Path:
+    configured = Path(str(project.project.get("result_root", "../results")))
+    result_root = (
+        configured
+        if configured.is_absolute()
+        else Path(project.project_path).parent / configured
+    ).resolve()
+    return result_root / "ui_runs" / f"{scenario_id}_{config_hash[:8]}"
 
 
 def _selection_event_element_id(event: Any) -> str | None:
@@ -92,6 +174,83 @@ def _same_values(first: tuple[float, ...], second: tuple[float, ...], *, atol: f
     )
 
 
+_EDITOR_STATE_PREFIXES = (
+    "component_ref:",
+    "placement:",
+    "source:",
+    "scanner:",
+    "target:",
+    "receiver:",
+)
+
+
+def _editor_prefixes(project: Any, object_id: str) -> tuple[str, ...]:
+    config_hash = str(project.config_hash)
+    prefixes = [
+        f"component_ref:{config_hash}:{object_id}",
+        f"placement:{config_hash}:{object_id}:",
+    ]
+    if object_id == "receiver":
+        prefixes.append(f"receiver:{config_hash}:")
+    if any(
+        str(target["id"]) == object_id
+        for target in project.active_scenario["scene"]["targets"]
+    ):
+        prefixes.append(f"target:{config_hash}:{object_id}:")
+    element = next(
+        (
+            value
+            for value in project.active_scenario["optical_assembly"]["elements"]
+            if str(value["id"]) == object_id
+        ),
+        None,
+    )
+    if element is not None:
+        component_type = str(
+            project.catalog[str(element["component_ref"])].data["component_type"]
+        )
+        if component_type in {"fiber_source", "beam_source"}:
+            prefixes.append(f"source:{config_hash}:")
+        elif component_type == "scanner_mirror":
+            prefixes.append(f"scanner:{config_hash}:")
+    return tuple(prefixes)
+
+
+def _clear_widget_prefixes(state: Any, prefixes: tuple[str, ...]) -> None:
+    for key in tuple(state.keys()):
+        if isinstance(key, str) and key.startswith(prefixes):
+            del state[key]
+
+
+def _discard_draft_object(
+    state: Any,
+    object_id: str,
+    prefixes: tuple[str, ...],
+    message: str,
+) -> None:
+    draft = state.get("project_draft")
+    if isinstance(draft, ProjectDraft):
+        state["project_draft"] = draft.without_object(object_id)
+    _clear_widget_prefixes(state, prefixes)
+    state["flash_draft"] = message
+
+
+def _discard_entire_draft(state: Any, message: str) -> None:
+    draft = state.get("project_draft")
+    if isinstance(draft, ProjectDraft):
+        state["project_draft"] = draft.discard()
+    _clear_widget_prefixes(state, _EDITOR_STATE_PREFIXES)
+    state["flash_draft"] = message
+
+
+def _reset_to_baseline(state: Any, message: str) -> None:
+    state.pop("last_run", None)
+    state.pop("last_variant", None)
+    state.pop("project_draft", None)
+    _clear_widget_prefixes(state, _EDITOR_STATE_PREFIXES)
+    state["flash_success"] = message
+
+
 def _ensure_preview_run(st: Any, project_path: Path, project: Any) -> UiSimulationRun:
     current = st.session_state.get("last_run")
     if isinstance(current, UiSimulationRun):
@@ -120,16 +279,22 @@ def _ensure_preview_run(st: Any, project_path: Path, project: Any) -> UiSimulati
     return current
 
 
-def _render_metrics(st: Any, run: UiSimulationRun) -> None:
+def _render_metrics(
+    st: Any,
+    run: UiSimulationRun,
+    *,
+    language: str,
+    power_unit: str,
+) -> None:
     summary = run.summary
     columns = st.columns(3)
     columns[0].metric(
-        "Target power",
-        f"{float(summary['estimated_power_on_target_w']) * 1e3:.6g} mW",
+        _text(language, "target_power"),
+        _format_power(float(summary["estimated_power_on_target_w"]), power_unit),
     )
     columns[1].metric(
-        "Virtual aperture estimate",
-        f"{float(summary['estimated_received_power_w']) * 1e9:.6g} nW",
+        _text(language, "receiver_power"),
+        _format_power(float(summary["estimated_received_power_w"]), power_unit),
         help=(
             "현재 값은 분석용 virtual aperture 추정값입니다. 동일 scanner/collimator의 "
             "역방향 광로와 single-mode fiber 결합은 아직 포함하지 않습니다."
@@ -137,7 +302,7 @@ def _render_metrics(st: Any, run: UiSimulationRun) -> None:
     )
     link_loss = summary.get("link_loss_db")
     columns[2].metric(
-        "Link loss",
+        _text(language, "link_loss"),
         "N/A" if link_loss is None else f"{float(link_loss):.6g} dB",
     )
 
@@ -167,6 +332,18 @@ def _render_run_details(
         if variant is not None:
             st.caption("저장된 변경 field")
             st.code("\n".join(variant.changed_fields))
+            st.caption("Variant provenance")
+            st.code(
+                "\n".join(
+                    (
+                        f"baseline: {variant.provenance.baseline.project_id} / "
+                        f"{variant.provenance.baseline.scenario_id}",
+                        f"parent: {variant.provenance.parent.project_id} / "
+                        f"{variant.provenance.parent.scenario_id}",
+                        f"sidecar: {variant.provenance_path}",
+                    )
+                )
+            )
     if run.warnings:
         with st.expander(f"경고와 model limitation ({len(run.warnings)})"):
             for warning in run.warnings:
@@ -694,8 +871,6 @@ def run_streamlit_app(project_path: str | Path | None = None) -> None:
 
     source_project_path = Path(project_path).resolve() if project_path else _project_argument()
     st.set_page_config(page_title="Optic Ray Workspace", layout="wide")
-    st.title("Optic Ray Workspace")
-    st.caption("Interactive optical bench · numeric placement · MirrorTargetMate preview")
 
     try:
         baseline_project = load_project(source_project_path)
@@ -707,9 +882,25 @@ def run_streamlit_app(project_path: str | Path | None = None) -> None:
         st.stop()
         return
 
+    ui_settings = dict(view_project.project.get("ui", {}))
+    language = str(ui_settings.get("language", "ko"))
+    autosave_drafts = bool(ui_settings.get("autosave_drafts", True))
+    display_units = dict(view_project.project.get("display_units", {}))
+    power_unit = str(display_units.get("power", "W"))
+    st.title(_text(language, "title"))
+    st.caption(_text(language, "subtitle"))
+
+    draft = st.session_state.get("project_draft")
+    if not isinstance(draft, ProjectDraft) or not draft.matches_project(view_project):
+        draft = ProjectDraft.for_project(view_project)
+        st.session_state["project_draft"] = draft
+
     flash = st.session_state.pop("flash_success", None)
     if flash:
         st.success(str(flash))
+    draft_flash = st.session_state.pop("flash_draft", None)
+    if draft_flash:
+        st.info(str(draft_flash))
     pending_selection = st.session_state.pop("pending_selected_object_id", None)
     component_ids = [component.element_id for component in scene.components]
     if pending_selection in component_ids:
@@ -718,22 +909,43 @@ def run_streamlit_app(project_path: str | Path | None = None) -> None:
         default_id = str(view_project.active_scenario["scanner"]["element_id"])
         st.session_state["selected_object_id"] = default_id if default_id in component_ids else component_ids[0]
 
-    st.sidebar.header("Project")
+    st.sidebar.header(_text(language, "project"))
     st.sidebar.caption(f"scenario: {view_project.active_scenario['scenario_id']}")
     st.sidebar.caption(f"config: {view_project.config_hash[:12]}")
     st.sidebar.code(str(view_project.project_path))
+    st.sidebar.caption(
+        f"language={language} · autosave_drafts={str(autosave_drafts).lower()} · "
+        f"power={power_unit}"
+    )
+    st.sidebar.caption(f"result_root={view_project.project.get('result_root', '../results')}")
+    unsupported_display = {
+        key: value
+        for key, value in display_units.items()
+        if key != "power"
+    }
+    if unsupported_display:
+        warning = (
+            "현재 display_units.power는 결과 metric에 적용됩니다. 숫자 편집기의 wavelength, "
+            "length, angle, frequency 입력 단위는 각 field label에 표시된 고정 단위를 사용합니다: "
+            f"{unsupported_display}"
+            if language == "ko"
+            else "display_units.power is applied to result metrics. Wavelength, length, angle, "
+            "and frequency editors currently use the fixed units shown in each field label: "
+            f"{unsupported_display}"
+        )
+        st.sidebar.warning(warning)
     selected_object_id = st.sidebar.selectbox(
-        "선택 객체",
+        _text(language, "selected_object"),
         component_ids,
         key="selected_object_id",
         help="3D component marker를 선택해도 이 값이 바뀝니다.",
     )
-    st.sidebar.markdown("#### Guides")
-    show_ports = st.sidebar.checkbox("Optical / port axes", value=True)
-    show_frames = st.sidebar.checkbox("Component local frames", value=False)
-    show_mirror = st.sidebar.checkbox("Mirror normal", value=True)
-    show_target = st.sidebar.checkbox("Target plane", value=True)
-    show_fov = st.sidebar.checkbox("Receiver FOV", value=False)
+    st.sidebar.markdown(f"#### {_text(language, 'guides')}")
+    show_ports = st.sidebar.checkbox(_text(language, "ports"), value=True)
+    show_frames = st.sidebar.checkbox(_text(language, "frames"), value=False)
+    show_mirror = st.sidebar.checkbox(_text(language, "mirror_normal"), value=True)
+    show_target = st.sidebar.checkbox(_text(language, "target_plane"), value=True)
+    show_fov = st.sidebar.checkbox(_text(language, "receiver_fov"), value=False)
     visible_guides: set[str] = set()
     if show_ports:
         visible_guides.update(("port_axis", "reflected_direction"))
@@ -746,11 +958,16 @@ def run_streamlit_app(project_path: str | Path | None = None) -> None:
     if show_fov:
         visible_guides.update(("receiver_fov", "receiver_look"))
 
-    if st.sidebar.button("Baseline으로 돌아가기"):
-        st.session_state.pop("last_run", None)
-        st.session_state.pop("last_variant", None)
-        st.session_state["flash_success"] = "Baseline project로 돌아왔습니다."
-        st.rerun()
+    st.sidebar.button(
+        _text(language, "baseline"),
+        on_click=_reset_to_baseline,
+        args=(
+            st.session_state,
+            "Baseline project로 돌아왔습니다."
+            if language == "ko"
+            else "Returned to the baseline project.",
+        ),
+    )
 
     mate_preview = None
     selected_component = next(
@@ -768,9 +985,14 @@ def run_streamlit_app(project_path: str | Path | None = None) -> None:
 
     viewport_column, inspector_column = st.columns((3.0, 1.45), gap="large")
     with viewport_column:
+        view_labels = (
+            _text(language, "head_view"),
+            _text(language, "full_view"),
+            _text(language, "selected_view"),
+        )
         view_mode_label = st.radio(
-            "3D 보기 범위",
-            ("광학 헤드 확대", "전체 광로", "선택 부품 확대"),
+            _text(language, "view_range"),
+            view_labels,
             horizontal=True,
             help=(
                 "광학 헤드 확대는 10 m 표적 때문에 겹쳐 보이는 source, collimator와 "
@@ -778,9 +1000,9 @@ def run_streamlit_app(project_path: str | Path | None = None) -> None:
             ),
         )
         view_mode = {
-            "광학 헤드 확대": "transmitter_closeup",
-            "전체 광로": "full_scene",
-            "선택 부품 확대": "selected_component",
+            view_labels[0]: "transmitter_closeup",
+            view_labels[1]: "full_scene",
+            view_labels[2]: "selected_component",
         }[view_mode_label]
         figure = build_interactive_viewport_figure(
             scene,
@@ -801,7 +1023,12 @@ def run_streamlit_app(project_path: str | Path | None = None) -> None:
         if picked in component_ids and picked != selected_object_id:
             st.session_state["pending_selected_object_id"] = picked
             st.rerun()
-        _render_metrics(st, last_run)
+        _render_metrics(
+            st,
+            last_run,
+            language=language,
+            power_unit=power_unit,
+        )
         _render_run_details(
             st,
             st.session_state.get("last_variant"),
@@ -814,21 +1041,24 @@ def run_streamlit_app(project_path: str | Path | None = None) -> None:
             st.session_state["default_variant_id"] = (
                 f"{view_project.active_scenario['scenario_id']}_ui_variant"
             )
-        with st.expander("Variant 저장 설정"):
+        with st.expander(_text(language, "variant_settings")):
             variant_id = st.text_input(
                 "Scenario ID",
                 value=st.session_state["default_variant_id"],
                 help="Baseline을 덮어쓰지 않고 configs/ui_runs 아래에 저장합니다.",
             )
             overwrite = st.checkbox(
-                "같은 ID의 기존 UI variant 덮어쓰기",
+                _text(language, "overwrite"),
                 value=True,
                 help=(
                     "UI에서 같은 variant를 반복 편집할 때 configs/ui_runs의 작업 사본만 "
                     "갱신합니다. Baseline config는 덮어쓰지 않습니다."
                 ),
             )
-            include_scanner_path = st.checkbox("Ideal scanner path도 계산", value=False)
+            include_scanner_path = st.checkbox(
+                _text(language, "scanner_path"),
+                value=False,
+            )
             root = find_project_root(view_project.project_path)
             output_dir = root / "configs" / "ui_runs"
             scenario_output = output_dir / f"{variant_id}.yaml"
@@ -838,14 +1068,12 @@ def run_streamlit_app(project_path: str | Path | None = None) -> None:
                     "같은 Scenario ID의 UI variant가 이미 있습니다. 덮어쓰기를 유지하면 "
                     "현재 작업 사본을 갱신하고, 보존하려면 Scenario ID를 바꾸세요."
                 )
-        submitted = st.button(
-            "변경값 반영 · 시뮬레이션",
-            type="primary",
-            width="stretch",
-            help="현재 편집값을 variant YAML로 저장하고 검증한 뒤 3D와 결과를 갱신합니다.",
-        )
         pending_status = st.empty()
-        st.caption("선택한 객체의 값만 표시합니다. 입력 후 위 버튼을 눌러 3D에 반영합니다.")
+        st.caption(
+            "선택한 객체의 편집값을 project-wide draft에 모은 뒤 한 번에 적용합니다."
+            if language == "ko"
+            else "Edits from selected objects are collected into one project-wide draft."
+        )
         parameter_edits, element_edits = _selected_object_editor(
             st,
             view_project,
@@ -855,37 +1083,143 @@ def run_streamlit_app(project_path: str | Path | None = None) -> None:
         has_pending_edits = (
             parameter_edits != SimulationParameterEdits() or element_edits is not None
         )
-        if has_pending_edits:
-            pending_status.warning("편집값이 아직 3D와 config에 반영되지 않았습니다.")
+        if autosave_drafts:
+            draft = draft.with_object_edits(
+                selected_object_id,
+                parameter_edits=parameter_edits,
+                element_edits=element_edits,
+            )
+            st.session_state["project_draft"] = draft
         else:
-            pending_status.success("현재 입력값과 3D simulation이 일치합니다.")
+            st.caption(
+                "autosave_drafts=false: 객체를 바꾸기 전에 Draft 추가 버튼을 눌러야 편집을 보존합니다."
+                if language == "ko"
+                else "autosave_drafts=false: add the selected object before changing selection."
+            )
+            if st.button(
+                _text(language, "stage"),
+                disabled=not has_pending_edits,
+                width="stretch",
+            ):
+                draft = draft.with_object_edits(
+                    selected_object_id,
+                    parameter_edits=parameter_edits,
+                    element_edits=element_edits,
+                )
+                st.session_state["project_draft"] = draft
+
+        preview = None
+        preview_error = None
+        if draft.has_changes:
+            try:
+                preview = preview_project_draft(view_project.project_path, draft)
+            except Exception as exc:
+                preview_error = str(exc)
+        with st.expander(
+            f"{_text(language, 'draft')} ({len(draft.changed_object_ids)})",
+            expanded=draft.has_changes,
+        ):
+            if draft.has_changes:
+                st.caption(
+                    "변경 객체: " + ", ".join(draft.changed_object_ids)
+                    if language == "ko"
+                    else "Changed objects: " + ", ".join(draft.changed_object_ids)
+                )
+                if preview is not None:
+                    st.caption("Config fields")
+                    st.code("\n".join(preview.changed_fields))
+                    st.caption("Config diff")
+                    st.code(preview.config_diff, language="diff")
+                elif preview_error is not None:
+                    st.error(f"Draft diff를 만들 수 없습니다: {preview_error}")
+            else:
+                st.caption(
+                    "아직 보존된 변경이 없습니다."
+                    if language == "ko"
+                    else "No staged changes."
+                )
+            discard_columns = st.columns(2)
+            discard_columns[0].button(
+                _text(language, "discard_selected"),
+                disabled=selected_object_id not in draft.changed_object_ids,
+                on_click=_discard_draft_object,
+                args=(
+                    st.session_state,
+                    selected_object_id,
+                    _editor_prefixes(view_project, selected_object_id),
+                    "선택 객체의 draft 변경을 버렸습니다."
+                    if language == "ko"
+                    else "Discarded edits for the selected object.",
+                ),
+            )
+            discard_columns[1].button(
+                _text(language, "discard_all"),
+                disabled=not draft.has_changes,
+                on_click=_discard_entire_draft,
+                args=(
+                    st.session_state,
+                    "전체 project draft를 버렸습니다."
+                    if language == "ko"
+                    else "Discarded the entire project draft.",
+                ),
+            )
+
+        draft_to_apply = (
+            draft
+            if autosave_drafts
+            else draft.with_object_edits(
+                selected_object_id,
+                parameter_edits=parameter_edits,
+                element_edits=element_edits,
+            )
+        )
+        submitted = st.button(
+            _text(language, "apply"),
+            type="primary",
+            width="stretch",
+            help="Draft를 variant YAML로 저장하고 검증한 뒤 3D와 결과를 갱신합니다.",
+        )
+        if draft_to_apply.has_changes:
+            pending_status.warning(
+                f"{len(draft_to_apply.changed_object_ids)}개 객체의 변경이 아직 3D와 config에 반영되지 않았습니다."
+                if language == "ko"
+                else f"Changes to {len(draft_to_apply.changed_object_ids)} object(s) are pending."
+            )
+        elif st.session_state.get("last_variant") is not None:
+            pending_status.success(
+                "최근 draft가 config와 3D simulation에 적용되었습니다."
+                if language == "ko"
+                else "The latest draft is applied to the config and 3D simulation."
+            )
+        else:
+            pending_status.success(
+                "현재 입력값과 3D simulation이 일치합니다."
+                if language == "ko"
+                else "The current inputs match the 3D simulation."
+            )
         st.caption("UI는 source of truth가 아닙니다. 저장된 YAML과 CLI 실행이 같은 결과를 재현합니다.")
 
     if submitted:
         try:
             with st.spinner("Variant를 저장하고 optical simulation을 실행하는 중입니다..."):
-                variant = create_simulation_variant(
+                transaction = run_ui_variant_transaction(
                     project_path=view_project.project_path,
                     scenario_id=variant_id,
                     scenario_output=scenario_output,
                     project_output=project_output,
-                    parameter_edits=parameter_edits,
-                    element_edits=element_edits,
+                    draft=draft_to_apply,
                     overwrite=overwrite,
-                )
-                run = run_ui_simulation(
-                    variant.project_path,
-                    output_directory=_result_directory(
-                        variant.project_path,
-                        variant.scenario_id,
-                        variant.config_hash,
-                    ),
                     include_scanner_path=include_scanner_path,
                 )
+                variant = transaction.variant
+                run = transaction.simulation
             st.session_state["last_variant"] = variant
             st.session_state["last_run"] = run
+            st.session_state.pop("project_draft", None)
             st.session_state["flash_success"] = (
                 "Variant 저장, validation과 simulation이 완료되었습니다. 3D overlay를 갱신했습니다."
+                if language == "ko"
+                else "Variant save, validation, and simulation completed; the 3D overlay was updated."
             )
             st.rerun()
         except Exception as exc:

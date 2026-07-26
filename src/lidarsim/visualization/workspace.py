@@ -198,15 +198,17 @@ def _draw_rays(ax: Any, data: dict[str, Any]) -> None:
 def _footprint_polygon(footprint: dict[str, Any], *, samples: int = 96) -> np.ndarray:
     center = _as_array(footprint["hit_center_m"])
     normal = normalize_vector(footprint["normal"], name="footprint normal")
-    major_axis = _as_array(footprint["orientation_axis_world"])
-    major_axis = major_axis - float(np.dot(major_axis, normal)) * normal
-    if float(np.linalg.norm(major_axis)) <= 1.0e-12:
-        reference = np.array((0.0, 0.0, 1.0), dtype=np.float64)
-        if abs(float(np.dot(reference, normal))) > 0.95:
-            reference = np.array((0.0, 1.0, 0.0), dtype=np.float64)
-        major_axis = np.cross(normal, reference)
-    major_axis = normalize_vector(major_axis, name="footprint major axis")
-    minor_axis = normalize_vector(np.cross(normal, major_axis), name="footprint minor axis")
+    major_axis = normalize_vector(footprint["major_axis_world"], name="footprint major axis")
+    minor_axis = normalize_vector(footprint["minor_axis_world"], name="footprint minor axis")
+    if abs(float(np.dot(major_axis, minor_axis))) > 1.0e-9:
+        raise ValueError("Footprint major/minor world axis는 서로 직교해야 합니다.")
+    if not np.isclose(
+        float(np.dot(np.cross(major_axis, minor_axis), normal)),
+        1.0,
+        rtol=0.0,
+        atol=1.0e-9,
+    ):
+        raise ValueError("Footprint world axes는 target normal과 오른손 좌표계여야 합니다.")
     angles = np.linspace(0.0, 2.0 * np.pi, samples, endpoint=False)
     return np.array(
         [

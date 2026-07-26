@@ -12,6 +12,11 @@ from lidarsim.beam import BeamState
 from lidarsim.scene.targets import TargetIntersection
 
 
+FOOTPRINT_AXIS_CONVENTION = (
+    "unit_orthogonal_right_handed_major_minor_target_normal"
+)
+
+
 @dataclass(frozen=True, slots=True, eq=False)
 class TargetFootprint:
     """Rectangle-plane target 위의 first-order Gaussian footprint report."""
@@ -21,6 +26,10 @@ class TargetFootprint:
     beam_radius_y_m: float | None
     projected_footprint_major_radius_m: float | None
     projected_footprint_minor_radius_m: float | None
+    projected_footprint_major_axis_local_uv: tuple[float, float] | None
+    projected_footprint_minor_axis_local_uv: tuple[float, float] | None
+    projected_footprint_major_axis_world: tuple[float, float, float] | None
+    projected_footprint_minor_axis_world: tuple[float, float, float] | None
     projected_radius_u_m: float | None
     projected_radius_v_m: float | None
     approximate_footprint_area_m2: float | None
@@ -80,6 +89,27 @@ class TargetFootprint:
             "beam_radius_y_m": self.beam_radius_y_m,
             "projected_footprint_major_radius_m": self.projected_footprint_major_radius_m,
             "projected_footprint_minor_radius_m": self.projected_footprint_minor_radius_m,
+            "projected_footprint_major_axis_local_uv": (
+                None
+                if self.projected_footprint_major_axis_local_uv is None
+                else list(self.projected_footprint_major_axis_local_uv)
+            ),
+            "projected_footprint_minor_axis_local_uv": (
+                None
+                if self.projected_footprint_minor_axis_local_uv is None
+                else list(self.projected_footprint_minor_axis_local_uv)
+            ),
+            "projected_footprint_major_axis_world": (
+                None
+                if self.projected_footprint_major_axis_world is None
+                else list(self.projected_footprint_major_axis_world)
+            ),
+            "projected_footprint_minor_axis_world": (
+                None
+                if self.projected_footprint_minor_axis_world is None
+                else list(self.projected_footprint_minor_axis_world)
+            ),
+            "projected_footprint_axis_convention": FOOTPRINT_AXIS_CONVENTION,
             "projected_radius_u_m": self.projected_radius_u_m,
             "projected_radius_v_m": self.projected_radius_v_m,
             "approximate_footprint_area_m2": self.approximate_footprint_area_m2,
@@ -135,6 +165,67 @@ def _projected_ellipse_matrix(
     )
     metric = projection.T @ np.diag([1.0 / (wx * wx), 1.0 / (wy * wy)]) @ projection
     return metric, wx, wy
+
+
+def _projected_ellipse_eigensystem(
+    metric: np.ndarray,
+    intersection: TargetIntersection,
+    *,
+    eigenvalue_floor: float = 1.0e-30,
+    degeneracy_tolerance: float = 1.0e-12,
+) -> tuple[
+    np.ndarray,
+    tuple[float, float],
+    tuple[float, float],
+    tuple[float, float, float],
+    tuple[float, float, float],
+    bool,
+]:
+    """Ellipse metric의 ordered, deterministic, right-handed eigensystem을 반환한다."""
+
+    eigenvalues, eigenvectors = np.linalg.eigh(metric)
+    nearly_singular = float(np.min(eigenvalues)) <= eigenvalue_floor
+    safe_eigenvalues = np.maximum(eigenvalues, eigenvalue_floor)
+    scale = max(float(np.max(np.abs(safe_eigenvalues))), eigenvalue_floor)
+    degenerate = (
+        abs(float(safe_eigenvalues[1] - safe_eigenvalues[0]))
+        <= degeneracy_tolerance * scale
+    )
+
+    if degenerate:
+        # 원형 footprint의 axis는 물리적으로 유일하지 않으므로 target local frame을
+        # deterministic convention으로 사용한다.
+        major_local = np.array((1.0, 0.0), dtype=np.float64)
+    else:
+        # eigh는 eigenvalue 오름차순이다. 가장 작은 eigenvalue의 eigenvector가
+        # 가장 긴 ellipse radius 방향이다.
+        major_local = np.array(eigenvectors[:, 0], dtype=np.float64, copy=True)
+        major_local /= float(np.linalg.norm(major_local))
+        dominant_index = int(np.argmax(np.abs(major_local)))
+        if float(major_local[dominant_index]) < 0.0:
+            major_local *= -1.0
+
+    # Local (u, v, normal)은 right-handed다. 이 90도 회전은
+    # cross(major_world, minor_world) == target_normal을 보장한다.
+    minor_local = np.array((-major_local[1], major_local[0]), dtype=np.float64)
+    major_world = (
+        float(major_local[0]) * intersection.width_axis
+        + float(major_local[1]) * intersection.height_axis
+    )
+    minor_world = (
+        float(minor_local[0]) * intersection.width_axis
+        + float(minor_local[1]) * intersection.height_axis
+    )
+    major_world /= float(np.linalg.norm(major_world))
+    minor_world /= float(np.linalg.norm(minor_world))
+    return (
+        safe_eigenvalues,
+        (float(major_local[0]), float(major_local[1])),
+        (float(minor_local[0]), float(minor_local[1])),
+        tuple(float(value) for value in major_world),
+        tuple(float(value) for value in minor_world),
+        nearly_singular,
+    )
 
 
 def _integrate_power_on_target(
@@ -214,6 +305,11 @@ def estimate_rectangle_plane_footprint(
     assumptions = [
         "Beam 중심 ray와 rectangle_plane의 교차점을 footprint 중심으로 사용합니다.",
         "Gaussian profile은 target plane에 1차 투영하며 diffraction, aberration, speckle은 계산하지 않습니다.",
+        (
+            "Footprint major/minor axis는 정규화·직교하며 "
+            "cross(major_world, minor_world)=target_normal인 오른손 좌표계입니다. "
+            "Major radius는 항상 minor radius 이상입니다."
+        ),
         "Power-on-target 적분은 beam core 주변 유효 window에서 수행하며 먼 Gaussian tail은 무시합니다.",
     ]
     warnings = list(intersection.warnings)
@@ -225,6 +321,10 @@ def estimate_rectangle_plane_footprint(
             beam_radius_y_m=None,
             projected_footprint_major_radius_m=None,
             projected_footprint_minor_radius_m=None,
+            projected_footprint_major_axis_local_uv=None,
+            projected_footprint_minor_axis_local_uv=None,
+            projected_footprint_major_axis_world=None,
+            projected_footprint_minor_axis_world=None,
             projected_radius_u_m=None,
             projected_radius_v_m=None,
             approximate_footprint_area_m2=None,
@@ -255,15 +355,21 @@ def estimate_rectangle_plane_footprint(
         intersection,
         distance_m=intersection.distance_to_target_m,
     )
-    eigenvalues = np.linalg.eigvalsh(metric)
-    if float(np.min(eigenvalues)) <= 1e-30:
+    (
+        eigenvalues,
+        major_axis_local,
+        minor_axis_local,
+        major_axis_world,
+        minor_axis_world,
+        nearly_singular,
+    ) = _projected_ellipse_eigensystem(metric, intersection)
+    if nearly_singular:
         warnings.append(
             "Grazing 또는 nearly singular projection입니다. Footprint 값을 reference warning으로 취급하세요."
         )
-        eigenvalues = np.maximum(eigenvalues, 1e-30)
     radii = 1.0 / np.sqrt(eigenvalues)
-    minor = float(np.min(radii))
-    major = float(np.max(radii))
+    major = float(radii[0])
+    minor = float(radii[1])
     metric_inverse = np.linalg.pinv(metric)
     radius_u = math.sqrt(max(float(metric_inverse[0, 0]), 0.0))
     radius_v = math.sqrt(max(float(metric_inverse[1, 1]), 0.0))
@@ -308,6 +414,10 @@ def estimate_rectangle_plane_footprint(
         beam_radius_y_m=radius_y,
         projected_footprint_major_radius_m=major,
         projected_footprint_minor_radius_m=minor,
+        projected_footprint_major_axis_local_uv=major_axis_local,
+        projected_footprint_minor_axis_local_uv=minor_axis_local,
+        projected_footprint_major_axis_world=major_axis_world,
+        projected_footprint_minor_axis_world=minor_axis_world,
         projected_radius_u_m=radius_u,
         projected_radius_v_m=radius_v,
         approximate_footprint_area_m2=area,
