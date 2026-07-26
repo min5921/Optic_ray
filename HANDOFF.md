@@ -19,6 +19,9 @@
 - UI-S Gate를 완료했다. 불변 `ProjectDraft`가 여러 객체 편집을 보존하고 변경 객체·field·YAML diff와 discard/apply 상태를 표시한다. `ui.autosave_drafts`, `ui.language`, `display_units.power`와 `result_root`가 실제 UI에 연결된다.
 - UI variant scenario/project/provenance와 result bundle을 rollback 단위로 묶었다. Validation, simulation 또는 render 실패 시 기존 성공 파일을 복원하며, 강제 render 실패 test가 byte snapshot과 result marker 보존을 검증한다. Baseline/parent/variant provenance를 분리해 반복 저장 ID·description 누적을 막았다.
 - Projected Gaussian footprint는 metric eigensystem의 major/minor local·world unit axis를 보고하고 `cross(major, minor)=target_normal`을 유지한다. Phase 2/ViewportScene strict schema, Plotly와 Matplotlib이 같은 축을 사용한다.
+- Phase 2.4-R1 Gate를 완료했다. Baseline receiver는 `reciprocal_single_mode_fiber` architecture와 명시적인 target/scanner/collimator/fiber reference를 사용한다. Nearest-visible target hit에서 동일 scanner mirror로 돌아온 center ray를 실제 plane에서 재반사하고, collimator receive plane의 실제 hit offset에 역방향 paraxial ideal thin-lens law를 적용해 source fiber reference plane까지 추적한다. Mirror·collimator aperture miss, parallel/behind 교차는 후속 plane으로 재중심화하지 않고 명시적으로 종료한다.
+- Phase 2 report schema는 reciprocal 계약 추가에 따라 `schema_version: 2`다. Strict `reciprocal_return` section은 각 plane hit, local/aperture residual, 위치·각도 closure와 `power_status/fiber_coupling_status/detector_status: not_evaluated`를 구분한다. 기존 `estimated_received_power_w`는 명시적인 `power_at_virtual_aperture_w` regression intermediate와 같은 값이며 R1 경로의 파워가 아니다.
+- `ViewportScene`과 Plotly/Matplotlib renderer는 R1 return ray를 `propagation_role: return`으로 송신 ray와 구분하고 target→mirror→collimator→fiber의 실제 hit segment와 residual guide를 표시한다. Geometry-only segment의 `power_w`는 `null`이며 종료된 경로는 실제 termination point까지만 표시한다.
 - 프로젝트의 중심 범위는 catalog 기반 또는 사용자 정의 광학 부품의 3D 배치, 포인트·라인·면적 빔, collimator 광학계, 사용자 정의 scanner, target interaction과 receiver return 분석이다.
 - Draft v0.2에는 model fidelity contract, commercial component catalog, optical/CAD import, coordinate frame, rigid transform, optical port, placement constraint, structured result, visualization과 tolerance analysis가 포함된다.
 - Phase 0~5의 임시 초기값은 `docs/specs/INITIAL_BASELINE.md`에 정리되어 있으며 모든 값은 configuration으로 교체할 수 있다.
@@ -39,7 +42,7 @@
 - `lidarsim view`는 component origin, port axis, optical path, mirror normal, declared scan limit, target plane, receiver FOV, return guide와 STL bounds를 full 3D scene 및 X-Z detail PNG로 렌더링한다.
 - `lidarsim review`는 placement PNG, hardware readiness, component/port, output 지원 상태, convergence와 경고를 self-contained HTML로 생성한다.
 - `lidarsim beam`은 active source를 불변 `BeamState`로 만들고 circular·elliptical·line Gaussian의 M² 기반 자유공간 radius, q-parameter, second moment와 power-normalized irradiance를 full report·compact summary·PNG로 생성한다.
-- `lidarsim optical-train` 또는 `lidarsim train`은 active source에서 ideal thin-lens collimator를 지나 catalog base pose에 `scanner.static_command_angle_rad`를 적용한 mirror에서 반사되고, rectangle-plane target과 Lambertian virtual aperture까지의 element별 `BeamState`, aperture clipping, catalog transmission/reflectivity, power ledger, target footprint, analytical return, link budget, 내부 일관성 check와 radius/power PNG를 생성한다. 출력의 `estimated_received_power_w`/`P_virtual_ap`는 기존 schema 기반 virtual-aperture intermediate이며 reverse mirror/collimator/fiber coupling은 아직 없다.
+- `lidarsim optical-train` 또는 `lidarsim train`은 active source에서 ideal thin-lens collimator를 지나 catalog base pose에 `scanner.static_command_angle_rad`를 적용한 mirror에서 반사되고, rectangle-plane target과 Lambertian virtual aperture까지의 element별 `BeamState`, aperture clipping, catalog transmission/reflectivity, power ledger, target footprint, analytical return, link budget, reciprocal center-ray geometry와 내부 일관성 check를 생성한다. 출력의 `estimated_received_power_w`/`power_at_virtual_aperture_w`/`P_virtual_ap`는 기존 virtual-aperture regression intermediate다. Reverse mirror·collimator·fiber reference plane geometry는 구현되었지만 return spatial power, fiber overlap과 detector power는 아직 없다.
 - Fiber MFD definition과 Gaussian approximation, catalog nominal match/explicit override, small-angle paraxial proxy, confidence·calibration·provenance를 검증·보고한다.
 - Power audit은 analytical tail truncation, base/refined grid quadrature와 grid convergence를 분리하며 second-moment 비교는 internal consistency로만 표시한다.
 - CLI distance는 `20 mm` 같은 단위 포함 값을 받고 기본 결과는 timestamp run directory에 저장해 덮어쓰지 않는다.
@@ -65,7 +68,7 @@
 - UI 편집값이 3D에 반영되지 않은 것처럼 보이던 UX를 수정했다. Inspector 상단에 `변경값 반영 · 시뮬레이션` action과 pending/applied 상태를 표시하고, active config hash가 바뀌면 cached `UiSimulationRun`을 자동 갱신한다.
 - UI에서 같은 Scenario ID를 반복 적용할 때 기존 `configs/ui_runs` 작업 variant 때문에 실패하던 문제를 수정했다. 작업 variant 덮어쓰기는 기본으로 켜져 있고 기존 파일이 있으면 보존 방법을 안내하며, baseline config는 계속 수정하지 않는다.
 - 3D UI에 기본 `광학 헤드 확대`, `전체 광로`, `선택 부품 확대` view range를 추가했다. 10 m target 때문에 겹치던 source·collimator·scanner mirror를 근거리 동일 축척, component label과 확대 marker로 확인할 수 있다. Scanner static angle은 실제 기계각으로 명시하고 rotation-axis X/Y/Z는 고급 단위벡터 설정으로 분리했으며 non-unit 입력은 저장 시 명시적으로 정규화한다.
-- UI-S 검수 이슈는 2026-07-26에 닫았다. 현재 핵심 미구현은 reciprocal R1 report/viewport 통합, CPU STL closest-hit, R2 return ledger, R3 fiber coupling과 R4 detector boundary다.
+- UI-S와 reciprocal R1 검수 이슈는 2026-07-26에 닫았다. 현재 핵심 미구현은 CPU STL closest-hit, R2 return ledger, R3 fiber coupling과 R4 detector boundary다.
 - `configs/ui_runs/baseline_1550nm_ui_variant*.yaml` 두 파일은 사용자 생성 미추적 작업물이므로 보존한다. 현재 `[10, 10, 0]` scanner rotation axis는 10 degree가 아니라 정규화 후 X-Y 대각 방향축이므로 사용자 의도를 확인하기 전에는 자동 교정하거나 커밋하지 않는다.
 
 ## 유지할 결정 사항
@@ -84,9 +87,17 @@
 
 ## 가장 좋은 다음 작업
 
-추천 1순위는 `Phase 2.4-R1` 순수 reciprocal center-ray geometry를 active project, Phase 2 report/schema와 `ViewportScene` return `RaySegment`에 통합하고 exact-retrace/perturbation Gate를 닫는 것이다. 그 다음 `Phase 4.1-M1` CPU STL closest-hit를 통합한다.
+추천 1순위는 `Phase 4.1-M1` CPU STL closest-hit를 active scene/report와 viewport에 통합하고 평면 2-triangle STL과 `rectangle_plane`의 hit point·normal·distance parity Gate를 닫는 것이다. 그 다음 rectangle-plane analytical baseline을 유지하면서 R2 return optical power ledger를 연결한다.
 
 ## 검증 기록
+
+- 2026-07-26 Phase 2.4-R1 checkpoint: `reciprocal_single_mode_fiber` config/schema, bidirectional source/collimator port, nearest-visible target→same mirror→collimator receive plane→fiber reference plane center ray, actual aperture termination, reverse ideal thin-lens chief ray와 closure residual을 구현했다.
+- R1 report/viewport checkpoint는 strict Phase 2/ViewportScene schema, `propagation_role: return`, nullable geometry-only power와 residual guide를 포함한다. Baseline closure는 `pass`, 최대 위치 residual은 약 `1.78e-17 m`, 최대 각도 residual은 `0 rad`다.
+- R1 관련 suite `python -m pytest -q ...`: 통과, `64 passed`.
+- R1 관련 strict warning suite `python -W error::DeprecationWarning -W error::UserWarning -m pytest -q ...`: 통과, `64 passed`.
+- R1 통합 후 전체 suite `python -m pytest -q`: 통과, `259 passed`.
+- R1 통합 후 전체 strict warning suite `python -W error::DeprecationWarning -W error::UserWarning -m pytest -q`: 통과, `259 passed`.
+- `python -m lidarsim.cli validate configs/project.yaml`과 `python -m lidarsim.cli optical-train configs/project.yaml`: 통과. R1 return geometry는 `pass`이고 return power/fiber coupling/detector는 `not_evaluated`이며 virtual aperture power는 regression intermediate로 유지됨을 확인했다.
 
 - 2026-07-26 UI-S checkpoint: project-wide draft/diff/discard, stable baseline-parent-variant provenance, project UI settings, physical footprint eigensystem axes, strict report/viewport contract과 Plotly/Matplotlib 축 일치를 구현했다.
 - Variant config/provenance snapshot과 staging result directory를 하나의 transaction으로 연결했다. 정상 적용과 render 강제 실패 rollback test를 추가했다.

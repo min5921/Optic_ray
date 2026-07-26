@@ -3,7 +3,7 @@
 - 문서 상태: Draft v0.2
 - 대상 프로젝트: Custom Beam, Scanner, and Optical Return Simulator
 - 기준 설계: `PROJECT_VISION.md` Draft v0.2
-- 마지막 갱신: 2026-07-09
+- 마지막 갱신: 2026-07-26
 
 ## 1. 이 매뉴얼의 목적
 
@@ -26,7 +26,7 @@
 
 Phase 0·0.1과 Phase 1 Gaussian Beam Engine이 완료되었다. `lidarsim validate`는 project/scenario/experiment/catalog YAML을 검사하고 단위, 물리 범위, wavelength validity와 참조·배치를 검증한다. `placement`, `inspect-mesh`, `inspect-measurement`, `report`, `view`, `review`로 배치와 입력 contract를 확인할 수 있다. `lidarsim beam`은 active source의 point·elliptical·line Gaussian을 NumPy/float64로 자유공간 전파하고 radius, divergence, q-parameter, second moment와 power-normalized irradiance를 YAML/PNG로 저장한다. Numerical check와 실제 장비 calibration을 구분해 confidence, provenance, paraxial validity와 hardware readiness를 함께 표시한다.
 
-Phase 2의 vertical slice로 `lidarsim optical-train`이 추가되었다. 이 명령은 source에서 ideal thin-lens collimator를 거쳐 scanner mirror에서 정지 반사되고, rectangle-plane target footprint와 첫 Lambertian virtual-aperture estimate까지 free-space propagation, ABCD thin-lens transform, 실제 ray-plane hit, projected aperture clipping, static flat-mirror reflection, catalog power transmission/reflectivity, target hit/footprint와 analytical link budget을 계산한다. 이 값은 동일 scanner/collimator의 역방향 traversal 또는 fiber-coupled power가 아니다. 현재는 `scanner.static_command_angle_rad` 하나를 catalog pivot 기준 static pose로 적용해 mirror normal, reflected ray, target hit와 virtual-aperture estimate를 바꿀 수 있다. Phase 3의 첫 helper로 `lidarsim scanner-sweep`이 추가되어 여러 static command angle에서 target hit와 analytical return 변화를 YAML/CSV/PNG로 비교할 수 있다. 이어서 `lidarsim scanner-path`가 추가되어 config의 scanner waveform에서 한 줄의 ideal forward scan path를 시간 샘플로 만들고, 각 sample의 target hit와 virtual-aperture estimate를 계산한다. Dynamic lag, jitter, bidirectional return stroke, calibration table과 실제 scanner dynamics는 아직 적용하지 않는다. 여러 rectangle-plane이 중심 광선을 가로막으면 가장 가까운 하나만 opaque visible target으로 energy에 기여하지만, beam footprint 면적별 부분 가림과 STL occlusion은 아직 없다. Reciprocal return train, single-mode fiber coupling, STL hit detection, non-Lambertian BRDF/BSDF, detector noise, speckle와 coherent FMCW는 아직 구현되지 않았다. `lidarsim run`, `compare`와 calibrated scan radiometry는 아직 구현되지 않았다.
+Phase 2의 vertical slice로 `lidarsim optical-train`이 추가되었다. 이 명령은 source에서 ideal thin-lens collimator를 거쳐 scanner mirror에서 정지 반사되고, rectangle-plane target footprint와 첫 Lambertian virtual-aperture estimate까지 free-space propagation, ABCD thin-lens transform, 실제 ray-plane hit, projected aperture clipping, static flat-mirror reflection, catalog power transmission/reflectivity, target hit/footprint와 analytical link budget을 계산한다. Phase 2.4-R1은 nearest-visible target hit에서 동일 scanner mirror·collimator·source fiber reference plane으로 되돌아가는 center-ray geometry, reverse ideal thin-lens와 closure residual을 추가했다. R1은 geometry-only이며 return power, fiber coupling과 detector power는 계산하지 않는다. 현재는 `scanner.static_command_angle_rad` 하나를 catalog pivot 기준 static pose로 적용해 mirror normal, reflected ray, target hit, virtual-aperture estimate와 reciprocal geometry를 바꿀 수 있다. Phase 3의 첫 helper로 `lidarsim scanner-sweep`이 추가되어 여러 static command angle에서 target hit와 analytical return 변화를 YAML/CSV/PNG로 비교할 수 있다. 이어서 `lidarsim scanner-path`가 추가되어 config의 scanner waveform에서 한 줄의 ideal forward scan path를 시간 샘플로 만들고, 각 sample의 target hit와 virtual-aperture estimate를 계산한다. Dynamic lag, jitter, bidirectional return stroke, calibration table과 실제 scanner dynamics는 아직 적용하지 않는다. 여러 rectangle-plane이 중심 광선을 가로막으면 가장 가까운 하나만 opaque visible target으로 energy에 기여하지만, beam footprint 면적별 부분 가림과 STL occlusion은 아직 없다. Return power ledger, single-mode fiber coupling, STL hit detection, non-Lambertian BRDF/BSDF, detector noise, speckle와 coherent FMCW는 아직 구현되지 않았다. `lidarsim run`, `compare`와 calibrated scan radiometry는 아직 구현되지 않았다.
 
 ## 3. 주요 파일 위치
 
@@ -635,9 +635,9 @@ receiver:
   detector_model: none
 ```
 
-`virtual_monostatic/virtual_aperture`는 실제 동일 scanner·collimator 역경로, single-mode fiber mode coupling, duplexer와 detector를 생략한 분석용 aperture다. 기존 field `estimated_received_power_w`와 화면의 `Virtual aperture estimate`는 이 가상 plane의 값이며 fiber에 결합되는 power가 아니다.
+`virtual_monostatic/virtual_aperture` 계산은 실제 동일 scanner·collimator 역경로의 power ledger, single-mode fiber mode coupling, duplexer와 detector를 생략한 분석용 aperture다. 기존 field `estimated_received_power_w`, 명시적인 `power_at_virtual_aperture_w`와 화면의 `Virtual aperture estimate`는 이 가상 plane의 같은 값이며 fiber에 결합되는 power가 아니다.
 
-현재 `lidarsim optical-train`은 rectangle-plane target hit가 있을 때 `virtual_monostatic/virtual_aperture` receiver에 대한 첫 Lambertian analytical return을 계산한다. 결과는 virtual aperture가 차지하는 solid angle에 기반한 optical power와 해당 plane까지의 link loss이며, 실제 target→same scanner→same collimator→fiber→duplexer→detector 경로를 통과한 calibrated hardware prediction은 아니다.
+현재 `lidarsim optical-train`은 rectangle-plane target hit가 있을 때 virtual-aperture 회귀값과 R1 reciprocal center-ray geometry를 함께 계산한다. Virtual-aperture 결과는 임의 aperture가 차지하는 solid angle에 기반한 optical power와 해당 plane까지의 link loss다. R1 결과는 target→same scanner→same collimator→fiber reference plane의 실제 교차와 정렬 residual일 뿐 파워를 전달하지 않는다. 어느 쪽도 target→fiber→duplexer→detector 전체를 통과한 calibrated hardware prediction은 아니다.
 
 이 프로젝트에서 목표로 하는 실제 수신 구조는 다음과 같다.
 
@@ -647,7 +647,7 @@ receiver:
       → circulator/coupler → detector 또는 coherent mixer
 ```
 
-계획된 configuration은 다음 형태다. **현재 schema에는 아직 이 field를 넣으면 안 된다.** Phase 2.4에서 loader/schema와 함께 구현한 뒤 사용할 수 있다.
+R1에서 지원하는 configuration은 다음 형태다. Baseline에 이미 적용되어 있으며 target와 element ID, component type, transmit-path 순서와 `reuse_transmit_path: true`를 loader가 검증한다.
 
 ```yaml
 receiver:
@@ -669,6 +669,18 @@ receiver:
     return_power_transmission: 1.0
   detector_model: none
 ```
+
+`fiber_coupling`과 `duplexer` 설정은 R3/R4를 위한 placeholder다. 현재 validation과 재현 가능한 config에는 포함되지만 계산에는 적용되지 않는다. 따라서 R1 report의 `power_status`, `fiber_coupling_status`, `detector_status`는 `not_evaluated`다.
+
+실행 후 `optical_train_report.yaml`에서 다음 항목을 확인한다.
+
+- `reciprocal_return.status`: 전체 geometry/closure 상태
+- `reciprocal_return.path.mirror_hit`, `collimator_hit`, `fiber_hit`: 실제 교차와 aperture 상태
+- `reciprocal_return.path.closure`: plane별 위치·lateral·각도 residual과 tolerance
+- `reciprocal_return.path.termination_reason`: parallel/behind/aperture miss 종료 사유
+- `receiver_return.power_at_virtual_aperture_w`: R1 path와 분리된 기존 회귀 중간값
+
+`workspace`, `dashboard`와 Streamlit UI는 R1 actual return segment를 송신 ray와 다른 style로 표시한다. Geometry-only return segment의 `power_w`는 `null`이며, miss가 발생하면 실제 종료점 뒤의 segment를 만들지 않는다.
 
 single-mode fiber coupling은 aperture 안으로 들어왔는지만 검사하지 않고 return field와 fiber mode의 overlap, MFD, lateral/angular offset과 focus mismatch를 계산해야 한다. 자세한 구현 contract, output plane과 검증 항목은 [`specs/RECIPROCAL_FIBER_RETURN.md`](specs/RECIPROCAL_FIBER_RETURN.md)를 따른다.
 
@@ -859,7 +871,7 @@ lidarsim placement-variant configs/project.yaml --element collimator --scenario-
 lidarsim ui configs/project.yaml
 ```
 
-`review` 그림의 scan limit, receiver FOV와 return path는 설정값 기반 기하학 가이드다. 실제 Phase 2.2/2.3 footprint와 received power 값은 `lidarsim optical-train` report에서 확인한다.
+`review` 그림의 scan limit, receiver FOV와 planned return path는 설정값 기반 기하학 가이드다. `workspace`, `dashboard`와 Streamlit UI의 `propagation_role: return` segment는 Phase 2.4-R1 report에서 가져온 실제 center-ray intersection 결과다. 실제 Phase 2.2/2.3 footprint, virtual-aperture power와 R1 closure 값은 `lidarsim optical-train` report에서 확인한다.
 
 `beam` 결과의 radius는 1/e² irradiance radius다. 기본 실행은 `results/phase1/<timestamp>_<scenario>_<hash>/` 아래에 `beam_report.yaml`, `beam_summary.yaml`, `beam.png`를 생성하므로 이전 결과를 덮어쓰지 않는다. YAML report의 첫 `summary`와 `accuracy`에서 전체 상태·신뢰도·보정 여부를 먼저 확인한다. `profile_audit`은 Gaussian tail truncation, base/refined grid quadrature와 grid convergence를 분리한다. `analytical_checks`는 내부 일관성 검사이며 실제 측정 validation이 아니다. 이 명령은 downstream optical component를 적용하지 않는다.
 

@@ -489,6 +489,7 @@ def test_multiple_collinear_targets_only_nearest_owns_scene_energy(
         "material_ref": near["material_ref"],
     }
     scenario["scene"]["targets"] = [far, near]
+    scenario["receiver"]["return_path"]["target_ref"] = "near_target"
     scenario_path.write_text(
         yaml.safe_dump(scenario, sort_keys=False),
         encoding="utf-8",
@@ -519,6 +520,8 @@ def test_multiple_collinear_targets_only_nearest_owns_scene_energy(
     assert report.summary["estimated_power_on_target_w"] == pytest.approx(
         footprints["near_target"]["estimated_power_on_target_w"]
     )
+    assert report.reciprocal_return["target_id"] == "near_target"
+    assert report.reciprocal_return["status"] == "pass"
 
 
 def test_scanner_static_command_angle_steers_reflected_ray(copied_project: Path) -> None:
@@ -568,7 +571,7 @@ def test_phase2_report_is_schema_valid(project_root: Path) -> None:
     )
     assert report.summary["estimated_received_power_w"] > 0.0
     assert report.summary["link_loss_db"] is not None
-    assert report.accuracy["scope"].endswith("lambertian_virtual_aperture")
+    assert report.accuracy["scope"].endswith("reciprocal_center_ray_geometry")
     assert any("fiber 결합" in warning for warning in report.accuracy["warnings"])
     assert any(
         "virtual aperture plane" in assumption

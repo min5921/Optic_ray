@@ -22,6 +22,7 @@ IMPLEMENTED_OUTPUTS = {
     "target_footprint",
     "received_aperture_power",
     "link_budget",
+    "reciprocal_return_geometry",
 }
 
 # 계산 경로는 존재하지만 아직 calibrated hardware output으로 해석할 수 없는
@@ -845,6 +846,147 @@ def validate_scenario_physics(
                     "virtual_monostatic receiver는 동일 scanner/collimator의 reverse path, "
                     "single-mode fiber coupling, duplexer와 detector를 생략한 analytical "
                     "aperture입니다."
+                ),
+                severity="warning",
+            )
+        )
+    elif receiver["architecture"] == "reciprocal_single_mode_fiber":
+        return_path = receiver["return_path"]
+        target_ref = str(return_path["target_ref"])
+        target_ids = {
+            str(target["id"]) for target in scenario["scene"]["targets"]
+        }
+        if target_ref not in target_ids:
+            diagnostics.append(
+                Diagnostic(
+                    source=source_text,
+                    path="receiver.return_path.target_ref",
+                    message=f"존재하지 않는 scene target ID입니다: {target_ref!r}",
+                )
+            )
+        if receiver["model_level"] not in {"reciprocal_path_reference", "calibrated"}:
+            diagnostics.append(
+                Diagnostic(
+                    source=source_text,
+                    path="receiver.model_level",
+                    message=(
+                        "reciprocal_single_mode_fiber의 현재 구현은 "
+                        "model_level=reciprocal_path_reference 또는 traceable evidence를 갖춘 calibrated여야 합니다."
+                    ),
+                )
+            )
+        if not bool(return_path["reuse_transmit_path"]):
+            diagnostics.append(
+                Diagnostic(
+                    source=source_text,
+                    path="receiver.return_path.reuse_transmit_path",
+                    message="Phase 2.4-R1은 동일 송신 경로를 역추적하므로 true여야 합니다.",
+                )
+            )
+
+        expected_types = {
+            "scanner_element_id": "scanner_mirror",
+            "collimator_element_id": "collimator",
+            "fiber_element_id": "fiber_source",
+        }
+        resolved_return_ids: dict[str, str] = {}
+        for field, expected_type in expected_types.items():
+            element_id = str(return_path[field])
+            resolved_return_ids[field] = element_id
+            element = elements.get(element_id)
+            path = f"receiver.return_path.{field}"
+            if element is None:
+                diagnostics.append(
+                    Diagnostic(
+                        source=source_text,
+                        path=path,
+                        message=f"존재하지 않는 optical assembly element입니다: {element_id!r}",
+                    )
+                )
+                continue
+            component_ref = str(element["component_ref"])
+            component_type = str(catalog[component_ref].data["component_type"])
+            if component_type != expected_type:
+                diagnostics.append(
+                    Diagnostic(
+                        source=source_text,
+                        path=path,
+                        message=(
+                            f"Element {element_id!r}의 component_type은 {component_type!r}이며 "
+                            f"{expected_type!r}이어야 합니다."
+                        ),
+                    )
+                )
+
+        scanner_return_id = resolved_return_ids["scanner_element_id"]
+        fiber_return_id = resolved_return_ids["fiber_element_id"]
+        if scanner_return_id != str(scanner["element_id"]):
+            diagnostics.append(
+                Diagnostic(
+                    source=source_text,
+                    path="receiver.return_path.scanner_element_id",
+                    message="Return path는 송신에 사용한 동일 scanner.element_id를 참조해야 합니다.",
+                )
+            )
+        if fiber_return_id != str(source_config["element_id"]):
+            diagnostics.append(
+                Diagnostic(
+                    source=source_text,
+                    path="receiver.return_path.fiber_element_id",
+                    message="Return path는 송신 source.element_id의 동일 single-mode fiber를 참조해야 합니다.",
+                )
+            )
+
+        ordered_ids = (
+            fiber_return_id,
+            resolved_return_ids["collimator_element_id"],
+            scanner_return_id,
+        )
+        matching_path = False
+        for optical_path in scenario["optical_assembly"]["optical_paths"]:
+            sequence = tuple(str(value) for value in optical_path["elements"])
+            try:
+                indices = tuple(sequence.index(element_id) for element_id in ordered_ids)
+            except ValueError:
+                continue
+            if indices[0] < indices[1] < indices[2]:
+                matching_path = True
+                break
+        if not matching_path:
+            diagnostics.append(
+                Diagnostic(
+                    source=source_text,
+                    path="receiver.return_path",
+                    message=(
+                        "fiber→collimator→scanner element가 이 순서로 포함된 동일 transmit optical path가 필요합니다."
+                    ),
+                )
+            )
+
+        for field in ("lateral_offset_m", "angular_offset_rad"):
+            values = receiver["fiber_coupling"][field]
+            for index, value in enumerate(values):
+                _require_finite(
+                    value,
+                    source=source_text,
+                    path=f"receiver.fiber_coupling.{field}[{index}]",
+                    diagnostics=diagnostics,
+                )
+        _require_positive(
+            receiver["duplexer"]["return_power_transmission"],
+            source=source_text,
+            path="receiver.duplexer.return_power_transmission",
+            diagnostics=diagnostics,
+            allow_zero=True,
+        )
+        warnings.append(
+            Diagnostic(
+                source=source_text,
+                path="receiver.architecture",
+                message=(
+                    "reciprocal_single_mode_fiber는 현재 center-ray geometry reference입니다. "
+                    "기존 virtual aperture power는 regression intermediate로 유지되며 "
+                    "return power, fiber coupling과 detector power를 뜻하지 않습니다."
                 ),
                 severity="warning",
             )

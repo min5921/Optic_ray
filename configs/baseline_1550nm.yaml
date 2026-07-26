@@ -76,8 +76,24 @@ scene:
       material_ref: custom:diffuse_gray_020
 
 receiver:
-  architecture: virtual_monostatic
-  model_level: virtual_aperture
+  architecture: reciprocal_single_mode_fiber
+  model_level: reciprocal_path_reference
+  return_path:
+    target_ref: target_plane
+    scanner_element_id: scan_mirror
+    collimator_element_id: collimator
+    fiber_element_id: source
+    reuse_transmit_path: true
+  fiber_coupling:
+    model: single_mode_overlap
+    mode_field_source: component_catalog
+    lateral_offset_m: [0.0, 0.0]
+    angular_offset_rad: [0.0, 0.0]
+  duplexer:
+    type: ideal_circulator
+    return_power_transmission: 1.0
+  # 아래 virtual aperture 값은 기존 analytical regression intermediate를
+  # 계속 계산하기 위한 설정이며 fiber/detector aperture를 뜻하지 않습니다.
   position_m: [0.0, 0.0, 0.0]
   direction: [1.0, 0.0, 0.0]
   aperture_diameter_m: 25 mm
@@ -102,6 +118,7 @@ outputs:
   - target_footprint
   - received_aperture_power
   - link_budget
+  - reciprocal_return_geometry
   - energy_ledger
   - convergence_report
   - layout_3d

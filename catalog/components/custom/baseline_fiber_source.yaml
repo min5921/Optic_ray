@@ -17,7 +17,7 @@ validity:
 
 ports:
   - id: output
-    role: output
+    role: bidirectional
     interface_type: free_space
     reference_plane: source_waist
     origin_local_m: [0.0, 0.0, 0.0]

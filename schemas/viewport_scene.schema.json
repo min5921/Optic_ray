@@ -151,7 +151,8 @@
         "color",
         "label",
         "enabled",
-        "source"
+        "source",
+        "metadata"
       ],
       "properties": {
         "guide_id": { "type": "string", "minLength": 1 },
@@ -161,7 +162,21 @@
         "color": { "type": "string", "minLength": 1 },
         "label": { "type": "string" },
         "enabled": { "type": "boolean" },
-        "source": { "type": "string", "minLength": 1 }
+        "source": { "type": "string", "minLength": 1 },
+        "metadata": { "$ref": "#/$defs/guideMetadata" }
+      }
+    },
+    "guideMetadata": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "plane_id": { "type": "string", "minLength": 1 },
+        "actual_hit_m": { "$ref": "#/$defs/vec3" },
+        "expected_center_m": { "$ref": "#/$defs/vec3" },
+        "lateral_residual_m": { "type": ["number", "null"], "minimum": 0.0 },
+        "angular_residual_rad": { "type": ["number", "null"], "minimum": 0.0 },
+        "aperture_status": { "type": ["string", "null"] },
+        "geometry_only": { "type": "boolean" }
       }
     },
     "raySegment": {
@@ -180,7 +195,9 @@
         "radius_end_m",
         "length_m",
         "status",
-        "label"
+        "label",
+        "propagation_role",
+        "plane_power_name"
       ],
       "properties": {
         "segment_id": { "type": "string", "minLength": 1 },
@@ -190,12 +207,21 @@
         "optical_path_id": { "type": "string", "minLength": 1 },
         "source_element_id": { "type": "string", "minLength": 1 },
         "target_element_id": { "type": ["string", "null"] },
-        "power_w": { "type": "number", "minimum": 0.0 },
+        "power_w": {
+          "oneOf": [
+            { "type": "number", "minimum": 0.0 },
+            { "type": "null" }
+          ]
+        },
         "radius_start_m": { "type": ["number", "null"], "exclusiveMinimum": 0.0 },
         "radius_end_m": { "type": ["number", "null"], "exclusiveMinimum": 0.0 },
         "length_m": { "type": "number", "minimum": 0.0 },
         "status": { "type": "string", "minLength": 1 },
-        "label": { "type": "string" }
+        "label": { "type": "string" },
+        "propagation_role": {
+          "enum": ["transmit", "return", "planned_return"]
+        },
+        "plane_power_name": { "type": ["string", "null"] }
       }
     },
     "footprintOverlay": {

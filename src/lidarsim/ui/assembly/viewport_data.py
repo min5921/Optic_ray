@@ -8,11 +8,13 @@ Three.js 또는 Matplotlib renderer는 이 contract만 소비한다.
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass
+from collections.abc import Mapping
+from dataclasses import dataclass, field
 from typing import Any
 
 import numpy as np
 
+from lidarsim.config.immutable import deep_freeze, deep_thaw
 from lidarsim.geometry import AssemblyPlacement, resolve_assembly
 from lidarsim.geometry.transform import normalize_vector
 from lidarsim.results import Phase2OpticalTrainReport, build_phase2_optical_train_report
@@ -159,6 +161,10 @@ class GuideLine:
     label: str
     enabled: bool
     source: str
+    metadata: Mapping[str, Any] = field(default_factory=dict)
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "metadata", deep_freeze(dict(self.metadata)))
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -170,6 +176,7 @@ class GuideLine:
             "label": self.label,
             "enabled": self.enabled,
             "source": self.source,
+            "metadata": deep_thaw(self.metadata),
         }
 
 
@@ -184,11 +191,13 @@ class RaySegment:
     optical_path_id: str
     source_element_id: str
     target_element_id: str | None
-    power_w: float
+    power_w: float | None
     radius_start_m: float | None
     radius_end_m: float | None
     status: str
     label: str
+    propagation_role: str = "transmit"
+    plane_power_name: str | None = None
 
     @property
     def length_m(self) -> float:
@@ -209,6 +218,8 @@ class RaySegment:
             "length_m": self.length_m,
             "status": self.status,
             "label": self.label,
+            "propagation_role": self.propagation_role,
+            "plane_power_name": self.plane_power_name,
         }
 
 
@@ -435,19 +446,32 @@ def _make_components(project: Any, assembly: AssemblyPlacement) -> tuple[Viewpor
         )
 
     receiver = scenario["receiver"]
+    reciprocal_receiver = receiver["architecture"] == "reciprocal_single_mode_fiber"
     components.append(
         ViewportComponent(
             element_id="receiver",
             component_ref=f"scenario:{scenario['scenario_id']}:receiver",
-            component_type=str(receiver["architecture"]),
-            model_level=str(receiver["model_level"]),
+            component_type=(
+                "virtual_aperture_regression_intermediate"
+                if reciprocal_receiver
+                else str(receiver["architecture"])
+            ),
+            model_level=(
+                "analytical_regression_intermediate"
+                if reciprocal_receiver
+                else str(receiver["model_level"])
+            ),
             origin_world_m=_vec3(receiver["position_m"], name="receiver.position"),
             rotation_world_from_component=_frame_from_z_axis(
                 receiver["direction"],
                 name="receiver.direction",
             ),
             bounds_m=((-0.0125, -0.0125, -0.001), (0.0125, 0.0125, 0.001)),
-            display_role="receiver",
+            display_role=(
+                "virtual_aperture_reference"
+                if reciprocal_receiver
+                else "receiver"
+            ),
             editable=True,
         )
     )
@@ -501,6 +525,7 @@ def _add_line(
     color: str,
     label: str,
     source: str,
+    metadata: dict[str, Any] | None = None,
 ) -> None:
     guides.append(
         GuideLine(
@@ -512,8 +537,99 @@ def _add_line(
             label=label,
             enabled=True,
             source=source,
+            metadata={} if metadata is None else dict(metadata),
         )
     )
+
+
+def _reciprocal_path_records(report_data: dict[str, Any]) -> tuple[dict[str, Any], ...]:
+    """지원 중인 Phase 2.4 report wrapper에서 reciprocal path record를 꺼낸다."""
+
+    section = report_data.get("reciprocal_return")
+    if not isinstance(section, dict):
+        return ()
+
+    candidates: list[Any] = []
+    if isinstance(section.get("path"), dict):
+        candidates.append(section["path"])
+    elif isinstance(section.get("paths"), list):
+        candidates.extend(section["paths"])
+    else:
+        results = section.get("results")
+        if isinstance(results, list):
+            candidates.extend(results)
+        elif isinstance(results, dict):
+            if (
+                isinstance(results.get("path"), dict)
+                or results.get("model") == "reciprocal_center_ray_geometry"
+                or "target_hit_m" in results
+            ):
+                candidates.append(results)
+            else:
+                candidates.extend(results.values())
+        elif "target_hit_m" in section:
+            candidates.append(section)
+
+    records: list[dict[str, Any]] = []
+    for candidate in candidates:
+        if not isinstance(candidate, dict):
+            continue
+        nested = candidate.get("path", candidate.get("result"))
+        records.append(nested if isinstance(nested, dict) else candidate)
+    return tuple(records)
+
+
+def _intersection_point(hit_record: Any) -> Vec3 | None:
+    """실제 hit가 명시된 경우에만 intersection point를 반환한다."""
+
+    if not isinstance(hit_record, dict):
+        return None
+    intersection = hit_record.get("intersection")
+    if isinstance(intersection, dict):
+        if not bool(intersection.get("hit", False)):
+            return None
+        point = intersection.get("point_m")
+        return None if point is None else _vec3(point, name="reciprocal intersection point")
+    for key in ("actual_hit_m", "hit_point_m", "point_m"):
+        if hit_record.get(key) is not None:
+            return _vec3(hit_record[key], name=f"reciprocal {key}")
+    return None
+
+
+def _return_path_points(path: dict[str, Any]) -> tuple[tuple[str, Vec3], ...]:
+    """Teleport 없이 target부터 연속된 실제 reciprocal hit만 반환한다."""
+
+    target_value = path.get("target_hit_m")
+    if target_value is None:
+        return ()
+    points: list[tuple[str, Vec3]] = [
+        ("target", _vec3(target_value, name="reciprocal target_hit_m"))
+    ]
+    hit_specs = (
+        ("mirror", "mirror_hit", "mirror_actual_hit_m"),
+        ("collimator", "collimator_hit", "collimator_actual_hit_m"),
+        ("fiber", "fiber_hit", "fiber_actual_hit_m"),
+    )
+    termination_reason = str(path.get("termination_reason") or "")
+    termination_value = path.get("termination_point_m")
+    for plane_name, hit_key, direct_key in hit_specs:
+        point = _intersection_point(path.get(hit_key))
+        if point is None and path.get(direct_key) is not None:
+            point = _vec3(path[direct_key], name=f"reciprocal {direct_key}")
+        if point is None and termination_reason.startswith(f"return_{plane_name}:"):
+            if termination_value is not None:
+                termination = _vec3(
+                    termination_value,
+                    name="reciprocal termination_point_m",
+                )
+                if _distance(points[-1][1], termination) > 1.0e-12:
+                    point = termination
+        if point is None:
+            break
+        points.append((plane_name, point))
+        if termination_reason.startswith(f"return_{plane_name}:"):
+            break
+    return tuple(points)
 
 
 def _receiver_fov_directions(receiver: dict[str, Any], *, segments: int = 12) -> tuple[np.ndarray, ...]:
@@ -632,6 +748,7 @@ def _make_guides(
             )
 
     receiver = project.active_scenario["receiver"]
+    reciprocal_receiver = receiver["architecture"] == "reciprocal_single_mode_fiber"
     receiver_position = np.asarray(receiver["position_m"], dtype=np.float64)
     for index, direction in enumerate(_receiver_fov_directions(receiver)):
         _add_line(
@@ -641,9 +758,55 @@ def _make_guides(
             start=receiver_position,
             end=receiver_position + length * direction,
             color="#ae3ec9",
-            label="receiver FOV",
-            source="scenario",
+            label=(
+                "virtual aperture regression FOV"
+                if reciprocal_receiver
+                else "receiver FOV"
+            ),
+            source=(
+                "scenario.virtual_aperture_regression_intermediate"
+                if reciprocal_receiver
+                else "scenario"
+            ),
         )
+
+    for path_index, path in enumerate(_reciprocal_path_records(report_data)):
+        closure = path.get("closure") if isinstance(path.get("closure"), dict) else {}
+        for plane_name, hit_key in (
+            ("mirror", "mirror_hit"),
+            ("collimator", "collimator_hit"),
+            ("fiber", "fiber_hit"),
+        ):
+            hit = path.get(hit_key)
+            actual = _intersection_point(hit)
+            if actual is None or not isinstance(hit, dict):
+                continue
+            frame = hit.get("frame")
+            expected = (
+                frame.get("origin_m")
+                if isinstance(frame, dict) and frame.get("origin_m") is not None
+                else actual
+            )
+            metadata = {
+                "plane_id": str(hit.get("plane_id", plane_name)),
+                "actual_hit_m": list(actual),
+                "expected_center_m": list(_vec3(expected, name=f"{plane_name} expected center")),
+                "lateral_residual_m": hit.get("lateral_residual_m"),
+                "angular_residual_rad": closure.get(f"{plane_name}_angular_residual_rad"),
+                "aperture_status": hit.get("aperture_status"),
+                "geometry_only": True,
+            }
+            _add_line(
+                guides,
+                guide_id=f"reciprocal_return.{path_index}.{plane_name}_hit_residual",
+                guide_type="return_hit_residual",
+                start=actual,
+                end=expected,
+                color="#0ea5e9",
+                label=f"return {plane_name} actual hit / residual",
+                source="phase2_4_r1_report",
+                metadata=metadata,
+            )
     return tuple(guides)
 
 
@@ -672,6 +835,8 @@ def _make_rays(report_data: dict[str, Any]) -> tuple[RaySegment, ...]:
                 radius_end_m=float(end_state["beam_state"]["radius_x_m"]),
                 status="propagated",
                 label=f"{start_state['label']} → {end_state['label']}",
+                propagation_role="transmit",
+                plane_power_name=str(start_state["label"]),
             )
         )
 
@@ -697,6 +862,79 @@ def _make_rays(report_data: dict[str, Any]) -> tuple[RaySegment, ...]:
                     radius_end_m=float(footprint["beam_radius_x_m"]),
                     status="target_hit",
                     label=f"{final_state['label']} → {footprint['target_id']}",
+                    propagation_role="transmit",
+                    plane_power_name=str(final_state["label"]),
+                )
+            )
+
+    reciprocal_section = report_data.get("reciprocal_return")
+    return_path_config = (
+        reciprocal_section.get("return_path", {})
+        if isinstance(reciprocal_section, dict)
+        else {}
+    )
+    if not isinstance(return_path_config, dict):
+        return_path_config = {}
+    target_id = (
+        str(reciprocal_section.get("target_id", "target"))
+        if isinstance(reciprocal_section, dict)
+        else "target"
+    )
+    element_ids = {
+        "target": target_id,
+        "mirror": str(return_path_config.get("scanner_element_id", "scan_mirror")),
+        "collimator": str(return_path_config.get("collimator_element_id", "collimator")),
+        "fiber": str(return_path_config.get("fiber_element_id", "source")),
+    }
+    labels = {
+        "target": target_id,
+        "mirror": element_ids["mirror"],
+        "collimator": element_ids["collimator"],
+        "fiber": element_ids["fiber"],
+    }
+    for path_index, path in enumerate(_reciprocal_path_records(report_data)):
+        points = _return_path_points(path)
+        path_id = f"{optical_path_id}:reciprocal_return:{path_index}"
+        terminated = bool(path.get("terminated", False))
+        termination_point = path.get("termination_point_m")
+        for segment_index, ((start_name, start), (end_name, end)) in enumerate(
+            zip(points, points[1:], strict=False)
+        ):
+            delta = _point(end) - _point(start)
+            if float(np.linalg.norm(delta)) <= 1.0e-12:
+                continue
+            is_terminated_segment = (
+                terminated
+                and termination_point is not None
+                and np.allclose(
+                    _point(end),
+                    np.asarray(termination_point, dtype=np.float64),
+                    rtol=0.0,
+                    atol=1.0e-12,
+                )
+            )
+            rays.append(
+                RaySegment(
+                    segment_id=(
+                        f"reciprocal_return.{path_index}.{segment_index}."
+                        f"{start_name}_to_{end_name}"
+                    ),
+                    start_m=start,
+                    end_m=end,
+                    direction=_vec3(
+                        normalize_vector(delta, name="reciprocal return segment"),
+                        name="reciprocal return direction",
+                    ),
+                    optical_path_id=path_id,
+                    source_element_id=element_ids[start_name],
+                    target_element_id=element_ids[end_name],
+                    power_w=None,
+                    radius_start_m=None,
+                    radius_end_m=None,
+                    status="return_terminated" if is_terminated_segment else "return_propagated",
+                    label=f"Return: {labels[start_name]} → {labels[end_name]}",
+                    propagation_role="return",
+                    plane_power_name=None,
                 )
             )
     return tuple(rays)
@@ -747,7 +985,17 @@ def build_viewport_scene(
     )
     phase2_report = report or build_phase2_optical_train_report(project)
     report_data = _as_report_dict(phase2_report)
-    warnings = tuple(str(item) for item in report_data["accuracy"].get("warnings", ()))
+    warnings_list = [str(item) for item in report_data["accuracy"].get("warnings", ())]
+    reciprocal_section = report_data.get("reciprocal_return")
+    if isinstance(reciprocal_section, dict) and _reciprocal_path_records(report_data):
+        warnings_list.append(
+            "Phase 2.4-R1 return overlay는 center-ray geometry-only이며 power, radiance, "
+            "diffraction 또는 fiber coupling을 나타내지 않습니다."
+        )
+        warnings_list.extend(str(item) for item in reciprocal_section.get("warnings", ()))
+        for path in _reciprocal_path_records(report_data):
+            warnings_list.extend(str(item) for item in path.get("warnings", ()))
+    warnings = tuple(dict.fromkeys(warnings_list))
     return ViewportScene(
         project_id=str(project.project["project_id"]),
         scenario_id=str(project.active_scenario["scenario_id"]),

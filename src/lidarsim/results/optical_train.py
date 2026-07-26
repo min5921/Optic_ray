@@ -10,7 +10,12 @@ from typing import Any
 from lidarsim import __version__
 from lidarsim.config.immutable import deep_thaw
 from lidarsim.optics import ABCDMatrix, OpticalTrainResult, propagate_transmitter_train
-from lidarsim.receiver import ReceiverReturn, estimate_receiver_returns
+from lidarsim.receiver import (
+    ProjectReciprocalReturn,
+    ReceiverReturn,
+    estimate_lambertian_receiver_return,
+    evaluate_project_reciprocal_return,
+)
 from lidarsim.results.accuracy import assess_readiness
 from lidarsim.scene import TargetFootprint, evaluate_target_footprints
 
@@ -29,11 +34,12 @@ class Phase2OpticalTrainReport:
     target_footprints: tuple[dict[str, Any], ...]
     scene_energy_ledger: dict[str, Any]
     receiver_return: dict[str, Any]
+    reciprocal_return: dict[str, Any]
     analytical_checks: dict[str, Any]
 
     def to_dict(self) -> dict[str, Any]:
         return {
-            "schema_version": 1,
+            "schema_version": 2,
             "report_type": "phase2_optical_train",
             "manifest": deep_thaw(self.manifest),
             "summary": deep_thaw(self.summary),
@@ -43,6 +49,7 @@ class Phase2OpticalTrainReport:
             "target_footprints": deep_thaw(self.target_footprints),
             "scene_energy_ledger": deep_thaw(self.scene_energy_ledger),
             "receiver_return": deep_thaw(self.receiver_return),
+            "reciprocal_return": deep_thaw(self.reciprocal_return),
             "analytical_checks": deep_thaw(self.analytical_checks),
         }
 
@@ -234,6 +241,27 @@ def _scene_energy_ledger(
     }
 
 
+def _virtual_aperture_regression_returns(
+    project: Any,
+    footprints: tuple[TargetFootprint, ...],
+) -> tuple[ReceiverReturn, ...]:
+    """Reciprocal architecture에서도 기존 virtual-aperture intermediate를 유지한다."""
+
+    receiver = deep_thaw(project.active_scenario["receiver"])
+    receiver["architecture"] = "virtual_monostatic"
+    results: list[ReceiverReturn] = []
+    for footprint in footprints:
+        material = project.catalog[footprint.material_ref].data
+        results.append(
+            estimate_lambertian_receiver_return(
+                footprint=footprint,
+                material=material,
+                receiver=receiver,
+            )
+        )
+    return tuple(results)
+
+
 def _receiver_return_check(returns: tuple[ReceiverReturn, ...]) -> dict[str, Any]:
     powers = [item.estimated_received_power_w for item in returns]
     finite = all(math.isfinite(power) and power >= 0.0 for power in powers)
@@ -260,8 +288,10 @@ def _receiver_return_section(returns: tuple[ReceiverReturn, ...]) -> dict[str, A
     )
     return {
         "model": "lambertian_small_footprint_receiver_aperture",
+        "output_plane": "virtual_aperture_regression_intermediate",
         "returns": items,
         "total_estimated_received_power_w": total_power,
+        "power_at_virtual_aperture_w": total_power,
         "total_estimated_power_on_target_w": total_power_on_target,
         "total_link_loss_db": link_loss,
         "assumptions": [
@@ -274,11 +304,45 @@ def _receiver_return_section(returns: tuple[ReceiverReturn, ...]) -> dict[str, A
     }
 
 
+def _reciprocal_return_check(
+    result: ProjectReciprocalReturn,
+) -> dict[str, Any]:
+    if result.architecture != "reciprocal_single_mode_fiber":
+        status = "not_evaluated"
+        message = "Configured receiver architecture에 reciprocal R1 path가 적용되지 않습니다."
+    elif result.path is None:
+        status = "warning"
+        message = "Nearest-visible target 또는 forward component report가 없어 R1 path를 평가하지 못했습니다."
+    elif result.path.terminated:
+        status = "fail"
+        message = "Reciprocal center ray가 실제 return plane/aperture에서 종료되었습니다."
+    else:
+        status = result.path.closure.status
+        message = "Same mirror/collimator/fiber reference plane의 reciprocal closure residual을 검사합니다."
+    return {
+        "status": status,
+        "closure_status": None if result.path is None else result.path.closure.status,
+        "terminated": None if result.path is None else result.path.terminated,
+        "maximum_position_residual_m": (
+            None
+            if result.path is None
+            else result.path.closure.maximum_position_residual_m
+        ),
+        "maximum_angular_residual_rad": (
+            None
+            if result.path is None
+            else result.path.closure.maximum_angular_residual_rad
+        ),
+        "message": message,
+    }
+
+
 def _accuracy(
     project: Any,
     result: OpticalTrainResult,
     footprints: tuple[TargetFootprint, ...],
     returns: tuple[ReceiverReturn, ...],
+    reciprocal_return: ProjectReciprocalReturn,
 ) -> dict[str, Any]:
     readiness = assess_readiness(project)
     warnings = [item.format() for item in project.warnings]
@@ -288,10 +352,11 @@ def _accuracy(
         warnings.extend(footprint.warnings)
     for receiver_return in returns:
         warnings.extend(receiver_return.warnings)
+    warnings.extend(reciprocal_return.warnings)
     warnings.append(
-        "현재 receiver return은 analytical virtual aperture 추정값입니다. 동일 scanner mirror와 "
-        "collimator의 역방향 traversal, single-mode fiber 결합과 duplexer/detector loss는 아직 "
-        "계산하지 않습니다."
+        "power_at_virtual_aperture_w는 기존 analytical regression intermediate입니다. "
+        "R1은 동일 scanner mirror/collimator/fiber reference plane의 center-ray geometry만 "
+        "계산하며 return power, fiber 결합과 duplexer/detector loss는 아직 계산하지 않습니다."
     )
     if result.unsupported_elements:
         warnings.append(
@@ -304,7 +369,10 @@ def _accuracy(
         "confidence_level": readiness.confidence_level,
         "calibration_status": readiness.calibration_status,
         "calibration_evidence": readiness.calibration_evidence,
-        "scope": "source_to_static_mirror_rectangle_target_lambertian_virtual_aperture",
+        "scope": (
+            "source_to_static_mirror_rectangle_target_lambertian_virtual_aperture_"
+            "and_reciprocal_center_ray_geometry"
+        ),
         "assumptions": [
             "Source부터 collimator까지는 scalar paraxial Gaussian q-parameter로 계산합니다.",
             "Collimator는 catalog의 ideal_thin_lens, clear aperture와 power_transmission만 사용합니다.",
@@ -313,6 +381,7 @@ def _accuracy(
             "Target roll은 geometry.width_axis로 고정하고 material surface sidedness를 intersection과 radiometry에 동일하게 적용합니다.",
             "Mirror aperture와 target footprint 적분은 base/refined Gauss-Legendre 수렴 잔차를 보고합니다.",
             "Receiver return은 Lambertian small-footprint analytical virtual-aperture approximation입니다.",
+            "Reciprocal return은 nearest-visible target에서 same mirror/collimator/fiber plane까지의 geometry-only R1입니다.",
             "Aperture clipping 뒤 profile shape, diffraction과 edge scattering은 계산하지 않고 power loss만 반영합니다.",
             "Scanner time dynamics, STL hit detection, BRDF/BSDF, detector noise와 coherent FMCW는 계산하지 않습니다.",
         ],
@@ -338,7 +407,12 @@ def build_phase2_optical_train_report(
             else str(train.termination["reason"])
         ),
     )
-    receiver_returns = estimate_receiver_returns(project, footprints)
+    receiver_returns = _virtual_aperture_regression_returns(project, footprints)
+    reciprocal_return = evaluate_project_reciprocal_return(
+        project,
+        train,
+        footprints,
+    )
     final_state = train.final_state
     q_check = _q_check(train)
     energy_check = _energy_check(train)
@@ -346,7 +420,14 @@ def build_phase2_optical_train_report(
     target_check = _target_footprint_check(footprints)
     scene_ledger = _scene_energy_ledger(train.final_state.state.power_w, footprints)
     receiver_check = _receiver_return_check(receiver_returns)
-    accuracy = _accuracy(project, train, footprints, receiver_returns)
+    reciprocal_check = _reciprocal_return_check(reciprocal_return)
+    accuracy = _accuracy(
+        project,
+        train,
+        footprints,
+        receiver_returns,
+        reciprocal_return,
+    )
     timestamp = (created_at or datetime.now(UTC)).astimezone(UTC)
     total_loss_db = (
         None
@@ -360,6 +441,7 @@ def build_phase2_optical_train_report(
         target_check["status"],
         receiver_check["status"],
         scene_ledger["status"],
+        reciprocal_check["status"],
     ]
     overall_status = (
         "fail"
@@ -403,12 +485,14 @@ def build_phase2_optical_train_report(
                 "total_estimated_power_on_target_w"
             ],
             "estimated_received_power_w": receiver_section["total_estimated_received_power_w"],
+            "power_at_virtual_aperture_w": receiver_section["power_at_virtual_aperture_w"],
             "link_loss_db": receiver_section["total_link_loss_db"],
             "q_parameter_status": q_check["status"],
             "energy_ledger_status": energy_check["status"],
             "aperture_status": aperture_check["status"],
             "target_footprint_status": target_check["status"],
             "receiver_return_status": receiver_check["status"],
+            "reciprocal_return_status": reciprocal_check["status"],
         },
         accuracy=accuracy,
         model={
@@ -425,8 +509,8 @@ def build_phase2_optical_train_report(
                 "No scanner motor lag, jitter, bidirectional return stroke or calibration table yet.",
                 "No STL mesh hit detection, visibility, occlusion or BVH yet.",
                 "No non-Lambertian BRDF/BSDF, roughness, speckle or coherent FMCW yet.",
-                "No reciprocal target-to-scanner-to-collimator return train or single-mode fiber coupling yet.",
-                "estimated_received_power_w is an analytical virtual-aperture value, not fiber-coupled power.",
+                "R1 reciprocal target-to-scanner-to-collimator-to-fiber center-ray geometry is implemented; return spatial power integration is not.",
+                "estimated_received_power_w and power_at_virtual_aperture_w are analytical virtual-aperture values, not fiber-coupled power.",
                 "No detector photocurrent, noise, saturation, FFT or CZT yet.",
                 "No measured/vendor black-box optical model execution yet.",
                 "Astigmatic post-lens beam with separated x/y waist locations is rejected by the current BeamState contract.",
@@ -436,6 +520,7 @@ def build_phase2_optical_train_report(
         target_footprints=tuple(footprint.to_dict() for footprint in footprints),
         scene_energy_ledger=scene_ledger,
         receiver_return=receiver_section,
+        reciprocal_return=reciprocal_return.to_dict(),
         analytical_checks={
             "check_scope": "internal_consistency_only",
             "q_parameter": q_check,
@@ -454,6 +539,7 @@ def build_phase2_optical_train_report(
                 "tolerance_w": scene_ledger["tolerance_w"],
             },
             "receiver_return": receiver_check,
+            "reciprocal_return": reciprocal_check,
             "external_validation_status": "not_evaluated",
         },
     )

@@ -96,11 +96,30 @@ python -W error::DeprecationWarning -W error::UserWarning -m pytest -q
 - `UI-S-03` 완료: baseline/parent/variant identity를 provenance sidecar에 분리하고 반복 저장에서 project ID와 description이 누적되지 않는다.
 - `UI-S-04` 완료: footprint metric eigensystem이 right-handed major/minor local·world axis를 반환하고 report, viewport contract와 두 renderer가 같은 축을 사용한다.
 - `UI-S-05` 완료: `result_root`, `ui.language`, `ui.autosave_drafts`와 `display_units.power`를 연결했다. 고정 단위를 사용하는 나머지 editor는 해당 제한을 화면에 warning으로 밝힌다.
-- UI-S Gate 완료. 다음 활성 단계는 Phase 2.4-R1 reciprocal center-ray report/viewport 통합이다.
+- UI-S Gate 완료 후 Phase 2.4-R1 reciprocal center-ray report/viewport 통합을 진행했으며, 완료 상태는 아래 3.4절에 기록한다.
 
 `UI-S`는 `Phase 2-S0/S1`과 병행할 수 있지만, `S1-GEO-01` 완료 전에는 UI numeric placement를 물리적으로 정확한 assembly editor라고 표시하지 않는다.
 
-### 3.4 Phase 4.1-M1 — CPU STL target closest-hit MVP
+### 3.4 Phase 2.4-R1 — Reciprocal center-ray geometry
+
+| ID | 문제 | 영향 | 완료 조건 |
+| --- | --- | --- | --- |
+| `R1-CONFIG-01` | 실제 receiver architecture와 동일 scanner/collimator/fiber return path를 machine-readable하게 지정할 수 없다. | 가상 aperture와 실제 공용 광학계 수신 구조가 config에서 구분되지 않는다. | `reciprocal_single_mode_fiber`, target/scanner/collimator/fiber reference와 bidirectional port를 strict schema·semantic validation으로 연결한다. |
+| `R1-GEO-01` | Target hit에서 동일 mirror·collimator·fiber로 되돌아가는 실제 center-ray 교차가 없다. | 배치·scanner angle 변경이 return alignment와 miss에 어떻게 영향을 주는지 검증할 수 없다. | Nearest-visible configured target에서 actual mirror/collimator/fiber reference plane을 순서대로 교차하고 parallel/behind/aperture miss는 no-teleport 종료한다. |
+| `R1-LENS-01` | Collimator 이후 return ray를 직선 연장하거나 forward incident의 부호만 뒤집으면 off-axis exact retrace가 깨진다. | Decenter·tilt 조건에서 fiber plane hit와 angular residual이 잘못된다. | 실제 collimator hit offset에 reverse-oriented paraxial ideal thin-lens chief-ray law를 적용하고 off-axis analytical retrace test를 통과한다. |
+| `R1-REPORT-01` | Return geometry, power와 fiber coupling 상태가 한 결과처럼 보일 수 있다. | Geometry 통과를 실제 수신 파워 계산 완료로 오해할 수 있다. | Strict `reciprocal_return` section에서 plane별 hit/closure와 `power_status`, `fiber_coupling_status`, `detector_status: not_evaluated`를 분리한다. Virtual aperture는 regression intermediate로 유지한다. |
+| `R1-UI-01` | Planned return guide만으로는 실제 hit/miss와 closure residual을 확인할 수 없다. | UI가 simulation 결과가 아닌 설정 가이드를 실제 광로처럼 보일 수 있다. | `ViewportScene`에 `propagation_role: return` actual segment, nullable geometry-only power와 residual guide를 추가하고 termination 뒤 segment를 만들지 않는다. |
+
+2026-07-26 완료:
+
+- Baseline receiver를 `reciprocal_single_mode_fiber`로 전환하고 `return_path.target_ref`, scanner/collimator/fiber element reference, `reuse_transmit_path`와 R3/R4 placeholder를 strict schema로 검증한다. Source와 collimator port는 bidirectional traversal을 명시한다.
+- Nearest-visible target가 configured target와 다르면 암묵적으로 대체하지 않고 `not_evaluated`로 보고한다.
+- Target→same mirror→collimator receive plane→fiber reference plane을 actual intersection으로 추적한다. Mirror rectangular aperture와 collimator circular aperture miss, parallel/behind ray는 실제 종료점에서 멈춘다.
+- Reverse collimator는 actual receive-plane hit offset을 사용하는 paraxial ideal thin-lens law를 적용한다. Baseline exact retrace의 최대 위치 residual은 약 `1.78e-17 m`, 최대 각도 residual은 `0 rad`다.
+- Strict Phase 2 report/schema와 `ViewportScene` contract에 reciprocal path, closure check, actual return `RaySegment`와 residual guide를 추가했다. Geometry-only segment의 power는 `null`이며 R1의 power/fiber/detector status는 `not_evaluated`다.
+- Phase 2.4-R1 Gate 완료. 다음 활성 단계는 `Phase 4.1-M1` CPU STL target closest-hit MVP다.
+
+### 3.5 Phase 4.1-M1 — CPU STL target closest-hit MVP
 
 현재 STL은 parser·unit·bounds·topology·normal·hash·sidecar metadata 검사까지만 지원한다. `stl_asset`은 target hit 계산에서 unsupported다.
 
@@ -131,6 +150,8 @@ MVP 범위는 다음으로 제한한다.
 | 9 | 후속 단계 | calibrated scanner dynamics, BRDF/BSDF, detector noise, coherent FMCW, advanced constraint editor | 각 Phase validation gate 적용 |
 
 `UI-S`의 코드 작업은 `Phase 2-S0/S1`과 병렬로 진행할 수 있다. 그러나 Git checkpoint와 완료 선언은 위 Gate 순서를 따른다. R1 결과가 생기면 같은 patch 또는 바로 다음 UI patch에서 return `RaySegment`, aperture residual과 fiber-port alignment overlay를 추가한다.
+
+2026-07-26 현재 `Phase 2-S0`, `Phase 2-S1`, `UI-S`와 `Phase 2.4-R1`을 순서대로 완료했다. R1 return `RaySegment`, aperture/closure residual과 fiber reference-plane overlay도 함께 닫았다. 활성 Gate는 `Phase 4.1-M1`이다.
 
 ## 5. 현재 사용자 variant 처리
 

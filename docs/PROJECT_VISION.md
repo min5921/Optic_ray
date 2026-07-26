@@ -630,7 +630,7 @@ Rx: target → same scanner mirror → same collimator → same fiber receive mo
     → circulator/coupler → detector 또는 coherent mixer
 ```
 
-현재 구현된 `virtual_monostatic/virtual_aperture`는 이 실제 왕복 광로가 구현되기 전의 analytical regression model이다. `estimated_received_power_w`는 기존 schema field 이름이지만 현재는 virtual aperture plane의 값이며 fiber에 결합된 power 또는 detector input power가 아니다.
+현재 `virtual_monostatic/virtual_aperture` 계산은 실제 왕복 파워 모델과 분리된 analytical regression intermediate다. Phase 2.4-R1에서 target→same scanner mirror→same collimator→same fiber reference plane의 reciprocal center-ray geometry는 구현했지만, 이 경로의 spatial return power와 fiber mode overlap은 아직 계산하지 않는다. `estimated_received_power_w`와 `power_at_virtual_aperture_w`는 virtual aperture plane의 같은 회귀 기준값이며 fiber에 결합된 power 또는 detector input power가 아니다.
 
 Receiver optical 입력:
 
@@ -907,7 +907,7 @@ Phase 2-S0 신뢰도·계약 안정화
 
 `UI-S`는 `Phase 2-S0/S1`과 병행할 수 있지만, 각 단계의 완료 선언과 checkpoint는 위 Gate 순서를 따른다. 상세 문제 ID, 영향과 완료 조건은 [`specs/IMPLEMENTATION_AUDIT_2026-07-15.md`](specs/IMPLEMENTATION_AUDIT_2026-07-15.md)에 기록한다. Phase 2.2 target footprint와 Phase 2.3 virtual-aperture return은 Phase 4·5 기능을 앞당겨 검증한 vertical slice이며 Phase 4·5 전체 완료를 뜻하지 않는다.
 
-2026-07-26 Phase 2-S0, Phase 2-S1과 UI-S Gate를 완료했다. Calibration evidence, zero-power, 방향 벡터, nearest-visible target energy, strict schema, actual-hit/no-teleport geometry, scanner pivot·target sidedness·quadrature에 더해 project-wide draft, atomic simulation rollback, stable provenance, footprint eigensystem world axis와 project UI setting 연결을 regression test로 검증했다. 다음 활성 단계는 `Phase 2.4-R1`이다.
+2026-07-26 Phase 2-S0, Phase 2-S1, UI-S와 Phase 2.4-R1 Gate를 완료했다. Calibration evidence, zero-power, 방향 벡터, nearest-visible target energy, strict schema, actual-hit/no-teleport geometry, scanner pivot·target sidedness·quadrature, project-wide draft/rollback에 이어 명시적인 reciprocal receiver contract, reverse mirror/collimator/fiber reference-plane 교차, 역방향 ideal thin-lens와 closure residual을 regression test로 검증했다. Viewport는 geometry-only return ray와 residual을 별도 role로 표시한다. 다음 활성 단계는 `Phase 4.1-M1` CPU STL target closest-hit다.
 
 ### Phase 0 — Contract, Configuration, Coordinate와 Viewer Skeleton
 
@@ -953,7 +953,7 @@ Phase 1 완료 상태 (2026-07-04): 불변 `BeamState`, 오른손 local beam fra
 
 완료 조건: 상용 또는 custom collimator와 mirror를 배치한 transmitter train이 config에서 재현되고 element별 BeamState와 loss가 표시된다.
 
-Phase 2 vertical slice 상태 (2026-07-23): `src/lidarsim/optics/`에 paraxial `ABCDMatrix`, free-space와 ideal thin-lens q-parameter transform, 실제 ray-plane interaction, projected circular/rectangular aperture clipping, static flat-mirror reflection과 transmitter train propagation을 구현했다. Phase 2.2/2.3 확장으로 `rectangle_plane` target 중심 ray hit, projected Gaussian footprint, target power, Lambertian small-footprint virtual-aperture power와 link budget을 analytical reference로 계산한다. Collimator·mirror offset/tilt는 실제 plane hit와 aperture local coordinate에 반영되고 center ray miss는 0 W terminated path가 된다. Scanner surface frame은 catalog pivot 기준으로 회전한다. Target roll은 `geometry.width_axis`, front/back 정책은 material `optical.surface_sidedness`로 고정하며 two-sided radiometric normal을 return cosine까지 일관되게 사용한다. Mirror aperture와 target footprint 적분은 base/refined order, relative residual과 tolerance를 보고하며 refined power를 ledger에 사용한다. 이 virtual aperture 값에는 target→same mirror→same collimator reverse traversal과 single-mode fiber coupling이 포함되지 않으며 실제 receiver hardware power로 해석하지 않는다. Reciprocal return train, fiber mode overlap, truncated-aperture diffraction, aberration, stochastic tolerance ensemble, commercial vendor black-box execution, STL hit detection, footprint-area occlusion, non-Lambertian BRDF/BSDF, detector noise와 coherent FMCW는 아직 계산하지 않는다. 이 report는 한 개의 static pose만 계산하고 ideal time sample은 Phase 3 `scanner-path`에서 생성한다. x/y waist 위치가 분리되는 astigmatic post-lens beam은 현재 `BeamState` contract로 정확히 표현할 수 없으므로 silent approximation 대신 명시적으로 거부한다.
+Phase 2/R1 vertical slice 상태 (2026-07-26): `src/lidarsim/optics/`에 paraxial `ABCDMatrix`, free-space와 ideal thin-lens q-parameter transform, 실제 ray-plane interaction, projected circular/rectangular aperture clipping, static flat-mirror reflection과 transmitter train propagation을 구현했다. Phase 2.2/2.3 확장으로 `rectangle_plane` target 중심 ray hit, projected Gaussian footprint, target power, Lambertian small-footprint virtual-aperture power와 link budget을 analytical reference로 계산한다. Collimator·mirror offset/tilt는 실제 plane hit와 aperture local coordinate에 반영되고 center ray miss는 0 W terminated path가 된다. Scanner surface frame은 catalog pivot 기준으로 회전한다. Target roll은 `geometry.width_axis`, front/back 정책은 material `optical.surface_sidedness`로 고정하며 two-sided radiometric normal을 return cosine까지 일관되게 사용한다. Mirror aperture와 target footprint 적분은 base/refined order, relative residual과 tolerance를 보고하며 refined power를 ledger에 사용한다. Phase 2.4-R1은 nearest-visible configured target hit에서 동일 scanner mirror로 향하는 center ray를 생성해 실제 mirror·collimator receive plane·source fiber reference plane을 순서대로 교차하고, reverse-oriented paraxial ideal thin-lens chief-ray와 transmit path 대비 위치·각도 closure residual을 strict report에 기록한다. Plane/aperture miss는 실제 지점에서 종료하며 viewport가 같은 return segment와 residual을 표시한다. 이 R1 경로는 geometry-only다. 기존 virtual aperture 파워는 별도 regression intermediate이며 return spatial power, fiber mode overlap, duplexer/detector 전달, truncated-aperture diffraction, aberration, stochastic tolerance ensemble, commercial vendor black-box execution, STL hit detection, footprint-area occlusion, non-Lambertian BRDF/BSDF, detector noise와 coherent FMCW는 아직 계산하지 않는다. 이 report는 한 개의 static pose만 계산하고 ideal time sample은 Phase 3 `scanner-path`에서 생성한다. x/y waist 위치가 분리되는 astigmatic post-lens beam은 현재 `BeamState` contract로 정확히 표현할 수 없으므로 silent approximation 대신 명시적으로 거부한다.
 
 #### Phase 2-S — R1 착수 전 안정화 Gate
 
@@ -1001,7 +1001,7 @@ Phase 4.1-M1의 첫 STL 범위는 CPU/float64 center-ray nearest-hit로 제한�
 - optional independent receiver aperture/FOV/receive optics
 - material/path contribution report
 
-세부 구현은 [`specs/RECIPROCAL_FIBER_RETURN.md`](specs/RECIPROCAL_FIBER_RETURN.md)를 따른다. R1 center-ray geometry를 먼저 닫고 Phase 4.1-M1 STL closest-hit를 추가한 뒤, rectangle-plane analytical baseline을 유지하면서 R2 return ledger, R3 fiber coupling과 R4 duplexer/detector boundary를 순서대로 구현한다. STL closest-hit만으로 mesh 전체 footprint·BRDF 적분이 완료됐다고 주장하지 않는다.
+세부 구현은 [`specs/RECIPROCAL_FIBER_RETURN.md`](specs/RECIPROCAL_FIBER_RETURN.md)를 따른다. R1 center-ray geometry는 완료했다. 다음 Phase 4.1-M1 STL closest-hit를 추가한 뒤, rectangle-plane analytical baseline을 유지하면서 R2 return ledger, R3 fiber coupling과 R4 duplexer/detector boundary를 순서대로 구현한다. STL closest-hit만으로 mesh 전체 footprint·BRDF 적분이 완료됐다고 주장하지 않는다.
 
 완료 조건: 거리, aperture, angle, reflectivity, 정렬과 component/config 변화에 물리적으로 일관된 fiber-coupled power가 나오며 각 intermediate plane의 power ledger가 보존된다.
 
@@ -1019,7 +1019,7 @@ Phase 4.1-M1의 첫 STL 범위는 CPU/float64 center-ray nearest-hit로 제한�
 
 UI early slice 상태 (2026-07-10): `ViewportScene` 기반 Matplotlib headless viewer와 self-contained read-only dashboard에 이어, optional Streamlit `lidarsim ui`를 Plotly interactive 3D optical bench로 확장했다. 사용자는 orbit·zoom, component marker selection, guide toggle과 beam/reflected ray·target footprint·receiver FOV overlay를 확인하고, 선택한 source/scanner/target/receiver/component의 parameter와 absolute/port numeric placement를 편집할 수 있다. 편집값과 current simulation이 다르면 미반영 상태를 명시하고 inspector 상단 action으로 variant 저장·검증·3D 갱신을 수행하며, active config hash가 외부에서 바뀌어도 stale session result를 자동 재계산한다. 첫 UI Phase C helper인 `MirrorTargetMate`는 현재 center ray를 target rectangle center로 반사하는 required normal과 base pose를 static scanner angle까지 고려해 preview하고, 사용자가 적용한 뒤에만 absolute placement quaternion과 local mechanical axis에 일관된 `scanner.rotation_axis_world`로 저장한다. 모든 변경은 `configs/ui_runs/` variant YAML로 serialize하고 schema/unit/physical/placement validation을 통과한 뒤 `results/ui_runs/` bundle을 생성하므로 CLI에서 같은 project를 재현할 수 있다. 아직 geometry-face picking, receiver `LookAtMate`, port/coaxial snap, persistent constraint list, undo/redo, drag/rotate gizmo, multi-run comparison과 tolerance analysis는 구현하지 않았다.
 
-UI-S 완료 상태 (2026-07-26): 선택을 바꿔도 여러 객체 편집을 보존하는 `ProjectDraft`, 변경 객체/field/YAML diff, 선택·전체 discard를 구현했다. Variant·project·provenance와 result directory는 validation→simulation→render 실패 시 이전 성공 상태로 rollback한다. 최초 baseline, 직전 parent와 현재 variant identity를 sidecar에 분리하고 반복 저장 ID/description을 안정화했다. Projected Gaussian eigensystem의 major/minor local·world axis를 report·strict schema·Plotly·Matplotlib이 공유하며, `result_root`, language, autosave와 power display unit을 실제 UI 동작에 연결했다. 다음 UI 물리 overlay는 R1 return path다.
+UI-S 완료 상태 (2026-07-26): 선택을 바꿔도 여러 객체 편집을 보존하는 `ProjectDraft`, 변경 객체/field/YAML diff, 선택·전체 discard를 구현했다. Variant·project·provenance와 result directory는 validation→simulation→render 실패 시 이전 성공 상태로 rollback한다. 최초 baseline, 직전 parent와 현재 variant identity를 sidecar에 분리하고 반복 저장 ID/description을 안정화했다. Projected Gaussian eigensystem의 major/minor local·world axis를 report·strict schema·Plotly·Matplotlib이 공유하며, `result_root`, language, autosave와 power display unit을 실제 UI 동작에 연결했다. R1 return path는 `propagation_role: return`, geometry-only nullable power와 closure residual guide를 사용해 Plotly/Matplotlib에 같은 실제 hit segment로 overlay된다.
 
 ### Phase 7 — Coherent FMCW와 Speckle
 
@@ -1197,7 +1197,7 @@ editable baseline config and component references
 → beam envelope, round-trip path, footprint, fiber-coupled power and link budget
 ```
 
-현재 virtual aperture result는 위 경로를 구현하기 위한 회귀 기준으로 유지한다. 먼저 [`specs/IMPLEMENTATION_AUDIT_2026-07-15.md`](specs/IMPLEMENTATION_AUDIT_2026-07-15.md)의 안정화 Gate를 통과하고 왕복 center-ray geometry를 닫은 뒤 CPU STL closest-hit를 추가한다. 이후 return power ledger, fiber mode coupling과 duplexer/detector boundary가 analytical result와 일치하면 sequential prescription, vendor file import, STEP assembly, complex BSDF, coherent FMCW와 GPU 순서로 확장한다.
+현재 virtual aperture result는 위 경로의 파워 모델을 구현하기 위한 회귀 기준으로 유지한다. [`specs/IMPLEMENTATION_AUDIT_2026-07-15.md`](specs/IMPLEMENTATION_AUDIT_2026-07-15.md)의 안정화 Gate와 왕복 center-ray geometry는 완료했다. 다음 CPU STL closest-hit를 추가하고, return power ledger, fiber mode coupling과 duplexer/detector boundary가 analytical result와 일치하면 sequential prescription, vendor file import, STEP assembly, complex BSDF, coherent FMCW와 GPU 순서로 확장한다.
 
 ## 22. 참고 자료
 

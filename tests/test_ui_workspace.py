@@ -16,8 +16,79 @@ from lidarsim.ui import (
     create_simulation_variant,
 )
 from lidarsim.ui.assembly.plotly_viewport import _footprint_coordinates
+from lidarsim.ui.assembly.plotly_viewport import build_interactive_viewport_figure
 from lidarsim.visualization import render_viewport_scene
-from lidarsim.visualization.workspace import _footprint_polygon
+from lidarsim.visualization.workspace import _draw_rays, _footprint_polygon
+
+
+def _reciprocal_hit(
+    plane_id: str,
+    point_m: list[float],
+    expected_center_m: list[float],
+    *,
+    aperture_status: str = "pass",
+) -> dict[str, object]:
+    return {
+        "plane_id": plane_id,
+        "frame": {"origin_m": expected_center_m},
+        "intersection": {"hit": True, "point_m": point_m},
+        "lateral_residual_m": float(np.linalg.norm(np.asarray(point_m) - expected_center_m)),
+        "aperture_status": aperture_status,
+    }
+
+
+def _report_with_reciprocal_path(
+    project: object,
+    *,
+    path: dict[str, object],
+) -> dict[str, object]:
+    payload = build_phase2_optical_train_report(project).to_dict()  # type: ignore[arg-type]
+    payload["reciprocal_return"] = {
+        "model": "reciprocal_shared_optical_train",
+        "status": path["status"],
+        "architecture": "reciprocal_single_mode_fiber",
+        "return_path": {
+            "scanner_element_id": "scan_mirror",
+            "collimator_element_id": "collimator",
+            "fiber_element_id": "source",
+        },
+        "target_id": "target_plane",
+        "path": path,
+        "power_status": "not_evaluated",
+        "fiber_coupling_status": "not_evaluated",
+        "detector_status": "not_evaluated",
+        "assumptions": ["center ray only"],
+        "warnings": ["R1 geometry-only"],
+    }
+    return payload
+
+
+def _exact_reciprocal_path() -> dict[str, object]:
+    return {
+        "model": "reciprocal_center_ray_geometry",
+        "status": "pass",
+        "terminated": False,
+        "termination_reason": None,
+        "termination_point_m": [0.0, 0.0, -0.10],
+        "target_hit_m": [10.0, 0.0, 0.0],
+        "mirror_hit": _reciprocal_hit("return_mirror", [0.0, 0.0, 0.0], [0.0, 0.0, 0.0]),
+        "collimator_hit": _reciprocal_hit(
+            "return_collimator",
+            [0.0, 0.0, -0.08],
+            [0.0, 0.0, -0.08],
+        ),
+        "fiber_hit": _reciprocal_hit(
+            "fiber_reference",
+            [0.0, 0.0, -0.10],
+            [0.0, 0.0, -0.10],
+        ),
+        "closure": {
+            "mirror_angular_residual_rad": 0.0,
+            "collimator_angular_residual_rad": 0.0,
+            "fiber_angular_residual_rad": 0.0,
+        },
+        "warnings": [],
+    }
 
 
 def test_viewport_scene_contains_optical_bench_objects(project_root: Path) -> None:
@@ -46,7 +117,10 @@ def test_viewport_scene_round_trips_as_yaml(project_root: Path) -> None:
     assert payload["project_id"] == "optic_ray_default"
     assert payload["schema_version"] == 1
     assert payload["scenario_id"] == "baseline_1550nm"
-    assert payload["model_scope"] == "source_to_static_mirror_rectangle_target_lambertian_virtual_aperture"
+    assert payload["model_scope"] == (
+        "source_to_static_mirror_rectangle_target_lambertian_virtual_aperture_"
+        "and_reciprocal_center_ray_geometry"
+    )
     assert payload["placement_edits"] == []
     assert payload["constraints"] == []
 
@@ -90,6 +164,24 @@ def test_viewport_component_frames_match_physical_directions(project_root: Path)
     assert np.linalg.det(target_rotation) == pytest.approx(1.0)
     assert receiver_rotation[:, 2] == pytest.approx([1.0, 0.0, 0.0])
     assert np.linalg.det(receiver_rotation) == pytest.approx(1.0)
+    assert components["receiver"].component_type == "virtual_aperture_regression_intermediate"
+    assert components["receiver"].display_role == "virtual_aperture_reference"
+
+
+def test_not_evaluated_reciprocal_section_does_not_claim_geometry_overlay(
+    project_root: Path,
+) -> None:
+    project = load_project(project_root / "configs" / "project.yaml")
+    report = build_phase2_optical_train_report(project).to_dict()
+    reciprocal = report["reciprocal_return"]
+    assert isinstance(reciprocal, dict)
+    reciprocal["status"] = "not_evaluated"
+    reciprocal["path"] = None
+
+    scene = build_viewport_scene(project, report=report)
+
+    assert not any(ray.propagation_role == "return" for ray in scene.rays)
+    assert not any("return overlay는" in warning for warning in scene.warnings)
 
 
 def test_workspace_renderer_writes_png(project_root: Path, tmp_path: Path) -> None:
@@ -103,6 +195,156 @@ def test_workspace_renderer_writes_png(project_root: Path, tmp_path: Path) -> No
     payload = output_path.read_bytes()
     assert payload.startswith(b"\x89PNG\r\n\x1a\n")
     assert len(payload) > 10_000
+
+
+def test_reciprocal_exact_path_builds_three_geometry_only_return_segments(
+    project_root: Path,
+) -> None:
+    project = load_project(project_root / "configs" / "project.yaml")
+    report = _report_with_reciprocal_path(project, path=_exact_reciprocal_path())
+
+    scene = build_viewport_scene(project, report=report)
+    return_rays = [ray for ray in scene.rays if ray.propagation_role == "return"]
+
+    assert len(return_rays) == 3
+    assert [(ray.start_m, ray.end_m) for ray in return_rays] == [
+        ((10.0, 0.0, 0.0), (0.0, 0.0, 0.0)),
+        ((0.0, 0.0, 0.0), (0.0, 0.0, -0.08)),
+        ((0.0, 0.0, -0.08), (0.0, 0.0, -0.10)),
+    ]
+    assert all(ray.power_w is None for ray in return_rays)
+    assert all(ray.plane_power_name is None for ray in return_rays)
+    assert all(ray.status == "return_propagated" for ray in return_rays)
+    residual_guides = [
+        guide for guide in scene.guides if guide.guide_type == "return_hit_residual"
+    ]
+    assert len(residual_guides) == 3
+    assert all(guide.metadata["geometry_only"] is True for guide in residual_guides)
+    assert all(guide.start_m == guide.end_m for guide in residual_guides)
+    with pytest.raises(TypeError):
+        residual_guides[0].metadata["plane_id"] = "mutated"  # type: ignore[index]
+    assert any("geometry-only" in warning for warning in scene.warnings)
+    transmit_rays = [ray for ray in scene.rays if ray.propagation_role == "transmit"]
+    assert transmit_rays[0].plane_power_name == report["optical_train"]["states"][0]["label"]
+    assert transmit_rays[0].power_w is not None
+
+
+def test_reciprocal_terminated_path_stops_at_last_actual_hit_without_teleport(
+    project_root: Path,
+) -> None:
+    project = load_project(project_root / "configs" / "project.yaml")
+    path = _exact_reciprocal_path()
+    collimator_point = [0.003, 0.0, -0.08]
+    path.update(
+        {
+            "status": "terminated",
+            "terminated": True,
+            "termination_reason": "return_collimator:outside_clear_aperture",
+            "termination_point_m": collimator_point,
+            "collimator_hit": _reciprocal_hit(
+                "return_collimator",
+                collimator_point,
+                [0.0, 0.0, -0.08],
+                aperture_status="miss",
+            ),
+            # A malformed downstream record must not make the viewport teleport past termination.
+            "fiber_hit": _reciprocal_hit(
+                "fiber_reference",
+                [9.0, 9.0, 9.0],
+                [0.0, 0.0, -0.10],
+            ),
+        }
+    )
+    report = _report_with_reciprocal_path(project, path=path)
+
+    scene = build_viewport_scene(project, report=report)
+    return_rays = [ray for ray in scene.rays if ray.propagation_role == "return"]
+
+    assert len(return_rays) == 2
+    assert return_rays[-1].end_m == pytest.approx(collimator_point)
+    assert return_rays[-1].status == "return_terminated"
+    assert all(ray.end_m != pytest.approx([9.0, 9.0, 9.0]) for ray in return_rays)
+
+
+@pytest.mark.parametrize("results_wrapper", [False, True])
+def test_reciprocal_results_wrapper_is_accepted_without_changing_coordinates(
+    project_root: Path,
+    results_wrapper: bool,
+) -> None:
+    project = load_project(project_root / "configs" / "project.yaml")
+    report = _report_with_reciprocal_path(project, path=_exact_reciprocal_path())
+    section = report["reciprocal_return"]
+    assert isinstance(section, dict)
+    path = section.pop("path")
+    section["results"] = {"path": path} if results_wrapper else {"primary": path}
+
+    scene = build_viewport_scene(project, report=report)
+    return_rays = [ray for ray in scene.rays if ray.propagation_role == "return"]
+
+    assert len(return_rays) == 3
+    assert return_rays[-1].end_m == pytest.approx([0.0, 0.0, -0.10])
+
+
+def test_reciprocal_viewport_serializes_and_validates_strict_schema(
+    project_root: Path,
+) -> None:
+    project = load_project(project_root / "configs" / "project.yaml")
+    report = _report_with_reciprocal_path(project, path=_exact_reciprocal_path())
+    payload = yaml.safe_load(
+        yaml.safe_dump(build_viewport_scene(project, report=report).to_dict(), sort_keys=False)
+    )
+
+    SchemaStore.load(project_root / "schemas").validate(
+        payload,
+        "viewport_scene.schema.json",
+        source="R1 reciprocal viewport",
+    )
+    return_rays = [ray for ray in payload["rays"] if ray["propagation_role"] == "return"]
+    assert len(return_rays) == 3
+    assert all(ray["power_w"] is None for ray in return_rays)
+
+
+def test_reciprocal_coordinates_and_styles_match_plotly_and_matplotlib(
+    project_root: Path,
+    tmp_path: Path,
+) -> None:
+    project = load_project(project_root / "configs" / "project.yaml")
+    report = _report_with_reciprocal_path(project, path=_exact_reciprocal_path())
+    scene = build_viewport_scene(project, report=report)
+    expected = [ray for ray in scene.rays if ray.propagation_role == "return"]
+
+    figure = build_interactive_viewport_figure(scene)
+    return_guides = [trace for trace in figure.data if trace.name == "return hit residual"]
+    assert len(return_guides) == 1
+    assert return_guides[0].mode == "lines+markers"
+    plotly_return = [trace for trace in figure.data if trace.legendgroup == "return_path"]
+    assert len(plotly_return) == len(expected)
+    for trace, ray in zip(plotly_return, expected, strict=True):
+        assert trace.x == pytest.approx((ray.start_m[0], ray.end_m[0]))
+        assert trace.y == pytest.approx((ray.start_m[1], ray.end_m[1]))
+        assert trace.z == pytest.approx((ray.start_m[2], ray.end_m[2]))
+        assert trace.line.dash == "dash"
+        assert trace.name == "Reciprocal return (geometry-only)"
+
+    class _RecordingAxis:
+        def __init__(self) -> None:
+            self.lines: list[tuple[tuple[object, ...], dict[str, object]]] = []
+
+        def plot(self, *args: object, **kwargs: object) -> None:
+            self.lines.append((args, kwargs))
+
+    axis = _RecordingAxis()
+    _draw_rays(axis, scene.to_dict())
+    matplotlib_return = [line for line in axis.lines if line[1].get("color") == "#0ea5e9"]
+    assert len(matplotlib_return) == len(expected)
+    for (args, kwargs), ray in zip(matplotlib_return, expected, strict=True):
+        assert args[0] == pytest.approx([ray.start_m[0], ray.end_m[0]])
+        assert args[1] == pytest.approx([ray.start_m[1], ray.end_m[1]])
+        assert args[2] == pytest.approx([ray.start_m[2], ray.end_m[2]])
+        assert kwargs["linestyle"] == "--"
+
+    output = render_viewport_scene(scene, tmp_path / "r1_zero_residual_guides.png", dpi=72)
+    assert output.read_bytes().startswith(b"\x89PNG\r\n\x1a\n")
 
 
 def test_rotated_oblique_footprint_axes_flow_from_physics_to_both_renderers(

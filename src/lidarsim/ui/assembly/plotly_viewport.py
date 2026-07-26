@@ -19,6 +19,7 @@ DEFAULT_GUIDE_TYPES = frozenset(
         "mirror_normal",
         "target_plane_edge",
         "receiver_fov",
+        "return_hit_residual",
     }
 )
 
@@ -40,6 +41,7 @@ _GUIDE_COLORS = {
     "target_plane_edge": "#d97706",
     "receiver_fov": "#c026d3",
     "receiver_look": "#c026d3",
+    "return_hit_residual": "#0ea5e9",
 }
 
 VIEW_MODES = frozenset({"full_scene", "transmitter_closeup", "selected_component"})
@@ -275,8 +277,13 @@ def build_interactive_viewport_figure(
                 x=x_values,
                 y=y_values,
                 z=z_values,
-                mode="lines",
+                mode="lines+markers" if guide_type == "return_hit_residual" else "lines",
                 line={"color": _GUIDE_COLORS.get(guide_type, "#94a3b8"), "width": 3},
+                marker=(
+                    {"color": _GUIDE_COLORS["return_hit_residual"], "size": 5, "symbol": "x"}
+                    if guide_type == "return_hit_residual"
+                    else None
+                ),
                 hovertext=labels_for_hover,
                 hovertemplate="%{hovertext}<extra></extra>",
                 name=guide_type.replace("_", " "),
@@ -285,26 +292,36 @@ def build_interactive_viewport_figure(
             )
         )
 
+    shown_ray_roles: set[str] = set()
     for ray in scene.rays:
         start = ray.start_m
         end = ray.end_m
-        color = "#f59e0b" if ray.status == "target_hit" else "#ef4444"
+        is_return = ray.propagation_role == "return"
+        color = "#0ea5e9" if is_return else "#f59e0b" if ray.status == "target_hit" else "#ef4444"
+        trace_name = "Reciprocal return (geometry-only)" if is_return else "Beam path"
+        legend_group = "return_path" if is_return else "beam_path"
+        power_text = "not evaluated (R1 geometry-only)" if ray.power_w is None else f"{ray.power_w:.6g} W"
         figure.add_trace(
             go.Scatter3d(
                 x=(start[0], end[0]),
                 y=(start[1], end[1]),
                 z=(start[2], end[2]),
                 mode="lines",
-                line={"color": color, "width": 7},
+                line={
+                    "color": color,
+                    "width": 6 if is_return else 7,
+                    "dash": "dash" if is_return else "solid",
+                },
                 hovertemplate=(
-                    f"<b>{ray.label}</b><br>power: {ray.power_w:.6g} W"
+                    f"<b>{ray.label}</b><br>power: {power_text}"
                     f"<br>length: {ray.length_m:.6g} m<extra></extra>"
                 ),
-                name="Beam path",
-                legendgroup="beam_path",
-                showlegend=ray is scene.rays[0],
+                name=trace_name,
+                legendgroup=legend_group,
+                showlegend=ray.propagation_role not in shown_ray_roles,
             )
         )
+        shown_ray_roles.add(ray.propagation_role)
 
     for footprint in scene.footprints:
         points = _footprint_coordinates(footprint)

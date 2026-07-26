@@ -32,7 +32,10 @@ def test_phase0_report_is_schema_valid_and_does_not_claim_uncomputed_power(
     assert report.accuracy.calibration_status == "uncalibrated"
     assert report.accuracy.model_purpose == "analytical_regression"
     assert report.accuracy.hardware_readiness == "analytical_only"
-    assert report.accuracy.receiver_model == "virtual_monostatic/virtual_aperture"
+    assert (
+        report.accuracy.receiver_model
+        == "reciprocal_single_mode_fiber/reciprocal_path_reference"
+    )
     assert report.energy_ledger.status == "not_evaluated"
     assert report.energy_ledger.source_power_w == pytest.approx(0.01)
     assert report.energy_ledger.entries == ()
@@ -77,7 +80,7 @@ def test_phase0_1_html_review_is_self_contained(
     document = result.read_text(encoding="utf-8")
     assert "Phase 0.1 LiDAR setup review" in document
     assert "analytical_only" in document
-    assert "virtual_monostatic/virtual_aperture" in document
+    assert "reciprocal_single_mode_fiber/reciprocal_path_reference" in document
     assert "data:image/png;base64," in document
     assert "이 Phase 0.1 review 자체는 배치·설정 검증만 수행" in document
     assert "lidarsim optical-train" in document

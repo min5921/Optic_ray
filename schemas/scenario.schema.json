@@ -179,16 +179,49 @@
     },
     "receiver": {
       "type": "object",
+      "description": "Reciprocal architecture에서도 position/FOV/aperture/optical_efficiency는 legacy virtual-aperture regression intermediate 계산에만 사용되며 fiber 또는 detector hardware plane을 뜻하지 않습니다.",
       "additionalProperties": false,
       "required": ["architecture", "model_level", "position_m", "direction", "aperture_diameter_m", "full_fov_rad", "optical_efficiency", "detector_model"],
       "properties": {
-        "architecture": { "enum": ["virtual_monostatic", "monostatic", "bistatic"] },
-        "model_level": { "enum": ["virtual_aperture", "geometric_optics", "calibrated"] },
+        "architecture": { "enum": ["virtual_monostatic", "monostatic", "bistatic", "reciprocal_single_mode_fiber"] },
+        "model_level": { "enum": ["virtual_aperture", "reciprocal_path_reference", "geometric_optics", "calibrated"] },
         "position_m": { "$ref": "common.schema.json#/$defs/vec3" },
         "direction": { "$ref": "common.schema.json#/$defs/vec3" },
         "aperture_diameter_m": { "$ref": "common.schema.json#/$defs/quantity" },
         "full_fov_rad": { "$ref": "common.schema.json#/$defs/quantity" },
         "optical_efficiency": { "type": "number", "minimum": 0.0, "maximum": 1.0 },
+        "return_path": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["target_ref", "scanner_element_id", "collimator_element_id", "fiber_element_id", "reuse_transmit_path"],
+          "properties": {
+            "target_ref": { "$ref": "common.schema.json#/$defs/identifier" },
+            "scanner_element_id": { "$ref": "common.schema.json#/$defs/identifier" },
+            "collimator_element_id": { "$ref": "common.schema.json#/$defs/identifier" },
+            "fiber_element_id": { "$ref": "common.schema.json#/$defs/identifier" },
+            "reuse_transmit_path": { "type": "boolean" }
+          }
+        },
+        "fiber_coupling": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["model", "mode_field_source", "lateral_offset_m", "angular_offset_rad"],
+          "properties": {
+            "model": { "const": "single_mode_overlap" },
+            "mode_field_source": { "const": "component_catalog" },
+            "lateral_offset_m": { "$ref": "common.schema.json#/$defs/vec2" },
+            "angular_offset_rad": { "$ref": "common.schema.json#/$defs/vec2" }
+          }
+        },
+        "duplexer": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["type", "return_power_transmission"],
+          "properties": {
+            "type": { "enum": ["ideal_circulator", "fiber_coupler", "free_space_beamsplitter"] },
+            "return_power_transmission": { "type": "number", "minimum": 0.0, "maximum": 1.0 }
+          }
+        },
         "detector_model": { "type": ["string", "null"] }
       }
     },
@@ -212,6 +245,24 @@
     }
   },
   "allOf": [
+    {
+      "if": {
+        "properties": {
+          "receiver": {
+            "properties": { "architecture": { "const": "reciprocal_single_mode_fiber" } },
+            "required": ["architecture"]
+          }
+        },
+        "required": ["receiver"]
+      },
+      "then": {
+        "properties": {
+          "receiver": {
+            "required": ["return_path", "fiber_coupling", "duplexer"]
+          }
+        }
+      }
+    },
     {
       "if": {
         "properties": { "model_purpose": { "const": "calibrated_hardware" } },

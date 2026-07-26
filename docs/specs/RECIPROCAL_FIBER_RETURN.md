@@ -31,18 +31,27 @@ target
 
 ## 2. 현재 구현과의 구분
 
-현재 `virtual_monostatic/virtual_aperture` 모델은 target footprint에서 임의의 원형 aperture가 차지하는 solid angle을 사용해 첫 Lambertian return을 계산한다. 이 모델에는 다음 항목이 없다.
+기존 `virtual_monostatic/virtual_aperture` 모델은 target footprint에서 임의의 원형 aperture가 차지하는 solid angle을 사용해 첫 Lambertian return을 계산한다. 이 계산은 현재도 별도의 analytical regression intermediate로 유지한다. Phase 2.4-R1은 이 값과 섞지 않고 다음 geometry를 별도 `reciprocal_return` section에 구현한다.
 
-- target에서 scanner mirror로 돌아오는 경로 교차
-- return mirror clear aperture와 reflectivity
-- scanner pose에 따른 송수신 reciprocity residual
-- collimator의 역방향 traversal
+- configured nearest-visible target hit에서 동일 scanner mirror로 향하는 center ray
+- 실제 mirror plane 교차, rectangular clear-aperture center-ray 판정과 ideal 재반사
+- collimator receive reference plane의 실제 교차와 circular clear-aperture center-ray 판정
+- 실제 collimator hit offset을 사용하는 reverse-oriented paraxial ideal thin-lens chief ray
+- source fiber reference plane의 실제 교차
+- transmit reference 대비 mirror/collimator/fiber 위치·각도 closure residual
+- plane parallel/behind 또는 aperture miss에서 no-teleport 종료
+- `ViewportScene`의 target→mirror→collimator→fiber return segment와 residual guide
+
+R1에는 다음 항목이 없다.
+
+- target radiance를 return mirror acceptance로 적분한 파워
+- return mirror reflectivity와 collimator transmission을 연결한 power ledger
 - fiber end-face의 mode field
 - lateral·angular·focus mismatch에 따른 fiber coupling
 - circulator, beamsplitter 또는 2×2 coupler 손실
 - detector 또는 coherent mixer
 
-그러므로 현재 report의 `estimated_received_power_w`는 기존 schema를 위한 field 이름이며 물리적으로는 **virtual aperture에서의 분석용 추정값**이다. 이를 `power_coupled_into_fiber_w` 또는 detector power로 해석하면 안 된다. 이 값은 새 왕복 모델을 검증할 때 비교용 intermediate/reference로만 유지한다.
+그러므로 현재 report의 `estimated_received_power_w`와 `power_at_virtual_aperture_w`는 물리적으로 같은 **virtual aperture 분석용 추정값**이다. 이를 R1 return path power, `power_coupled_into_fiber_w` 또는 detector power로 해석하면 안 된다. `reciprocal_return.power_status`, `fiber_coupling_status`, `detector_status`는 R1에서 명시적으로 `not_evaluated`다.
 
 ## 3. 기본 architecture 결정
 
@@ -110,9 +119,9 @@ P_fiber = |E_fiber|²
 
 Field amplitude와 power는 분리하고 scatterer power를 직접 합해 coherent result로 사용하지 않는다.
 
-## 6. 계획된 configuration contract
+## 6. Configuration contract
 
-다음 예시는 목표 contract이며 현재 schema가 아직 허용하는 설정은 아니다. Phase 2.4 구현 시 schema, catalog와 loader를 함께 추가한다.
+다음 contract는 Phase 2.4-R1에서 scenario schema, semantic validation과 baseline에 구현되었다. `return_path`의 target와 element ID는 실제 active scene/assembly에 존재하고 각각 올바른 역할이어야 하며, 현재 R1은 `reuse_transmit_path: true`만 지원한다.
 
 ```yaml
 receiver:
@@ -135,6 +144,8 @@ receiver:
   detector_model: none
 ```
 
+`fiber_coupling`과 `duplexer`는 R3/R4에서 사용할 설정을 미리 검증·보존하는 placeholder다. R1은 이 값을 읽어 결합 파워나 detector power를 만들지 않는다. 기존 virtual-aperture 회귀값을 유지하기 위한 `position_m`, `direction`, `aperture_diameter_m`, `full_fov_rad`, `optical_efficiency`도 baseline receiver에 함께 남아 있지만 reciprocal fiber 또는 detector aperture를 뜻하지 않는다.
+
 Component port도 역방향 traversal을 표현해야 한다.
 
 ```text
@@ -142,11 +153,21 @@ Component port도 역방향 traversal을 표현해야 한다.
 수신: scanner → collimator output → collimator input → fiber receive mode
 ```
 
-Port 이름은 광 진행 방향을 고정하는 명령이 아니라 component reference plane과 interface를 식별해야 한다. reciprocal component는 어느 방향으로 통과해도 같은 component catalog/provenance를 참조한다.
+Port 이름은 광 진행 방향을 고정하는 명령이 아니라 component reference plane과 interface를 식별해야 한다. Reciprocal component는 어느 방향으로 통과해도 같은 component catalog/provenance를 참조한다. R1 baseline의 source output과 collimator input/output port는 `bidirectional`로 정의되어 있다.
 
-## 7. 계획된 결과 contract
+## 7. 결과 contract
 
-새 보고서에서는 서로 다른 plane의 파워를 한 field에 섞지 않는다.
+R1 report에는 strict `reciprocal_return` section이 있다.
+
+- `architecture`, `return_path`, `target_id`
+- mirror/collimator/fiber reference plane의 frame, intersection과 local coordinate
+- center/expected-point/lateral/aperture residual
+- reflected direction과 fiber-bound direction
+- termination 상태·사유·실제 종료점
+- transmit reference 대비 plane별 위치·각도와 최대 closure residual
+- `power_status`, `fiber_coupling_status`, `detector_status`
+
+R2~R4에서는 서로 다른 plane의 파워를 한 field에 섞지 않고 다음 이름으로 확장한다.
 
 - `power_at_virtual_aperture_w`: 기존 analytical regression intermediate
 - `power_at_return_mirror_w`
@@ -173,7 +194,7 @@ Port 이름은 광 진행 방향을 고정하는 명령이 아니라 component r
 - reciprocal port traversal과 return-path configuration schema 설계
 - UI에 transmit path와 planned return path를 구분해 표시
 
-상태: architecture, output plane 이름과 virtual-aperture 경고는 문서·report에 반영되었다. Reciprocal path를 machine-readable하게 표현할 receiver schema, 양방향 fiber/collimator port와 return output schema는 아직 남아 있다.
+상태: 완료. Architecture, output plane 이름, virtual-aperture 경고, machine-readable receiver schema, 양방향 fiber/collimator port와 strict reciprocal geometry output schema가 R1에 연결되었다. Planned return guide도 실제 report 기반 return segment로 대체되었다. 파워 plane 확장은 R2~R4에서 진행한다.
 
 ### Phase 2-S — R1 선행 안정화 Gate
 
@@ -194,6 +215,8 @@ Port 이름은 광 진행 방향을 고정하는 명령이 아니라 component r
 - collimator receive reference plane까지 역추적
 - aperture center, axis angle과 round-trip closure residual 보고
 - return path line을 3D viewport에 overlay
+
+상태: 2026-07-26 완료. Baseline은 configured nearest-visible `target_plane`에서 forward mirror hit를 향해 return ray를 만들고 동일 static mirror에서 재반사한다. Collimator output receive plane의 실제 hit offset에 reverse-oriented paraxial ideal thin-lens law를 적용한 뒤 source fiber reference plane까지 추적한다. Mirror·collimator aperture와 plane intersection miss는 후속 plane으로 재중심화하지 않고 종료한다. Report는 strict `reciprocal_return` section, plane별 residual과 geometry-only `not_evaluated` power 상태를 제공한다. `ViewportScene`은 actual return segment와 closure residual guide를 송신 path와 구분한다. Exact retrace, off-axis reverse lens, target perturbation, 잘못된 path reference, nearest-visible target 불일치, schema/YAML round-trip을 검증했다. Baseline 최대 위치 residual은 약 `1.78e-17 m`, 최대 각도 residual은 `0 rad`다.
 
 ### Phase 4.1-M1 — CPU STL target closest-hit MVP
 
@@ -262,4 +285,4 @@ Port 이름은 광 진행 방향을 고정하는 명령이 아니라 component r
 
 ## 11. 현재 한계
 
-이 문서는 목표 물리 구조와 구현 계약을 정리한 것이다. R0의 정직한 output 표기 일부와 Phase 2-S 안정화는 구현되었다. UI-S, R1 reverse mirror/collimator center ray, Phase 4.1-M1 STL closest-hit, R2 return power ledger, R3 fiber mode overlap, R4 duplexer와 detector는 아직 구현되어 있지 않다. 기존 virtual aperture 계산을 유지하는 이유는 regression과 수치 비교를 위한 것이며 실제 fiber-coupled hardware prediction을 주장하기 위한 것이 아니다.
+이 문서는 목표 물리 구조와 구현 계약을 정리한 것이다. R0, Phase 2-S, UI-S와 R1 reciprocal center-ray geometry는 구현되었다. 다음 미구현 Gate는 Phase 4.1-M1 STL closest-hit이며, 그 뒤 R2 return power ledger, R3 fiber mode overlap, R4 duplexer와 detector boundary가 남아 있다. R1은 diffuse target의 spatial return power 또는 coherent field를 계산하지 않는 geometry validation이다. 기존 virtual aperture 계산을 유지하는 이유는 regression과 수치 비교를 위한 것이며 실제 fiber-coupled hardware prediction을 주장하기 위한 것이 아니다.

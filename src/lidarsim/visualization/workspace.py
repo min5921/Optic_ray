@@ -161,6 +161,7 @@ def _draw_guides(ax: Any, data: dict[str, Any]) -> None:
         "reflected_direction": {"linewidth": 1.1, "alpha": 0.4, "linestyle": ":"},
         "target_plane_edge": {"linewidth": 1.2, "alpha": 0.8, "linestyle": "-"},
         "receiver_fov": {"linewidth": 0.9, "alpha": 0.42, "linestyle": "--"},
+        "return_hit_residual": {"linewidth": 1.3, "alpha": 0.95, "linestyle": ":"},
     }
     for guide in data["guides"]:
         if not guide["enabled"]:
@@ -177,14 +178,19 @@ def _draw_guides(ax: Any, data: dict[str, Any]) -> None:
             alpha=style["alpha"],
             linestyle=style["linestyle"],
         )
+        if guide["guide_type"] == "return_hit_residual":
+            ax.scatter(start[0], start[1], start[2], color="#0ea5e9", marker="x", s=38)
 
 
 def _draw_rays(ax: Any, data: dict[str, Any]) -> None:
+    shown_roles: set[str] = set()
     for ray in data["rays"]:
         start = _as_array(ray["start_m"])
         end = _as_array(ray["end_m"])
-        color = "#e03131" if ray["status"] == "target_hit" else "#ff6b00"
-        linewidth = 2.2 if ray["status"] == "target_hit" else 1.8
+        role = str(ray.get("propagation_role", "transmit"))
+        is_return = role == "return"
+        color = "#0ea5e9" if is_return else "#e03131" if ray["status"] == "target_hit" else "#ff6b00"
+        linewidth = 2.0 if is_return else 2.2 if ray["status"] == "target_hit" else 1.8
         ax.plot(
             [start[0], end[0]],
             [start[1], end[1]],
@@ -192,7 +198,16 @@ def _draw_rays(ax: Any, data: dict[str, Any]) -> None:
             color=color,
             linewidth=linewidth,
             alpha=0.95,
+            linestyle="--" if is_return else "-",
+            label=(
+                "Reciprocal return (geometry-only)"
+                if is_return and role not in shown_roles
+                else "Transmit beam path"
+                if not is_return and role not in shown_roles
+                else None
+            ),
         )
+        shown_roles.add(role)
 
 
 def _footprint_polygon(footprint: dict[str, Any], *, samples: int = 96) -> np.ndarray:
