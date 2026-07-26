@@ -773,6 +773,27 @@ def _optical_train(args: argparse.Namespace) -> int:
         "target_to_fiber_plane_loss_db="
         f"{_optional_number(summary.get('target_to_fiber_plane_link_loss_db'), suffix=' dB')}"
     )
+    reciprocal = report.reciprocal_return
+    coupling = (
+        reciprocal.get("fiber_coupling")
+        if isinstance(reciprocal, dict)
+        else None
+    )
+    coupling_model = (
+        str(coupling.get("model", "N/A"))
+        if isinstance(coupling, dict)
+        else "N/A"
+    )
+    print(
+        f"Fiber coupling ({coupling_model}): "
+        f"status={summary.get('fiber_coupling_status', 'not_evaluated')}, "
+        "eta_fiber="
+        f"{_optional_number(summary.get('fiber_coupling_efficiency'))}, "
+        "P_coupled="
+        f"{_optional_number(summary.get('power_coupled_into_fiber_w'), suffix=' W')}, "
+        "target_to_fiber_coupled_loss_db="
+        f"{_optional_number(summary.get('target_to_fiber_coupled_link_loss_db'), suffix=' dB')}"
+    )
     print(
         f"Target geometry: rectangle_hits={summary['rectangle_target_hit_count']}, "
         f"stl_hits={summary['stl_target_hit_count']}, "
@@ -1031,6 +1052,27 @@ def _dashboard(args: argparse.Namespace) -> int:
         f"{_optional_number(report.summary.get('power_at_fiber_plane_w'), suffix=' W')}, "
         "target_to_fiber_plane_loss_db="
         f"{_optional_number(report.summary.get('target_to_fiber_plane_link_loss_db'), suffix=' dB')}"
+    )
+    reciprocal = report.reciprocal_return
+    coupling = (
+        reciprocal.get("fiber_coupling")
+        if isinstance(reciprocal, dict)
+        else None
+    )
+    coupling_model = (
+        str(coupling.get("model", "N/A"))
+        if isinstance(coupling, dict)
+        else "N/A"
+    )
+    print(
+        f"Fiber coupling ({coupling_model}): "
+        f"status={report.summary.get('fiber_coupling_status', 'not_evaluated')}, "
+        "eta_fiber="
+        f"{_optional_number(report.summary.get('fiber_coupling_efficiency'))}, "
+        "P_coupled="
+        f"{_optional_number(report.summary.get('power_coupled_into_fiber_w'), suffix=' W')}, "
+        "target_to_fiber_coupled_loss_db="
+        f"{_optional_number(report.summary.get('target_to_fiber_coupled_link_loss_db'), suffix=' dB')}"
     )
     for warning in report.accuracy["warnings"]:
         print(warning, file=sys.stderr)

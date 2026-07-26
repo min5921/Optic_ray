@@ -228,10 +228,22 @@
           "additionalProperties": false,
           "required": ["model", "mode_field_source", "lateral_offset_m", "angular_offset_rad"],
           "properties": {
-            "model": { "const": "single_mode_overlap" },
+            "model": { "enum": ["gaussian_alignment_proxy", "single_mode_overlap"] },
             "mode_field_source": { "const": "component_catalog" },
             "lateral_offset_m": { "$ref": "common.schema.json#/$defs/vec2" },
-            "angular_offset_rad": { "$ref": "common.schema.json#/$defs/vec2" }
+            "angular_offset_rad": { "$ref": "common.schema.json#/$defs/vec2" },
+            "receive_mode_field_diameter_m": { "$ref": "common.schema.json#/$defs/quantity" },
+            "receive_mode_field_diameter_definition": {
+              "enum": ["gaussian_1e2_intensity", "petermann_ii", "manufacturer_unspecified"]
+            },
+            "receive_mode_waist_offset_m": {
+              "$ref": "common.schema.json#/$defs/quantity",
+              "description": "Signed distance from the receive proxy waist to the fiber evaluation plane along the receive propagation direction."
+            }
+          },
+          "dependentRequired": {
+            "receive_mode_field_diameter_m": ["receive_mode_field_diameter_definition"],
+            "receive_mode_field_diameter_definition": ["receive_mode_field_diameter_m"]
           }
         },
         "duplexer": {

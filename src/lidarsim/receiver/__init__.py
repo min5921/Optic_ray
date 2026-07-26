@@ -1,6 +1,16 @@
 """Receiver aperture and radiometric return APIs."""
 
 from .radiometry import ReceiverReturn, estimate_lambertian_receiver_return, estimate_receiver_returns
+from .fiber_coupling import (
+    FiberCouplingResult,
+    GaussianModeAtPlane,
+    estimate_single_mode_fiber_coupling,
+)
+from .fiber_coupling_project import (
+    FiberCouplingLedgerEntry,
+    ProjectFiberCoupling,
+    evaluate_project_fiber_coupling,
+)
 from .reciprocal import (
     ReciprocalCenterRayResult,
     ReciprocalClosureResidual,
@@ -30,8 +40,12 @@ __all__ = [
     "ReciprocalPlaneHit",
     "ProjectReciprocalReturn",
     "ProjectReciprocalReturnPower",
+    "ProjectFiberCoupling",
     "RECIPROCAL_ARCHITECTURE",
     "ReceiverReturn",
+    "FiberCouplingResult",
+    "FiberCouplingLedgerEntry",
+    "GaussianModeAtPlane",
     "ReciprocalReturnPowerResult",
     "ReturnPowerLedgerEntry",
     "ResolvedPlaneFrame",
@@ -39,7 +53,9 @@ __all__ = [
     "estimate_receiver_returns",
     "evaluate_project_reciprocal_return",
     "evaluate_project_reciprocal_return_power",
+    "evaluate_project_fiber_coupling",
     "estimate_reciprocal_return_power",
+    "estimate_single_mode_fiber_coupling",
     "reverse_ideal_thin_lens_center_ray",
     "trace_reciprocal_center_ray",
 ]

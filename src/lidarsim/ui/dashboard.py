@@ -1,4 +1,4 @@
-"""Read-only optical workspace dashboard HTML through Phase 2.4-R2."""
+"""Read-only optical workspace dashboard HTML through Phase 2.4-R3."""
 
 from __future__ import annotations
 
@@ -71,6 +71,9 @@ def _warning_items(report_data: dict[str, Any], scene: ViewportScene) -> str:
         return_power = reciprocal.get("return_power")
         if isinstance(return_power, dict):
             warnings.extend(str(item) for item in return_power.get("warnings", ()))
+        coupling = reciprocal.get("fiber_coupling")
+        if isinstance(coupling, dict):
+            warnings.extend(str(item) for item in coupling.get("warnings", ()))
     unique = list(dict.fromkeys(warnings))
     return "".join(f"<li><pre>{_escape(item)}</pre></li>" for item in unique) or "<li>없음</li>"
 
@@ -200,6 +203,33 @@ def _reciprocal_power_ledger_rows(report_data: dict[str, Any]) -> str:
     return "".join(rows) or '<tr><td colspan="7">ledger is empty</td></tr>'
 
 
+def _fiber_coupling_rows(report_data: dict[str, Any]) -> str:
+    reciprocal = report_data.get("reciprocal_return")
+    if not isinstance(reciprocal, dict):
+        return '<tr><td colspan="10">fiber coupling: not evaluated</td></tr>'
+    coupling = reciprocal.get("fiber_coupling")
+    if not isinstance(coupling, dict):
+        return (
+            '<tr><td colspan="10">'
+            f"status: {_status_badge(reciprocal.get('fiber_coupling_status', 'not_evaluated'))}"
+            "</td></tr>"
+        )
+    return (
+        "<tr>"
+        f"<td>{_status_badge(coupling.get('status', reciprocal.get('fiber_coupling_status')))}</td>"
+        f"<td><code>{_escape(coupling.get('model', '-'))}</code></td>"
+        f"<td>{_fmt(coupling.get('available_power_at_fiber_plane_w'), unit='W')}</td>"
+        f"<td>{_fmt(coupling.get('fiber_coupling_efficiency'))}</td>"
+        f"<td>{_fmt(coupling.get('power_coupled_into_fiber_w'), unit='W')}</td>"
+        f"<td>{_fmt(coupling.get('fiber_plane_to_coupled_mode_loss_db'), unit='dB')}</td>"
+        f"<td>{_fmt(coupling.get('target_to_fiber_coupled_link_loss_db'), unit='dB')}</td>"
+        f"<td>{_status_badge(coupling.get('coherent_field_status', 'not_provided'))}</td>"
+        f"<td>{_escape(coupling.get('field_usable_for_coherent_propagation', False))}</td>"
+        f"<td>{_escape('analytical / uncalibrated')}</td>"
+        "</tr>"
+    )
+
+
 def _scanner_path_rows(scanner_path_data: dict[str, Any]) -> str:
     rows = []
     for item in scanner_path_data["samples"]:
@@ -228,6 +258,9 @@ def _assumption_items(report_data: dict[str, Any]) -> str:
         return_power = reciprocal.get("return_power")
         if isinstance(return_power, dict):
             assumptions.extend(str(item) for item in return_power.get("assumptions", ()))
+        coupling = reciprocal.get("fiber_coupling")
+        if isinstance(coupling, dict):
+            assumptions.extend(str(item) for item in coupling.get("assumptions", ()))
     for footprint in report_data["target_footprints"]:
         assumptions.extend(str(item) for item in footprint.get("assumptions", ()))
     unique = list(dict.fromkeys(assumptions))
@@ -357,12 +390,17 @@ details {{ margin-top: 10px; }}
   {_card("Return mirror power", _fmt(summary.get("power_at_return_mirror_w"), unit="W"))}
   {_card("Fiber-plane power", _fmt(summary.get("power_at_fiber_plane_w"), unit="W"))}
   {_card("Target→fiber-plane loss", _fmt(summary.get("target_to_fiber_plane_link_loss_db"), unit="dB"))}
+  {_card("Fiber coupling efficiency", _fmt(summary.get("fiber_coupling_efficiency")))}
+  {_card("Coupled fiber power", _fmt(summary.get("power_coupled_into_fiber_w"), unit="W"))}
+  {_card("Target→coupled-fiber loss", _fmt(summary.get("target_to_fiber_coupled_link_loss_db"), unit="dB"))}
 </div>
 <div class="callout">
 현재 dashboard는 read-only 결과 viewer입니다. Placement edit, snapping, constraint, scanner time dynamics는 아직 구현하지 않았으며,
 모든 값은 YAML config와 report에서 생성됩니다. Virtual aperture 값은 Phase 2.3 regression intermediate이고, Phase 2.4-R2는
 target에서 동일 scanner mirror와 collimator를 거친 fiber reference plane까지의 scalar analytical power를 별도로 표시합니다.
-Single-mode fiber 결합, coherent field, speckle과 detector response는 아직 포함하지 않습니다.
+Phase 2.4-R3의 <code>gaussian_alignment_proxy</code>는 이 plane power에 Gaussian 정렬 overlap을 적용한 diffuse-return
+upper-bound/reference이며 calibrated hardware prediction이 아닙니다. Mode-shape overlap의 임의 기준 위상은 coherent output이
+아니며 speckle과 detector response는 아직 포함하지 않습니다.
 </div>
 <section><h2>생성 파일</h2><table>
 <tr><th>파일</th><th>경로</th></tr>
@@ -395,6 +433,10 @@ Single-mode fiber 결합, coherent field, speckle과 detector response는 아직
 <h3>Return power ledger</h3><table>
 <tr><th>Plane</th><th>Mechanism</th><th>Input</th><th>Output</th><th>Loss</th><th>Transmission</th><th>Status</th></tr>
 {_reciprocal_power_ledger_rows(report_data)}
+</table></section>
+<section><h2>Single-mode fiber coupling — Phase 2.4-R3</h2><table>
+<tr><th>Status</th><th>Model</th><th>Fiber-plane input</th><th>Coupling efficiency</th><th>Coupled power</th><th>Fiber-plane→mode loss</th><th>Target→coupled-fiber loss</th><th>Coherent field</th><th>Field usable</th><th>Readiness</th></tr>
+{_fiber_coupling_rows(report_data)}
 </table></section>
 <section><h2>Receiver return — analytical virtual aperture</h2><table>
 <tr><th>Target</th><th>Status</th><th>FOV</th><th>Reflectivity</th><th>Distance</th><th>Virtual aperture estimate</th><th>Link loss</th></tr>

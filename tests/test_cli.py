@@ -390,12 +390,28 @@ def test_optical_train_command_writes_schema_validated_report_and_plot(
     assert report["summary"]["q_parameter_status"] == "pass"
     assert report["summary"]["energy_ledger_status"] == "pass"
     assert report["summary"]["aperture_status"] == "pass"
+    assert report["summary"]["fiber_coupling_status"] == "pass"
+    assert report["summary"]["fiber_coupling_efficiency"] == pytest.approx(1.0)
+    assert report["summary"]["power_coupled_into_fiber_w"] > 0.0
+    assert report["reciprocal_return"]["fiber_coupling"]["model"] == (
+        "gaussian_alignment_proxy"
+    )
+    assert report["reciprocal_return"]["fiber_coupling"][
+        "coherent_field_status"
+    ] == "not_provided"
+    assert report["reciprocal_return"]["fiber_coupling"][
+        "coupled_field_amplitude_sqrt_w"
+    ] is None
     assert plot_path.read_bytes().startswith(b"\x89PNG\r\n\x1a\n")
     assert "Phase 2 optical train report:" in output.out
     assert "P_virtual_ap=" in output.out
     assert "P_return_mirror=" in output.out
     assert "P_fiber_plane=" in output.out
     assert "target_to_fiber_plane_loss_db=" in output.out
+    assert "Fiber coupling (gaussian_alignment_proxy)" in output.out
+    assert "eta_fiber=" in output.out
+    assert "P_coupled=" in output.out
+    assert "target_to_fiber_coupled_loss_db=" in output.out
     assert "unsupported=0" in output.out
 
 
@@ -427,6 +443,15 @@ def test_workspace_command_writes_scene_and_plot(
     assert scene["project_id"] == "optic_ray_default"
     assert any(ray["status"] == "target_hit" for ray in scene["rays"])
     assert len(scene["footprints"]) == 1
+    fiber_guide = next(
+        guide
+        for guide in scene["guides"]
+        if guide["guide_id"].endswith("fiber_hit_residual")
+    )
+    assert fiber_guide["metadata"]["fiber_coupling_model"] == (
+        "gaussian_alignment_proxy"
+    )
+    assert fiber_guide["metadata"]["coherent_field_status"] == "not_provided"
     assert "Optical assembly workspace:" in output.out
     assert "Viewport scene:" in output.out
     assert "Source of truth: config/report driven" in output.out
@@ -472,7 +497,11 @@ def test_dashboard_command_writes_self_contained_workspace_html(
     assert "P_virtual_ap=" in output.out
     assert "P_return_mirror=" in output.out
     assert "P_fiber_plane=" in output.out
+    assert "P_coupled=" in output.out
     assert "Reciprocal return power — Phase 2.4-R2" in document
+    assert "Single-mode fiber coupling — Phase 2.4-R3" in document
+    assert "gaussian_alignment_proxy" in document
+    assert "coherent output" in document
 
 
 def test_dashboard_command_can_embed_scanner_path(

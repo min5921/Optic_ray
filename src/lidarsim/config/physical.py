@@ -24,6 +24,7 @@ IMPLEMENTED_OUTPUTS = {
     "link_budget",
     "reciprocal_return_geometry",
     "reciprocal_return_power",
+    "fiber_coupling",
 }
 
 # 계산 경로는 존재하지만 아직 calibrated hardware output으로 해석할 수 없는
@@ -973,6 +974,32 @@ def validate_scenario_physics(
                     path=f"receiver.fiber_coupling.{field}[{index}]",
                     diagnostics=diagnostics,
                 )
+        if receiver["fiber_coupling"]["model"] == "single_mode_overlap":
+            warnings.append(
+                Diagnostic(
+                    source=source_text,
+                    path="receiver.fiber_coupling.model",
+                    message=(
+                        "Legacy single_mode_overlap 이름은 gaussian_alignment_proxy로 "
+                        "동일하게 평가됩니다. Diffuse return의 calibrated single-mode coupling을 뜻하지 않습니다."
+                    ),
+                    severity="warning",
+                )
+            )
+        if "receive_mode_field_diameter_m" in receiver["fiber_coupling"]:
+            _require_positive(
+                receiver["fiber_coupling"]["receive_mode_field_diameter_m"],
+                source=source_text,
+                path="receiver.fiber_coupling.receive_mode_field_diameter_m",
+                diagnostics=diagnostics,
+            )
+        if "receive_mode_waist_offset_m" in receiver["fiber_coupling"]:
+            _require_finite(
+                receiver["fiber_coupling"]["receive_mode_waist_offset_m"],
+                source=source_text,
+                path="receiver.fiber_coupling.receive_mode_waist_offset_m",
+                diagnostics=diagnostics,
+            )
         _require_positive(
             receiver["duplexer"]["return_power_transmission"],
             source=source_text,
@@ -985,10 +1012,10 @@ def validate_scenario_physics(
                 source=source_text,
                 path="receiver.architecture",
                 message=(
-                    "reciprocal_single_mode_fiber는 현재 center-ray geometry와 "
-                    "Lambertian scalar return-power reference입니다. "
+                    "reciprocal_single_mode_fiber는 현재 center-ray geometry, "
+                    "Lambertian scalar return-power와 Gaussian alignment coupling reference입니다. "
                     "기존 virtual aperture power는 regression intermediate로 유지되며 "
-                    "fiber coupling과 detector power를 뜻하지 않습니다."
+                    "fiber-coupled power 또는 detector power를 뜻하지 않습니다."
                 ),
                 severity="warning",
             )

@@ -11,10 +11,12 @@ from lidarsim import __version__
 from lidarsim.config.immutable import deep_thaw
 from lidarsim.optics import ABCDMatrix, OpticalTrainResult, propagate_transmitter_train
 from lidarsim.receiver import (
+    ProjectFiberCoupling,
     ProjectReciprocalReturn,
     ProjectReciprocalReturnPower,
     ReceiverReturn,
     estimate_lambertian_receiver_return,
+    evaluate_project_fiber_coupling,
     evaluate_project_reciprocal_return,
     evaluate_project_reciprocal_return_power,
 )
@@ -48,7 +50,7 @@ class Phase2OpticalTrainReport:
 
     def to_dict(self) -> dict[str, Any]:
         return {
-            "schema_version": 4,
+            "schema_version": 5,
             "report_type": "phase2_optical_train",
             "manifest": deep_thaw(self.manifest),
             "summary": deep_thaw(self.summary),
@@ -434,7 +436,10 @@ def _reciprocal_return_power_check(
     result: ProjectReciprocalReturnPower,
 ) -> dict[str, Any]:
     power = result.result
-    if result.status == "not_evaluated":
+    if result.status == "fail":
+        status = "fail"
+        message = result.status_reason or "R2 reciprocal return power evaluation이 실패했습니다."
+    elif result.status == "not_evaluated":
         status = "not_evaluated"
         message = result.status_reason or "R2 reciprocal return power를 평가하지 않았습니다."
     elif result.status == "unsupported_material":
@@ -469,9 +474,47 @@ def _reciprocal_return_power_check(
     }
 
 
+def _fiber_coupling_check(result: ProjectFiberCoupling) -> dict[str, Any]:
+    coupling = result.result
+    if result.status == "fail":
+        status = "fail"
+        message = result.status_reason or "R3 upstream 또는 coupling energy check가 실패했습니다."
+    elif result.status == "not_evaluated":
+        status = "not_evaluated"
+        message = result.status_reason or "R3 fiber coupling을 평가하지 않았습니다."
+    elif result.status == "unsupported_mfd_definition":
+        status = "warning"
+        message = result.status_reason or "R3가 지원하지 않는 MFD definition입니다."
+    elif coupling is None:
+        status = "warning"
+        message = result.status_reason or "R3 fiber coupling result가 없습니다."
+    elif result.energy_check_status == "fail":
+        status = "fail"
+        message = "Fiber coupling ledger energy residual이 tolerance를 초과했습니다."
+    elif coupling.status == "zero_available_power":
+        status = "warning"
+        message = "Alignment efficiency는 계산했지만 R2 available fiber-plane power가 0 W입니다."
+    else:
+        status = "pass"
+        message = "Gaussian alignment proxy efficiency와 passive coupling ledger를 검사합니다."
+    return {
+        "status": status,
+        "fiber_coupling_status": result.status,
+        "energy_check_status": result.energy_check_status,
+        "maximum_energy_residual_w": result.maximum_energy_residual_w,
+        "energy_tolerance_w": result.energy_tolerance_w,
+        "coherent_field_status": result.coherent_field_status,
+        "field_usable_for_coherent_propagation": (
+            result.field_usable_for_coherent_propagation
+        ),
+        "message": message,
+    }
+
+
 def _reciprocal_return_section(
     geometry: ProjectReciprocalReturn,
     power: ProjectReciprocalReturnPower,
+    coupling: ProjectFiberCoupling,
 ) -> dict[str, Any]:
     section = geometry.to_dict()
     section.update(
@@ -485,8 +528,21 @@ def _reciprocal_return_section(
             "target_hit_residual_m": power.target_hit_residual_m,
             "target_hit_tolerance_m": power.target_hit_tolerance_m,
             "return_power": None if power.result is None else power.result.to_dict(),
-            "assumptions": list(geometry.assumptions) + list(power.assumptions),
-            "warnings": list(geometry.warnings) + list(power.warnings),
+            "fiber_coupling_status": coupling.status,
+            "fiber_coupling_status_reason": coupling.status_reason,
+            "fiber_coupling": (
+                None if coupling.status == "not_evaluated" else coupling.to_dict()
+            ),
+            "assumptions": (
+                list(geometry.assumptions)
+                + list(power.assumptions)
+                + list(coupling.assumptions)
+            ),
+            "warnings": (
+                list(geometry.warnings)
+                + list(power.warnings)
+                + list(coupling.warnings)
+            ),
         }
     )
     return section
@@ -500,6 +556,7 @@ def _accuracy(
     returns: tuple[ReceiverReturn, ...],
     reciprocal_return: ProjectReciprocalReturn,
     reciprocal_return_power: ProjectReciprocalReturnPower,
+    fiber_coupling: ProjectFiberCoupling,
 ) -> dict[str, Any]:
     readiness = assess_readiness(project)
     warnings = [item.format() for item in project.warnings]
@@ -517,6 +574,7 @@ def _accuracy(
         warnings.extend(receiver_return.warnings)
     warnings.extend(reciprocal_return.warnings)
     warnings.extend(reciprocal_return_power.warnings)
+    warnings.extend(fiber_coupling.warnings)
     warnings.append(
         "power_at_virtual_aperture_w는 기존 analytical regression intermediate입니다. "
         "R2 reciprocal return power와 별도이며 fiber 결합 또는 detector input power가 아닙니다."
@@ -535,7 +593,7 @@ def _accuracy(
         "scope": (
             "source_to_static_mirror_rectangle_or_stl_center_ray_target_"
             "lambertian_virtual_aperture_and_reciprocal_center_ray_geometry_"
-            "and_return_power_ledger"
+            "and_return_power_ledger_and_gaussian_alignment_proxy"
         ),
         "assumptions": [
             "Source부터 collimator까지는 scalar paraxial Gaussian q-parameter로 계산합니다.",
@@ -548,6 +606,8 @@ def _accuracy(
             "Receiver return은 Lambertian small-footprint analytical virtual-aperture approximation입니다.",
             "Reciprocal return은 nearest-visible rectangle target에서 same mirror/collimator/fiber plane까지의 R1 geometry와 R2 scalar-power ledger입니다.",
             "R2 aperture acceptance는 actual R1 center-ray pass/miss만 사용하고 forward Gaussian clipping fraction을 재사용하지 않습니다.",
+            "R3는 R2 fiber-plane power에 deterministic Gaussian alignment proxy overlap을 적용한 analytical upper-bound/reference입니다.",
+            "Radiometric R3는 coherent input field를 만들거나 downstream으로 전달하지 않습니다.",
             "Aperture clipping 뒤 profile shape, diffraction과 edge scattering은 계산하지 않고 power loss만 반영합니다.",
             "Scanner time dynamics, STL full footprint/radiometry, BRDF/BSDF, detector noise와 coherent FMCW는 계산하지 않습니다.",
         ],
@@ -597,6 +657,11 @@ def build_phase2_optical_train_report(
         footprints,
         reciprocal_return,
     )
+    fiber_coupling = evaluate_project_fiber_coupling(
+        project,
+        reciprocal_return,
+        reciprocal_return_power,
+    )
     final_state = train.final_state
     q_check = _q_check(train)
     energy_check = _energy_check(train)
@@ -613,6 +678,7 @@ def build_phase2_optical_train_report(
     reciprocal_power_check = _reciprocal_return_power_check(
         reciprocal_return_power
     )
+    fiber_coupling_check = _fiber_coupling_check(fiber_coupling)
     accuracy = _accuracy(
         project,
         train,
@@ -621,6 +687,7 @@ def build_phase2_optical_train_report(
         receiver_returns,
         reciprocal_return,
         reciprocal_return_power,
+        fiber_coupling,
     )
     timestamp = (created_at or datetime.now(UTC)).astimezone(UTC)
     total_loss_db = (
@@ -637,6 +704,7 @@ def build_phase2_optical_train_report(
         scene_ledger["status"],
         reciprocal_check["status"],
         reciprocal_power_check["status"],
+        fiber_coupling_check["status"],
         stl_check["status"],
     ]
     overall_status = (
@@ -655,8 +723,10 @@ def build_phase2_optical_train_report(
     reciprocal_section = _reciprocal_return_section(
         reciprocal_return,
         reciprocal_return_power,
+        fiber_coupling,
     )
     reciprocal_power = reciprocal_return_power.result
+    coupling_result = fiber_coupling.result
     visible_target_id, visible_geometry_type = _visible_center_ray_target(
         footprints,
         stl_intersections,
@@ -720,6 +790,20 @@ def build_phase2_optical_train_report(
                 else reciprocal_power.target_to_fiber_plane_link_loss_db
             ),
             "reciprocal_return_power_status": reciprocal_return_power.status,
+            "fiber_coupling_status": fiber_coupling.status,
+            "fiber_coupling_efficiency": (
+                None
+                if coupling_result is None
+                else coupling_result.fiber_coupling_efficiency
+            ),
+            "power_coupled_into_fiber_w": (
+                None
+                if coupling_result is None
+                else coupling_result.power_coupled_into_fiber_w
+            ),
+            "target_to_fiber_coupled_link_loss_db": (
+                fiber_coupling.target_to_fiber_coupled_link_loss_db
+            ),
         },
         accuracy=accuracy,
         model={
@@ -727,7 +811,8 @@ def build_phase2_optical_train_report(
             "radius_definition": "1/e^2 irradiance radius",
             "validity": (
                 "Paraxial scalar Gaussian, ideal thin lens with deterministic off-axis chief ray, projected apertures, "
-                "static flat mirror reflection, rectangle-plane footprint, CPU STL center-ray closest-hit and Lambertian virtual-aperture return"
+                "static flat mirror reflection, rectangle-plane footprint, CPU STL center-ray closest-hit, "
+                "Lambertian return power and deterministic Gaussian alignment coupling proxy"
             ),
             "limitations": [
                 "No aberration, diffraction, coating spectral curve, polarization or ghost reflection.",
@@ -738,6 +823,8 @@ def build_phase2_optical_train_report(
                 "No non-Lambertian BRDF/BSDF, roughness, speckle or coherent FMCW yet.",
                 "R1 reciprocal center-ray geometry and R2 small-footprint Lambertian scalar return-power ledger are implemented.",
                 "R2 uses binary center-ray aperture acceptance; exact diffuse-return spatial aperture/solid-angle integration is not implemented.",
+                "R3 Gaussian alignment coupling is an optimistic proxy for diffuse return; spatial-mode reciprocity/decomposition is not implemented.",
+                "Radiometric R3 reports no coherent field and its normalized overlap cannot be propagated as an FMCW field.",
                 "estimated_received_power_w and power_at_virtual_aperture_w are analytical virtual-aperture values, not fiber-coupled power.",
                 "No detector photocurrent, noise, saturation, FFT or CZT yet.",
                 "No measured/vendor black-box optical model execution yet.",
@@ -771,6 +858,7 @@ def build_phase2_optical_train_report(
             "receiver_return": receiver_check,
             "reciprocal_return": reciprocal_check,
             "reciprocal_return_power": reciprocal_power_check,
+            "fiber_coupling": fiber_coupling_check,
             "external_validation_status": "not_evaluated",
         },
     )

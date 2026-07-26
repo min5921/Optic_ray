@@ -237,7 +237,7 @@ Guidelines/snapping, 일반 constraint/mate와 drag/rotate editor는 아직 완�
 - scanner hardware dynamics
 - STL footprint/occlusion과 coherent FMCW
 
-물리 `Phase 2-S0/S1`, UI-S, Phase 2.4-R1, Phase 4.1-M1과 Phase 2.4-R2는 2026-07-27까지 완료되었다. UI numeric offset·tilt는 실제 ray-plane hit와 no-teleport miss에 연결되고, actual reciprocal return segment에는 평가된 R2 plane power가 표시된다. 그래도 fiber mode overlap, detector, aberration, diffraction, stochastic tolerance와 측정 calibration이 없으므로 UI 결과를 hardware-accurate prediction이라고 표시하지 않는다. 다음 활성 Gate는 `Phase 2.4-R3`이다.
+물리 `Phase 2-S0/S1`, UI-S, Phase 2.4-R1, Phase 4.1-M1, Phase 2.4-R2와 Phase 2.4-R3는 2026-07-27까지 완료되었다. UI numeric offset·tilt는 실제 ray-plane hit와 no-teleport miss에 연결되고, actual reciprocal return segment에는 평가된 R2 plane power가 표시된다. R3 `gaussian_alignment_proxy` 효율과 coupled power는 fiber reference point와 별도 metric으로 표시하되 새 ray·beam·field를 만들지 않는다. R3는 Lambertian diffuse-return upper-bound/reference이고 detector, aberration, diffraction, stochastic tolerance와 측정 calibration이 없으므로 UI 결과를 hardware-accurate prediction이라고 표시하지 않는다. 다음 활성 Gate는 `Phase 2.4-R4`이다.
 
 ### 4.4 현재 구현된 UI MVP 0 slice
 
@@ -269,6 +269,8 @@ Guidelines/snapping, 일반 constraint/mate와 drag/rotate editor는 아직 완�
 - `lidarsim dashboard` CLI 명령
 - Phase 2 report YAML, `ViewportScene` YAML, workspace PNG, optical train PNG와 dashboard HTML 동시 생성
 - summary, warning, power ledger, target footprint, receiver return을 HTML에서 표시
+- virtual aperture, R2 return plane power와 R3 fiber coupling을 분리해 HTML/Streamlit에서 표시
+- fiber reference-point metadata에 R3 model, efficiency, coupled power와 coherent-field status 표시
 - `lidarsim placement-variant` CLI 명령
 - absolute placement와 port placement의 numeric edit를 variant scenario/project로 저장
 - `lidarsim scanner-sweep` CLI 명령
@@ -322,11 +324,17 @@ source
 → ideal thin-lens collimator
 → static flat scanner mirror reflection
 → rectangle-plane target footprint
-→ Lambertian virtual-aperture estimate
-→ virtual-aperture plane까지의 link budget
+→ Lambertian virtual-aperture estimate (독립 regression)
+
+동일 target hit
+→ same scanner mirror
+→ same collimator
+→ fiber reference plane의 R2 scalar power
+→ R3 Gaussian alignment proxy
+→ coupled single-mode fiber power
 ```
 
-이 forward path 뒤의 `target → same scanner mirror → same collimator → single-mode fiber` return train은 아직 계산되지 않는다. 현재 receiver component, FOV cone과 return guide를 실제 fiber-coupled power로 해석하면 안 된다.
+R1/R2/R3는 위 reciprocal return path의 center-ray geometry, rectangle-plane Lambertian scalar power와 Gaussian 정렬 proxy까지 계산한다. UI의 보라색 receiver component/FOV cone은 계속 독립 virtual-aperture regression geometry이며 실제 reciprocal fiber나 detector aperture가 아니다. Return ray의 segment power는 R2 plane power이고 R3 coupled power는 fiber reference-point metadata/metric이다. `normalized_field_overlap`의 위상은 임의 기준이므로 coherent output으로 해석하면 안 된다.
 
 현재 UI에서 표시 가능한 값:
 
@@ -346,8 +354,10 @@ source
 - target footprint radius와 area
 - estimated power on target
 - receiver FOV 상태
-- estimated received aperture power
-- link loss dB
+- estimated virtual-aperture power와 link loss dB
+- R2 return mirror/fiber-plane power와 target→fiber-plane loss
+- R3 fiber coupling efficiency, coupled power와 target→coupled-fiber loss
+- R3 `coherent_field_status: not_provided`와 field 사용 가능 여부
 - warnings와 limitations
 - optical train PNG
 - workspace PNG
@@ -1134,11 +1144,12 @@ Optical Assembly Workspace의 초기 MVP는 다음 범위까지 완료했다.
 - stable baseline/parent provenance
 - 실제 off-axis ray-plane/port intersection 결과 표시
 - reciprocal mirror/collimator/fiber return path overlay
+- R2 segment별 plane power와 R3 fiber reference-point coupling metadata
 - STL mesh import preview와 closest-hit marker
 
 후속 단계로 넘긴 항목:
 
-- R3 single-mode fiber coupling efficiency와 coupled power
+- R4 duplexer/circulator transmission과 detector input power
 - port/coaxial/focal-distance snapping과 constraint list
 
 제외:
@@ -1181,9 +1192,9 @@ Optical Assembly Workspace의 초기 MVP는 다음 범위까지 완료했다.
 3. [완료] `Phase 4.1-M1` CPU STL target closest-hit
    - FreeCAD STL mesh preview, nearest hit point·normal·distance
    - 2-triangle plane과 `rectangle_plane` parity test
-4. [R2 완료, 현재 R3] `Phase 2.4-R2→R3→R4`
+4. [R2/R3 완료, 현재 R4] `Phase 2.4-R2→R3→R4`
    - return mirror/collimator power ledger와 UI plane-power 표시
-   - single-mode fiber overlap과 coupled power
+   - `gaussian_alignment_proxy` single-mode overlap과 coupled power
    - circulator/coupler와 detector input boundary
 5. 이후 UI 확장
    - reciprocal coaxial guide, distance/angle ruler와 port snap

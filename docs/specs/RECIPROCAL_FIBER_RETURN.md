@@ -69,7 +69,7 @@ P_return_mirror
 
 그 뒤 return mirror reflectivity와 reverse collimator transmission을 물리적 통과 순서로 적용하고 각 단계의 `input - loss = output`을 독립 ledger로 검사한다. 이 모델은 fiber reference plane에 도달하는 scalar power의 analytical upper-bound/reference이지 Lambertian 광을 하나의 Gaussian receive field로 바꾼 결과가 아니다.
 
-Report의 `estimated_received_power_w`와 `power_at_virtual_aperture_w`는 계속 물리적으로 같은 **virtual aperture 분석용 추정값**이며 R2와 별도다. 이를 `power_coupled_into_fiber_w` 또는 detector power로 해석하면 안 된다. R2 완료 후 `reciprocal_return.power_status`는 실제 평가 상태를 가지지만 `fiber_coupling_status`와 `detector_status`는 계속 `not_evaluated`다.
+Report의 `estimated_received_power_w`와 `power_at_virtual_aperture_w`는 계속 물리적으로 같은 **virtual aperture 분석용 추정값**이며 R2/R3와 별도다. 이를 `power_coupled_into_fiber_w` 또는 detector power로 해석하면 안 된다. 현재 `reciprocal_return.power_status`는 R2, `fiber_coupling_status`는 R3의 독립 평가 상태를 가지며 `detector_status`는 R4 전까지 `not_evaluated`다.
 
 ## 3. 기본 architecture 결정
 
@@ -162,7 +162,7 @@ receiver:
   detector_model: none
 ```
 
-`fiber_coupling`과 `duplexer`는 R3/R4에서 사용할 설정을 미리 검증·보존하는 placeholder다. R1/R2는 이 값을 읽어 결합 파워나 detector power를 만들지 않는다. 기존 virtual-aperture 회귀값을 유지하기 위한 `position_m`, `direction`, `aperture_diameter_m`, `full_fov_rad`, `optical_efficiency`도 baseline receiver에 함께 남아 있지만 reciprocal fiber 또는 detector aperture를 뜻하지 않는다.
+`fiber_coupling`은 R3에서 catalog MFD, R1 actual residual과 configured mismatch를 연결하는 입력이다. `duplexer`는 R4에서 사용할 설정을 미리 검증·보존하는 placeholder다. R1/R2는 이 값으로 결합 파워나 detector power를 만들지 않고, R3도 duplexer loss를 적용하지 않는다. 기존 virtual-aperture 회귀값을 유지하기 위한 `position_m`, `direction`, `aperture_diameter_m`, `full_fov_rad`, `optical_efficiency`도 baseline receiver에 함께 남아 있지만 reciprocal fiber 또는 detector aperture를 뜻하지 않는다.
 
 Component port도 역방향 traversal을 표현해야 한다.
 
@@ -201,9 +201,13 @@ R3/R4에서 추가할 이름은 다음과 같다.
 
 - `fiber_coupling_efficiency`
 - `power_coupled_into_fiber_w`
+- `fiber_plane_to_coupled_mode_loss_db`
+- `target_to_fiber_coupled_link_loss_db`
 - `duplexer_return_transmission`
 - `power_at_detector_input_w`
 - `round_trip_link_loss_db`
+
+Radiometric R3에서는 mode-shape 진단용 `normalized_field_overlap`만 보존하고 `coherent_field_status: not_provided`, `coupled_field_amplitude_sqrt_w: null`, `field_usable_for_coherent_propagation: false`를 명시한다. 임의 기준 위상을 붙인 amplitude를 coherent output으로 만들지 않는다.
 
 각 단계는 input, loss, output, mechanism과 source를 갖는 power ledger entry로 남긴다. `link_loss_db`는 어느 두 plane 사이의 값인지 field 이름과 report metadata에 명시한다.
 
@@ -259,7 +263,7 @@ R3/R4에서 추가할 이름은 다음과 같다.
 - 각 plane의 power와 loss를 ledger에 기록
 - rectangle-plane analytical case를 첫 기준으로 유지하며 STL closest-hit만으로 mesh 전체 footprint 또는 BRDF 적분이 완료됐다고 표시하지 않음
 
-상태: 2026-07-27 완료. Configured nearest-visible rectangle-plane Lambertian footprint와 R1 actual target hit의 동일성을 먼저 검증하고, 실제 R1 mirror/collimator/fiber plane path가 없는 경우 `not_evaluated`로 남긴다. Target radiance에서 projected mirror clear area가 subtend하는 acceptance를 small-footprint 근사로 계산한 뒤 mirror aperture Gate·reflectivity, collimator aperture Gate·reverse transmission과 fiber-plane intersection Gate를 순차 ledger로 기록한다. R1 center-ray aperture 상태만 binary acceptance로 사용하고 forward Gaussian clipping fraction은 재사용하지 않는다. Strict report schema v4, energy residual, aperture rejection, unsupported material/STL, target-hit mismatch, CLI와 Plotly/Matplotlib plane-power 표시를 검증했다. Baseline은 `P_on_target ≈ 9.99997 mW`, `P_return_mirror ≈ P_fiber_plane ≈ 1.80063 nW`, `target_to_fiber_plane_link_loss ≈ 67.4457 dB`다. 별도 virtual aperture regression은 약 `2.49999 nW`다. 다음 Gate는 R3다.
+상태: 2026-07-27 완료. Configured nearest-visible rectangle-plane Lambertian footprint와 R1 actual target hit의 동일성을 먼저 검증하고, 실제 R1 mirror/collimator/fiber plane path가 없는 경우 `not_evaluated`로 남긴다. Target radiance에서 projected mirror clear area가 subtend하는 acceptance를 small-footprint 근사로 계산한 뒤 mirror aperture Gate·reflectivity, collimator aperture Gate·reverse transmission과 fiber-plane intersection Gate를 순차 ledger로 기록한다. R1 center-ray aperture 상태만 binary acceptance로 사용하고 forward Gaussian clipping fraction은 재사용하지 않는다. R2 도입 당시 strict report schema v4, energy residual, aperture rejection, unsupported material/STL, target-hit mismatch, CLI와 Plotly/Matplotlib plane-power 표시를 검증했다. Baseline은 `P_on_target ≈ 9.99997 mW`, `P_return_mirror ≈ P_fiber_plane ≈ 1.80063 nW`, `target_to_fiber_plane_link_loss ≈ 67.4457 dB`다. 별도 virtual aperture regression은 약 `2.49999 nW`다. 후속 R3도 완료했으며 현재 report schema는 v5다.
 
 ### Phase 2.4-R3 — Single-mode fiber coupling
 
@@ -268,6 +272,8 @@ R3/R4에서 추가할 이름은 다음과 같다.
 - lateral, angular, mode-size와 focus mismatch 적용
 - `fiber_coupling_efficiency`와 `power_coupled_into_fiber_w` 보고
 - diffuse target 모델은 reciprocity/mode acceptance 한계를 명시
+
+상태: 2026-07-27 완료. R2 `power_at_fiber_plane_w`를 독립 input plane power로 사용하고, source/fiber catalog의 `gaussian_1e2_intensity` MFD와 R1 fiber-plane actual lateral/angular residual, configured offset 및 optional receive waist offset으로 정규화 scalar Gaussian overlap을 계산한다. Report model은 `gaussian_alignment_proxy`이며 overlap 효율, coupled power, fiber-plane→mode와 target→coupled-mode loss, coupling energy ledger를 strict schema v5에 기록한다. Aligned mode `eta=1`, lateral/angular/MFD/focus mismatch 감소, zero power, unsupported/missing geometry와 schema/YAML round-trip을 검증했다. Baseline은 `eta_fiber ≈ 1`, `P_coupled ≈ 1.80063 nW`, target→coupled-fiber loss `≈ 67.4457 dB`다. 이는 Lambertian diffuse return 전체를 deterministic Gaussian receive mode로 둔 optimistic analytical upper-bound/reference이며 calibrated hardware prediction이 아니다. Radiometric adapter는 coherent field를 생성하거나 R4로 전달하지 않는다. 다음 Gate는 R4다.
 
 ### Phase 2.4-R4 — Duplexer와 detector boundary
 
@@ -311,4 +317,4 @@ R3/R4에서 추가할 이름은 다음과 같다.
 
 ## 11. 현재 한계
 
-이 문서는 목표 물리 구조와 구현 계약을 정리한 것이다. R0, Phase 2-S, UI-S, R1 reciprocal center-ray geometry, Phase 4.1-M1 STL closest-hit와 R2 rectangle-plane scalar return-power ledger를 구현했다. 다음 미구현 Gate는 R3 fiber mode overlap이며 그 뒤 R4 duplexer와 detector boundary가 남아 있다. R2는 nearest-visible Lambertian rectangle의 small-footprint analytical reference이고 STL radiometry, spatial receive-mode acceptance와 coherent field를 계산하지 않는다. 기존 virtual aperture 계산은 regression과 수치 비교를 위해 별도로 유지하며 실제 fiber-coupled hardware prediction을 주장하지 않는다.
+이 문서는 목표 물리 구조와 구현 계약을 정리한 것이다. R0, Phase 2-S, UI-S, R1 reciprocal center-ray geometry, Phase 4.1-M1 STL closest-hit, R2 rectangle-plane scalar return-power ledger와 R3 Gaussian alignment coupling proxy를 구현했다. 다음 미구현 Gate는 R4 duplexer와 detector boundary다. R2/R3는 nearest-visible Lambertian rectangle의 small-footprint analytical reference와 optimistic Gaussian upper-bound이고 STL radiometry, diffuse spatial-mode decomposition 또는 coherent field를 계산하지 않는다. 기존 virtual aperture 계산은 regression과 수치 비교를 위해 별도로 유지하며 실제 calibrated fiber-coupled hardware prediction을 주장하지 않는다.

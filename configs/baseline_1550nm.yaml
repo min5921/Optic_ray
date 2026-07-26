@@ -85,8 +85,11 @@ receiver:
     fiber_element_id: source
     reuse_transmit_path: true
   fiber_coupling:
-    model: single_mode_overlap
+    model: gaussian_alignment_proxy
     mode_field_source: component_catalog
+    receive_mode_field_diameter_m: 10 um
+    receive_mode_field_diameter_definition: gaussian_1e2_intensity
+    receive_mode_waist_offset_m: 0 m
     lateral_offset_m: [0.0, 0.0]
     angular_offset_rad: [0.0, 0.0]
   duplexer:
@@ -120,6 +123,7 @@ outputs:
   - link_budget
   - reciprocal_return_geometry
   - reciprocal_return_power
+  - fiber_coupling
   - energy_ledger
   - convergence_report
   - layout_3d

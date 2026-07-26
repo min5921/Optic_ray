@@ -36,7 +36,7 @@ python -W error::DeprecationWarning -W error::UserWarning -m pytest -q
 → 139 passed
 ```
 
-현재 `estimated_received_power_w`와 `P_virtual_ap`는 virtual aperture plane의 분석용 중간값이다. 이 값 자체는 동일 scanner·collimator의 reverse traversal을 포함하지 않으며 R2 reciprocal return ledger와 별도로 유지한다. R2도 single-mode fiber mode overlap, duplexer와 detector loss는 포함하지 않는다.
+현재 `estimated_received_power_w`와 `P_virtual_ap`는 virtual aperture plane의 분석용 중간값이다. 이 값 자체는 동일 scanner·collimator의 reverse traversal을 포함하지 않으며 R2 reciprocal return ledger 및 R3 fiber coupling과 별도로 유지한다. R3는 `gaussian_alignment_proxy`까지 구현했지만 duplexer와 detector loss는 포함하지 않는다.
 
 ## 3. 등록된 문제와 완료 조건
 
@@ -143,7 +143,7 @@ Gate 결과:
 - CPU Möller–Trumbore reference가 nearest positive hit, barycentric coordinate, winding 기반 geometric normal, distance, triangle ID와 front/back face를 보고하며 parallel/behind/self-hit/no-hit를 구분한다.
 - Sidecar `unit_scale_m`과 world placement를 실제 world triangle에 적용한다. Target role, scenario/sidecar material 일치와 `parent_frame: world`를 검증한다.
 - 2-triangle plane parity, one-sided backface, mixed rectangle/STL nearest visibility, strict report/viewport schema, CLI report와 Plotly/Matplotlib overlay를 검증했다.
-- Phase 4.1-M1 Gate 완료 후 `Phase 2.4-R2` return optical power ledger까지 순서대로 완료했다. 현재 활성 단계는 R3다.
+- Phase 4.1-M1 Gate 완료 후 `Phase 2.4-R2` return optical power ledger와 `Phase 2.4-R3` Gaussian alignment coupling까지 순서대로 완료했다. 현재 활성 단계는 R4다.
 
 ### 3.6 Phase 2.4-R2 — Return optical power ledger
 
@@ -163,7 +163,27 @@ Gate 결과:
 - Return mirror incident/after-aperture/after-reflection, return collimator incident/after-aperture/after-transmission과 fiber reference plane을 순서대로 기록한다. Strict Phase 2 report schema는 v4다.
 - Plotly/Matplotlib/CLI/Streamlit/dashboard는 `P_virtual_ap`와 `P_return_mirror`/`P_fiber_plane`을 분리한다. 계산된 0 W와 미평가 `null`도 구분한다.
 - Baseline은 `P_on_target ≈ 9.99997 mW`, `P_return_mirror ≈ P_fiber_plane ≈ 1.80063 nW`, `target_to_fiber_plane_link_loss ≈ 67.4457 dB`다. Virtual aperture regression은 약 `2.49999 nW`다.
-- Phase 2.4-R2 Gate 완료. 다음 활성 단계는 `Phase 2.4-R3` single-mode fiber coupling이다.
+- Phase 2.4-R2 Gate 완료. 후속 R3 완료 상태는 아래 3.7절에 기록한다.
+
+### 3.7 Phase 2.4-R3 — Single-mode fiber coupling proxy
+
+| ID | 문제 | 영향 | 완료 조건 |
+| --- | --- | --- | --- |
+| `R3-MODE-01` | Fiber reference plane power만 있고 catalog MFD와의 mode overlap이 없다. | Aperture 통과 power를 single-mode fiber coupled power로 오해할 수 있다. | 정규화 Gaussian receive/fiber mode overlap으로 `eta_fiber`와 coupled power를 별도 계산한다. |
+| `R3-ALIGN-01` | R1 actual lateral/angular residual과 사용자가 지정한 mismatch가 coupling에 연결되지 않는다. | Placement 변경이 fiber 결합 결과에 반영되지 않는다. | 같은 right-handed receive frame에서 actual residual과 configured offset을 결합하고 lateral/angular/MFD/focus mismatch test를 통과한다. |
+| `R3-FIELD-01` | Radiometric Lambertian power에 임의 위상을 붙여 coherent field처럼 전달할 위험이 있다. | 이후 FMCW에서 물리적으로 존재하지 않는 phase coherence를 주장할 수 있다. | Normalized overlap은 shape 진단으로만 보고하고 coherent field/status/사용 가능 여부를 명시적으로 분리한다. |
+| `R3-SCOPE-01` | Diffuse target power 전체를 하나의 Gaussian mode로 처리하면 실제 결합을 과대평가할 수 있다. | 결과가 calibrated hardware prediction처럼 보일 수 있다. | Model을 `gaussian_alignment_proxy`로 명시하고 Lambertian upper-bound/reference, uncalibrated 상태와 미구현 spatial-mode decomposition을 경고한다. |
+| `R3-UI-01` | Fiber-plane power와 coupled power가 화면에서 같은 plane 값처럼 보일 수 있다. | R2/R3 loss 경계와 0/null 의미가 사라진다. | CLI/Streamlit/dashboard는 R2 plane power, R3 효율·coupled power·loss를 별도 표시하고 Viewport는 새 ray/field 없이 fiber reference metadata만 추가한다. |
+
+2026-07-27 완료:
+
+- Source/fiber catalog의 `gaussian_1e2_intensity` MFD, optional receive MFD/waist offset과 R1 actual residual을 사용하는 NumPy/float64 normalized scalar Gaussian overlap을 구현했다.
+- `reciprocal_return.fiber_coupling`과 summary에 `fiber_coupling_efficiency`, `power_coupled_into_fiber_w`, `fiber_plane_to_coupled_mode_loss_db`, `target_to_fiber_coupled_link_loss_db`를 strict Phase 2 report schema v5로 추가했다.
+- Radiometric adapter는 `coherent_field_status: not_provided`, `coupled_field_amplitude_sqrt_w: null`, `field_usable_for_coherent_propagation: false`를 보고한다. 임의 기준 위상의 normalized overlap은 coherent output이 아니다.
+- CLI/Streamlit/dashboard에서 virtual aperture, R2 fiber-plane power와 R3 coupled power를 분리하고 계산된 `0.0`과 미평가 `null`을 구분한다. Viewport는 기존 R2 return ray power를 유지하고 fiber residual point metadata에만 R3를 표시한다.
+- Aligned `eta=1`, lateral/angular/MFD/focus mismatch 단조 감소, zero power, unsupported/missing R1/R2 input, coupling energy ledger, schema/YAML과 UI/CLI를 검증했다.
+- Baseline은 `eta_fiber ≈ 1`, `P_coupled ≈ 1.80063 nW`, target→coupled-fiber loss `≈ 67.4457 dB`다. 이 값은 Lambertian diffuse-return optimistic upper-bound/reference이며 calibrated hardware prediction이 아니다.
+- Phase 2.4-R3 Gate 완료. 다음 활성 단계는 `Phase 2.4-R4` duplexer와 detector boundary다.
 
 ## 4. 승인된 활성 구현 순서
 
@@ -181,7 +201,7 @@ Gate 결과:
 
 `UI-S`의 코드 작업은 `Phase 2-S0/S1`과 병렬로 진행할 수 있다. 그러나 Git checkpoint와 완료 선언은 위 Gate 순서를 따른다. R1 결과가 생기면 같은 patch 또는 바로 다음 UI patch에서 return `RaySegment`, aperture residual과 fiber-port alignment overlay를 추가한다.
 
-2026-07-27 현재 `Phase 2-S0`, `Phase 2-S1`, `UI-S`, `Phase 2.4-R1`, `Phase 4.1-M1`과 `Phase 2.4-R2`를 순서대로 완료했다. R2는 nearest-visible Lambertian rectangle과 actual R1 geometry Gate를 사용한 target→fiber reference-plane scalar power ledger를 strict report/UI에 연결했다. 활성 Gate는 `Phase 2.4-R3`다.
+2026-07-27 현재 `Phase 2-S0`, `Phase 2-S1`, `UI-S`, `Phase 2.4-R1`, `Phase 4.1-M1`, `Phase 2.4-R2`와 `Phase 2.4-R3`를 순서대로 완료했다. R2는 nearest-visible Lambertian rectangle과 actual R1 geometry Gate를 사용한 target→fiber reference-plane scalar power ledger를, R3는 명시적인 Gaussian alignment proxy를 strict report/UI에 연결했다. 활성 Gate는 `Phase 2.4-R4`다.
 
 ## 5. 현재 사용자 variant 처리
 
@@ -208,7 +228,8 @@ Gate 결과:
 - 여러 target의 후보 결과와 실제 visible energy contribution을 구분한다.
 - UI는 config/report를 우회하는 별도 물리 상태를 소유하지 않는다.
 - STL hit가 구현되기 전에는 STL simulation 가능이라고 표시하지 않는다.
-- Fiber overlap이 구현되기 전에는 virtual aperture power를 fiber-coupled power라고 표시하지 않는다.
+- Virtual aperture, R2 fiber-plane power, R3 coupled power와 R4 detector power를 서로 다른 output plane으로 표시한다.
+- Radiometric mode의 arbitrary-phase overlap 또는 amplitude를 coherent output이라고 표시하지 않는다.
 - 각 단계의 analytical test, schema, CLI report와 viewport 표현이 함께 맞아야 완료다.
 
 ## 8. 관련 문서

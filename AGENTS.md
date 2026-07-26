@@ -28,7 +28,7 @@
 
 ## 개발 순서와 품질
 
-- `docs/PROJECT_VISION.md`의 단계 순서를 따른다. 승인된 순서는 `Phase 2-S0 → Phase 2-S1 → UI-S → Phase 2.4-R1 → Phase 4.1-M1 STL closest-hit → R2 → R3 → R4`이며, 2026-07-27 현재 R2까지 완료했다. 현재 활성 Gate는 R3이고 각 Gate는 `docs/specs/IMPLEMENTATION_AUDIT_2026-07-15.md`를 따른다.
+- `docs/PROJECT_VISION.md`의 단계 순서를 따른다. 승인된 순서는 `Phase 2-S0 → Phase 2-S1 → UI-S → Phase 2.4-R1 → Phase 4.1-M1 STL closest-hit → R2 → R3 → R4`이며, 2026-07-27 현재 R3까지 완료했다. 현재 활성 Gate는 R4이고 각 Gate는 `docs/specs/IMPLEMENTATION_AUDIT_2026-07-15.md`를 따른다.
 - GPU 가속을 추가하기 전에 올바른 NumPy/CPU 기준 구현을 확립한다.
 - 선택 사항인 GPU package는 기본 runtime 경로에서 제외한다.
 - 동작을 변경할 때마다 test를 추가하거나 갱신한다. 복잡한 scene보다 단순한 analytical case를 먼저 검증한다.

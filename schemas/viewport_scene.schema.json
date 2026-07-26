@@ -186,7 +186,20 @@
         "lateral_residual_m": { "type": ["number", "null"], "minimum": 0.0 },
         "angular_residual_rad": { "type": ["number", "null"], "minimum": 0.0 },
         "aperture_status": { "type": ["string", "null"] },
-        "geometry_only": { "type": "boolean" }
+        "geometry_only": { "type": "boolean" },
+        "fiber_coupling_model": { "type": ["string", "null"] },
+        "fiber_coupling_status": { "type": ["string", "null"] },
+        "fiber_coupling_efficiency": {
+          "type": ["number", "null"],
+          "minimum": 0.0,
+          "maximum": 1.0
+        },
+        "power_coupled_into_fiber_w": {
+          "type": ["number", "null"],
+          "minimum": 0.0
+        },
+        "coherent_field_status": { "type": ["string", "null"] },
+        "field_usable_for_coherent_propagation": { "type": ["boolean", "null"] }
       }
     },
     "raySegment": {

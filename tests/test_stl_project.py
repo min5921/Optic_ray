@@ -387,7 +387,7 @@ def test_optical_train_cli_writes_stl_closest_hit_report(
     loaded = yaml.safe_load(output_path.read_text(encoding="utf-8"))
 
     assert exit_code == 0
-    assert loaded["schema_version"] == 4
+    assert loaded["schema_version"] == 5
     assert loaded["stl_intersections"][0]["status"] == "hit"
     assert loaded["summary"]["stl_target_hit_count"] == 1
     assert "stl_hits=1" in output.out

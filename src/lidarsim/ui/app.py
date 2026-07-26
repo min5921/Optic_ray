@@ -60,6 +60,10 @@ _TEXT = {
         "return_mirror_power": "Return mirror power",
         "fiber_plane_power": "Fiber-plane power",
         "return_link_loss": "Target→fiber-plane loss",
+        "fiber_coupling_status": "Fiber coupling status",
+        "fiber_coupling_efficiency": "Fiber coupling efficiency",
+        "coupled_fiber_power": "Coupled fiber power",
+        "coupled_fiber_link_loss": "Target→coupled-fiber loss",
     },
     "en": {
         "title": "Optic Ray Assembly Workspace",
@@ -90,6 +94,10 @@ _TEXT = {
         "return_mirror_power": "Return mirror power",
         "fiber_plane_power": "Fiber-plane power",
         "return_link_loss": "Target→fiber-plane loss",
+        "fiber_coupling_status": "Fiber coupling status",
+        "fiber_coupling_efficiency": "Fiber coupling efficiency",
+        "coupled_fiber_power": "Coupled fiber power",
+        "coupled_fiber_link_loss": "Target→coupled-fiber loss",
     },
 }
 
@@ -328,6 +336,44 @@ def _render_metrics(
     columns[4].metric(
         _text(language, "return_link_loss"),
         "N/A" if return_loss is None else f"{float(return_loss):.6g} dB",
+    )
+
+    coupling_columns = st.columns(4)
+    coupling_columns[0].metric(
+        _text(language, "fiber_coupling_status"),
+        str(summary.get("fiber_coupling_status", "not_evaluated")),
+        help=(
+            "R3 report model은 gaussian_alignment_proxy입니다. Analytical/reference 상태와 "
+            "hardware calibration 상태는 별개입니다."
+        ),
+    )
+    coupling_efficiency = summary.get("fiber_coupling_efficiency")
+    coupling_columns[1].metric(
+        _text(language, "fiber_coupling_efficiency"),
+        "N/A" if coupling_efficiency is None else f"{float(coupling_efficiency):.6g}",
+        help=(
+            "gaussian_alignment_proxy의 정규화 mode overlap 효율입니다. "
+            "Lambertian diffuse return 전체를 단일 coherent Gaussian field로 뜻하지 않습니다."
+        ),
+    )
+    coupled_power = summary.get("power_coupled_into_fiber_w")
+    coupling_columns[2].metric(
+        _text(language, "coupled_fiber_power"),
+        (
+            "N/A"
+            if coupled_power is None
+            else _format_power(float(coupled_power), power_unit)
+        ),
+        help=(
+            "R2 fiber-plane power에 R3 gaussian_alignment_proxy 효율을 적용한 "
+            "analytical upper-bound/reference 값입니다."
+        ),
+    )
+    coupled_loss = summary.get("target_to_fiber_coupled_link_loss_db")
+    coupling_columns[3].metric(
+        _text(language, "coupled_fiber_link_loss"),
+        "N/A" if coupled_loss is None else f"{float(coupled_loss):.6g} dB",
+        help="Target power에서 R3 coupled fiber power까지의 명시적 loss입니다.",
     )
 
 

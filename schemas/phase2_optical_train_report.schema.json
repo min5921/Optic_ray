@@ -20,7 +20,7 @@
     "analytical_checks"
   ],
   "properties": {
-    "schema_version": { "const": 4 },
+    "schema_version": { "const": 5 },
     "report_type": { "const": "phase2_optical_train" },
     "manifest": { "$ref": "#/$defs/manifest" },
     "summary": { "$ref": "#/$defs/summary" },
@@ -118,7 +118,11 @@
         "power_at_return_collimator_w",
         "power_at_fiber_plane_w",
         "target_to_fiber_plane_link_loss_db",
-        "reciprocal_return_power_status"
+        "reciprocal_return_power_status",
+        "fiber_coupling_status",
+        "fiber_coupling_efficiency",
+        "power_coupled_into_fiber_w",
+        "target_to_fiber_coupled_link_loss_db"
       ],
       "properties": {
         "overall_status": { "enum": ["pass", "warning", "fail"] },
@@ -158,7 +162,13 @@
         "target_to_fiber_plane_link_loss_db": { "type": ["number", "null"], "minimum": 0.0 },
         "reciprocal_return_power_status": {
           "enum": ["pass", "zero_power", "terminated", "unsupported_material", "not_evaluated", "fail"]
-        }
+        },
+        "fiber_coupling_status": {
+          "enum": ["pass", "zero_available_power", "unsupported_mfd_definition", "not_evaluated", "fail"]
+        },
+        "fiber_coupling_efficiency": { "type": ["number", "null"], "minimum": 0.0, "maximum": 1.0 },
+        "power_coupled_into_fiber_w": { "type": ["number", "null"], "minimum": 0.0 },
+        "target_to_fiber_coupled_link_loss_db": { "type": ["number", "null"], "minimum": 0.0 }
       }
     },
     "accuracy": {
@@ -196,7 +206,7 @@
           ]
         },
         "scope": {
-          "const": "source_to_static_mirror_rectangle_or_stl_center_ray_target_lambertian_virtual_aperture_and_reciprocal_center_ray_geometry_and_return_power_ledger"
+          "const": "source_to_static_mirror_rectangle_or_stl_center_ray_target_lambertian_virtual_aperture_and_reciprocal_center_ray_geometry_and_return_power_ledger_and_gaussian_alignment_proxy"
         },
         "assumptions": { "$ref": "#/$defs/stringArray" },
         "warnings": { "$ref": "#/$defs/stringArray" }
@@ -1687,6 +1697,195 @@
         "warnings": { "$ref": "#/$defs/stringArray" }
       }
     },
+    "gaussianModeAtPlane": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "mode_radius_x_m",
+        "mode_radius_y_m",
+        "mode_field_diameter_x_m",
+        "mode_field_diameter_y_m",
+        "center_offset_x_m",
+        "center_offset_y_m",
+        "angle_x_rad",
+        "angle_y_rad",
+        "wavefront_radius_x_m",
+        "wavefront_radius_y_m"
+      ],
+      "properties": {
+        "mode_radius_x_m": { "type": "number", "exclusiveMinimum": 0.0 },
+        "mode_radius_y_m": { "type": "number", "exclusiveMinimum": 0.0 },
+        "mode_field_diameter_x_m": { "type": "number", "exclusiveMinimum": 0.0 },
+        "mode_field_diameter_y_m": { "type": "number", "exclusiveMinimum": 0.0 },
+        "center_offset_x_m": { "type": "number" },
+        "center_offset_y_m": { "type": "number" },
+        "angle_x_rad": { "type": "number" },
+        "angle_y_rad": { "type": "number" },
+        "wavefront_radius_x_m": { "type": ["number", "null"] },
+        "wavefront_radius_y_m": { "type": ["number", "null"] }
+      }
+    },
+    "complexOverlap": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["real", "imag", "magnitude"],
+      "properties": {
+        "real": { "type": "number" },
+        "imag": { "type": "number" },
+        "magnitude": { "type": "number", "minimum": 0.0, "maximum": 1.000000000001 }
+      }
+    },
+    "fiberCouplingLedgerEntry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "input_power_w",
+        "coupling_loss_w",
+        "output_power_w",
+        "coupling_efficiency",
+        "mechanism",
+        "input_plane",
+        "output_plane"
+      ],
+      "properties": {
+        "input_power_w": { "type": "number", "minimum": 0.0 },
+        "coupling_loss_w": { "type": "number", "minimum": 0.0 },
+        "output_power_w": { "type": "number", "minimum": 0.0 },
+        "coupling_efficiency": { "type": "number", "minimum": 0.0, "maximum": 1.0 },
+        "mechanism": { "const": "single_mode_gaussian_alignment_proxy" },
+        "input_plane": { "const": "fiber_reference_plane" },
+        "output_plane": { "const": "coupled_fiber_mode" }
+      }
+    },
+    "fiberCouplingSection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "model",
+        "status",
+        "status_reason",
+        "target_id",
+        "fiber_element_id",
+        "fiber_component_ref",
+        "source_mfd_definition",
+        "fiber_mfd_definition",
+        "receive_mfd_definition",
+        "fiber_mode_field_diameter_m",
+        "receive_mode_field_diameter_m",
+        "receive_mode_field_source",
+        "receive_mode_waist_offset_m",
+        "receive_frame_convention",
+        "receive_axis_world",
+        "receive_x_axis_world",
+        "receive_y_axis_world",
+        "r1_lateral_offset_m",
+        "configured_lateral_offset_m",
+        "combined_lateral_offset_m",
+        "r1_angular_offset_rad",
+        "configured_angular_offset_rad",
+        "combined_angular_offset_rad",
+        "offset_combination_convention",
+        "overlap_model",
+        "overlap_model_scope",
+        "input_power_interpretation",
+        "overlap_api_input_interpretation",
+        "receive_mode",
+        "fiber_mode",
+        "available_power_at_fiber_plane_w",
+        "normalized_field_overlap",
+        "coupled_field_amplitude_sqrt_w",
+        "fiber_coupling_efficiency",
+        "power_coupled_into_fiber_w",
+        "fiber_plane_to_coupled_mode_loss_db",
+        "target_to_fiber_coupled_link_loss_db",
+        "power_ledger",
+        "maximum_energy_residual_w",
+        "energy_tolerance_w",
+        "energy_check_status",
+        "coherent_field_status",
+        "field_usable_for_coherent_propagation",
+        "assumptions",
+        "warnings"
+      ],
+      "properties": {
+        "model": { "const": "gaussian_alignment_proxy" },
+        "status": { "enum": ["pass", "zero_available_power", "unsupported_mfd_definition", "fail"] },
+        "status_reason": { "type": ["string", "null"] },
+        "target_id": { "type": ["string", "null"] },
+        "fiber_element_id": { "type": ["string", "null"] },
+        "fiber_component_ref": { "type": ["string", "null"] },
+        "source_mfd_definition": { "type": ["string", "null"] },
+        "fiber_mfd_definition": { "type": ["string", "null"] },
+        "receive_mfd_definition": { "type": ["string", "null"] },
+        "fiber_mode_field_diameter_m": { "type": ["number", "null"], "exclusiveMinimum": 0.0 },
+        "receive_mode_field_diameter_m": { "type": ["number", "null"], "exclusiveMinimum": 0.0 },
+        "receive_mode_field_source": { "type": ["string", "null"] },
+        "receive_mode_waist_offset_m": { "type": ["number", "null"] },
+        "receive_frame_convention": { "const": "right_handed_x_cross_y_equals_receive_axis; receive_axis=-fiber_port_normal" },
+        "receive_axis_world": {
+          "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/vec3" }]
+        },
+        "receive_x_axis_world": {
+          "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/vec3" }]
+        },
+        "receive_y_axis_world": {
+          "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/vec3" }]
+        },
+        "r1_lateral_offset_m": {
+          "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/vec2" }]
+        },
+        "configured_lateral_offset_m": {
+          "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/vec2" }]
+        },
+        "combined_lateral_offset_m": {
+          "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/vec2" }]
+        },
+        "r1_angular_offset_rad": {
+          "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/vec2" }]
+        },
+        "configured_angular_offset_rad": {
+          "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/vec2" }]
+        },
+        "combined_angular_offset_rad": {
+          "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/vec2" }]
+        },
+        "offset_combination_convention": { "const": "combined_receive_mode_offset = R1_actual_residual + configured_offset for each receive-frame x/y axis" },
+        "overlap_model": { "type": ["string", "null"] },
+        "overlap_model_scope": { "type": ["string", "null"] },
+        "input_power_interpretation": {
+          "type": ["string", "null"],
+          "enum": ["entire_r2_lambertian_scalar_power_assumed_carried_by_proxy_gaussian_mode", null]
+        },
+        "overlap_api_input_interpretation": { "type": ["string", "null"] },
+        "receive_mode": {
+          "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/gaussianModeAtPlane" }]
+        },
+        "fiber_mode": {
+          "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/gaussianModeAtPlane" }]
+        },
+        "available_power_at_fiber_plane_w": { "type": ["number", "null"], "minimum": 0.0 },
+        "normalized_field_overlap": {
+          "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/complexOverlap" }]
+        },
+        "coupled_field_amplitude_sqrt_w": { "type": "null" },
+        "fiber_coupling_efficiency": { "type": ["number", "null"], "minimum": 0.0, "maximum": 1.0 },
+        "power_coupled_into_fiber_w": { "type": ["number", "null"], "minimum": 0.0 },
+        "fiber_plane_to_coupled_mode_loss_db": { "type": ["number", "null"], "minimum": 0.0 },
+        "target_to_fiber_coupled_link_loss_db": { "type": ["number", "null"], "minimum": 0.0 },
+        "power_ledger": {
+          "type": "array",
+          "maxItems": 1,
+          "items": { "$ref": "#/$defs/fiberCouplingLedgerEntry" }
+        },
+        "maximum_energy_residual_w": { "type": ["number", "null"], "minimum": 0.0 },
+        "energy_tolerance_w": { "type": "number", "exclusiveMinimum": 0.0 },
+        "energy_check_status": { "enum": ["pass", "fail", "not_evaluated"] },
+        "coherent_field_status": { "const": "not_provided" },
+        "field_usable_for_coherent_propagation": { "const": false },
+        "assumptions": { "$ref": "#/$defs/stringArray" },
+        "warnings": { "$ref": "#/$defs/stringArray" }
+      }
+    },
     "reciprocalReturnSection": {
       "type": "object",
       "additionalProperties": false,
@@ -1707,6 +1906,8 @@
         "target_hit_tolerance_m",
         "return_power",
         "fiber_coupling_status",
+        "fiber_coupling_status_reason",
+        "fiber_coupling",
         "detector_status",
         "assumptions",
         "warnings"
@@ -1748,7 +1949,16 @@
             { "$ref": "#/$defs/reciprocalReturnPowerResult" }
           ]
         },
-        "fiber_coupling_status": { "const": "not_evaluated" },
+        "fiber_coupling_status": {
+          "enum": ["pass", "zero_available_power", "unsupported_mfd_definition", "not_evaluated", "fail"]
+        },
+        "fiber_coupling_status_reason": { "type": ["string", "null"] },
+        "fiber_coupling": {
+          "oneOf": [
+            { "type": "null" },
+            { "$ref": "#/$defs/fiberCouplingSection" }
+          ]
+        },
         "detector_status": { "const": "not_evaluated" },
         "assumptions": { "$ref": "#/$defs/stringArray" },
         "warnings": { "$ref": "#/$defs/stringArray" }
@@ -1954,6 +2164,32 @@
         "message": { "type": "string" }
       }
     },
+    "fiberCouplingCheck": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "fiber_coupling_status",
+        "energy_check_status",
+        "maximum_energy_residual_w",
+        "energy_tolerance_w",
+        "coherent_field_status",
+        "field_usable_for_coherent_propagation",
+        "message"
+      ],
+      "properties": {
+        "status": { "enum": ["pass", "warning", "fail", "not_evaluated"] },
+        "fiber_coupling_status": {
+          "enum": ["pass", "zero_available_power", "unsupported_mfd_definition", "not_evaluated", "fail"]
+        },
+        "energy_check_status": { "enum": ["pass", "fail", "not_evaluated"] },
+        "maximum_energy_residual_w": { "type": ["number", "null"], "minimum": 0.0 },
+        "energy_tolerance_w": { "type": "number", "exclusiveMinimum": 0.0 },
+        "coherent_field_status": { "const": "not_provided" },
+        "field_usable_for_coherent_propagation": { "const": false },
+        "message": { "type": "string" }
+      }
+    },
     "stlClosestHitCheck": {
       "type": "object",
       "additionalProperties": false,
@@ -1990,6 +2226,7 @@
         "receiver_return",
         "reciprocal_return",
         "reciprocal_return_power",
+        "fiber_coupling",
         "external_validation_status"
       ],
       "properties": {
@@ -2003,6 +2240,7 @@
         "receiver_return": { "$ref": "#/$defs/receiverCheck" },
         "reciprocal_return": { "$ref": "#/$defs/reciprocalReturnCheck" },
         "reciprocal_return_power": { "$ref": "#/$defs/reciprocalReturnPowerCheck" },
+        "fiber_coupling": { "$ref": "#/$defs/fiberCouplingCheck" },
         "external_validation_status": { "const": "not_evaluated" }
       }
     }

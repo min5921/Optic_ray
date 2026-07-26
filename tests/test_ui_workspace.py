@@ -110,6 +110,30 @@ def _attach_r2_return_power(
     }
 
 
+def _attach_r3_fiber_coupling(
+    report: dict[str, object],
+    *,
+    efficiency: float = 0.64,
+    coupled_power_w: float = 9.6e-10,
+) -> None:
+    reciprocal = report["reciprocal_return"]
+    assert isinstance(reciprocal, dict)
+    reciprocal["fiber_coupling_status"] = "pass"
+    reciprocal["fiber_coupling"] = {
+        "model": "gaussian_alignment_proxy",
+        "status": "pass",
+        "available_power_at_fiber_plane_w": 1.5e-9,
+        "fiber_coupling_efficiency": efficiency,
+        "power_coupled_into_fiber_w": coupled_power_w,
+        "fiber_plane_to_coupled_mode_loss_db": 1.938200260161128,
+        "target_to_fiber_coupled_link_loss_db": 70.17728766960431,
+        "coherent_field_status": "not_provided",
+        "coupled_field_amplitude_sqrt_w": None,
+        "field_usable_for_coherent_propagation": False,
+        "warnings": ["R3 diffuse-return Gaussian upper-bound/reference"],
+    }
+
+
 def test_viewport_scene_contains_optical_bench_objects(project_root: Path) -> None:
     project = load_project(project_root / "configs" / "project.yaml")
 
@@ -127,7 +151,7 @@ def test_viewport_scene_contains_optical_bench_objects(project_root: Path) -> No
     assert len(scene.footprints) == 1
 
 
-def test_baseline_r2_report_power_is_visible_on_three_reciprocal_segments(
+def test_baseline_r2_power_and_r3_coupling_use_distinct_viewport_contracts(
     project_root: Path,
 ) -> None:
     project = load_project(project_root / "configs" / "project.yaml")
@@ -154,6 +178,20 @@ def test_baseline_r2_report_power_is_visible_on_three_reciprocal_segments(
     assert return_rays[-1].power_w == pytest.approx(
         report.summary["power_at_fiber_plane_w"]
     )
+    fiber_guide = next(
+        guide
+        for guide in scene.guides
+        if guide.guide_id.endswith("fiber_hit_residual")
+    )
+    assert fiber_guide.metadata["fiber_coupling_model"] == "gaussian_alignment_proxy"
+    assert fiber_guide.metadata["fiber_coupling_efficiency"] == pytest.approx(
+        report.summary["fiber_coupling_efficiency"]
+    )
+    assert fiber_guide.metadata["power_coupled_into_fiber_w"] == pytest.approx(
+        report.summary["power_coupled_into_fiber_w"]
+    )
+    assert fiber_guide.metadata["coherent_field_status"] == "not_provided"
+    assert fiber_guide.metadata["field_usable_for_coherent_propagation"] is False
 
 
 def test_viewport_scene_round_trips_as_yaml(project_root: Path) -> None:
@@ -169,7 +207,8 @@ def test_viewport_scene_round_trips_as_yaml(project_root: Path) -> None:
     assert payload["scenario_id"] == "baseline_1550nm"
     assert payload["model_scope"] == (
         "source_to_static_mirror_rectangle_or_stl_center_ray_target_lambertian_virtual_aperture_"
-        "and_reciprocal_center_ray_geometry_and_return_power_ledger"
+        "and_reciprocal_center_ray_geometry_and_return_power_ledger_"
+        "and_gaussian_alignment_proxy"
     )
     assert payload["placement_edits"] == []
     assert payload["constraints"] == []
@@ -390,6 +429,48 @@ def test_r2_return_plane_power_maps_to_actual_segments_and_preserves_zero(
         ray for ray in payload["rays"] if ray["propagation_role"] == "return"
     ]
     assert serialized_return[-1]["power_w"] == 0.0
+
+
+def test_r3_coupling_is_fiber_reference_metadata_without_fake_ray_or_field(
+    project_root: Path,
+) -> None:
+    project = load_project(project_root / "configs" / "project.yaml")
+    report = _report_with_reciprocal_path(project, path=_exact_reciprocal_path())
+    _attach_r2_return_power(report)
+    _attach_r3_fiber_coupling(report)
+
+    scene = build_viewport_scene(project, report=report)
+    return_rays = [ray for ray in scene.rays if ray.propagation_role == "return"]
+    fiber_guides = [
+        guide
+        for guide in scene.guides
+        if guide.guide_id.endswith("fiber_hit_residual")
+    ]
+
+    assert len(return_rays) == 3
+    assert return_rays[-1].power_w == pytest.approx(1.5e-9)
+    assert return_rays[-1].plane_power_name == "power_at_fiber_plane_w"
+    assert len(fiber_guides) == 1
+    assert fiber_guides[0].metadata["fiber_coupling_model"] == (
+        "gaussian_alignment_proxy"
+    )
+    assert fiber_guides[0].metadata["fiber_coupling_efficiency"] == pytest.approx(
+        0.64
+    )
+    assert fiber_guides[0].metadata["power_coupled_into_fiber_w"] == pytest.approx(
+        9.6e-10
+    )
+    assert fiber_guides[0].metadata["coherent_field_status"] == "not_provided"
+    assert fiber_guides[0].metadata["field_usable_for_coherent_propagation"] is False
+    assert "P_coupled=9.6e-10 W" in fiber_guides[0].label
+    assert any("새 ray/beam/field를 만들지 않습니다" in item for item in scene.warnings)
+    assert any("calibrated hardware prediction이 아닙니다" in item for item in scene.warnings)
+
+    SchemaStore.load(project_root / "schemas").validate(
+        scene.to_dict(),
+        "viewport_scene.schema.json",
+        source="R3 fiber coupling viewport metadata",
+    )
 
 
 def test_reciprocal_coordinates_and_styles_match_plotly_and_matplotlib(

@@ -25,11 +25,12 @@ class _MetricColumn:
 
 class _MetricStreamlit:
     def __init__(self) -> None:
-        self.columns_result = [_MetricColumn() for _ in range(5)]
+        self.columns_result: list[_MetricColumn] = []
 
     def columns(self, count: int) -> list[_MetricColumn]:
-        assert count == 5
-        return self.columns_result
+        result = [_MetricColumn() for _ in range(count)]
+        self.columns_result.extend(result)
+        return result
 
 
 def test_ui_project_argument_prefers_environment(
@@ -69,7 +70,7 @@ def test_ui_project_settings_drive_language_power_and_result_root(
     ).resolve()
 
 
-def test_r2_metrics_distinguish_calculated_zero_from_not_evaluated() -> None:
+def test_r2_r3_metrics_distinguish_calculated_zero_from_not_evaluated() -> None:
     streamlit = _MetricStreamlit()
     run = SimpleNamespace(
         summary={
@@ -78,17 +79,36 @@ def test_r2_metrics_distinguish_calculated_zero_from_not_evaluated() -> None:
             "power_at_return_mirror_w": 0.0,
             "power_at_fiber_plane_w": None,
             "target_to_fiber_plane_link_loss_db": None,
+            "fiber_coupling_efficiency": 0.0,
+            "power_coupled_into_fiber_w": 0.0,
+            "target_to_fiber_coupled_link_loss_db": None,
         }
     )
 
     _render_metrics(streamlit, run, language="ko", power_unit="nW")
 
     values = [column.calls[0][1] for column in streamlit.columns_result]
-    assert values == ["1e+07 nW", "2.5 nW", "0 nW", "N/A", "N/A"]
+    assert values == [
+        "1e+07 nW",
+        "2.5 nW",
+        "0 nW",
+        "N/A",
+        "N/A",
+        "not_evaluated",
+        "0",
+        "0 nW",
+        "N/A",
+    ]
     labels = [column.calls[0][0] for column in streamlit.columns_result]
     assert labels[1:] == [
         "Virtual aperture (regression)",
         "Return mirror power",
         "Fiber-plane power",
         "Target→fiber-plane loss",
+        "Fiber coupling status",
+        "Fiber coupling efficiency",
+        "Coupled fiber power",
+        "Target→coupled-fiber loss",
     ]
+    assert "gaussian_alignment_proxy" in streamlit.columns_result[5].calls[0][2]
+    assert "gaussian_alignment_proxy" in streamlit.columns_result[6].calls[0][2]

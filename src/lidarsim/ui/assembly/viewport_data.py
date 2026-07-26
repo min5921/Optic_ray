@@ -54,6 +54,15 @@ def _distance(start: Vec3, end: Vec3) -> float:
     return float(np.linalg.norm(_point(end) - _point(start)))
 
 
+def _format_optional_float(value: Any, *, suffix: str = "") -> str:
+    if value is None:
+        return "N/A"
+    number = float(value)
+    if not math.isfinite(number):
+        raise ValueError("Viewport metadata에는 유한한 숫자만 사용할 수 있습니다.")
+    return f"{number:.6g}{suffix}"
+
+
 def _frame_from_z_axis(axis: Any, *, name: str) -> Mat3:
     """Local z axis가 지정 vector를 향하는 deterministic right-handed frame을 만든다."""
 
@@ -833,6 +842,16 @@ def _reciprocal_path_records(report_data: dict[str, Any]) -> tuple[dict[str, Any
     return tuple(records)
 
 
+def _fiber_coupling_record(report_data: dict[str, Any]) -> dict[str, Any] | None:
+    """R3 fiber-coupling result를 strict report 위치에서만 읽는다."""
+
+    section = report_data.get("reciprocal_return")
+    if not isinstance(section, dict):
+        return None
+    coupling = section.get("fiber_coupling")
+    return coupling if isinstance(coupling, dict) else None
+
+
 def _intersection_point(hit_record: Any) -> Vec3 | None:
     """실제 hit가 명시된 경우에만 intersection point를 반환한다."""
 
@@ -1230,6 +1249,7 @@ def _make_guides(
 
     for path_index, path in enumerate(_reciprocal_path_records(report_data)):
         closure = path.get("closure") if isinstance(path.get("closure"), dict) else {}
+        fiber_coupling = _fiber_coupling_record(report_data)
         for plane_name, hit_key in (
             ("mirror", "mirror_hit"),
             ("collimator", "collimator_hit"),
@@ -1254,6 +1274,32 @@ def _make_guides(
                 "aperture_status": hit.get("aperture_status"),
                 "geometry_only": True,
             }
+            label = f"return {plane_name} actual hit / residual"
+            if plane_name == "fiber" and fiber_coupling is not None:
+                metadata.update(
+                    {
+                        "fiber_coupling_model": fiber_coupling.get("model"),
+                        "fiber_coupling_status": fiber_coupling.get("status"),
+                        "fiber_coupling_efficiency": fiber_coupling.get(
+                            "fiber_coupling_efficiency"
+                        ),
+                        "power_coupled_into_fiber_w": fiber_coupling.get(
+                            "power_coupled_into_fiber_w"
+                        ),
+                        "coherent_field_status": fiber_coupling.get(
+                            "coherent_field_status"
+                        ),
+                        "field_usable_for_coherent_propagation": fiber_coupling.get(
+                            "field_usable_for_coherent_propagation"
+                        ),
+                    }
+                )
+                efficiency = fiber_coupling.get("fiber_coupling_efficiency")
+                coupled_power = fiber_coupling.get("power_coupled_into_fiber_w")
+                label = (
+                    f"{label} | R3 eta={_format_optional_float(efficiency)}, "
+                    f"P_coupled={_format_optional_float(coupled_power, suffix=' W')}"
+                )
             _add_line(
                 guides,
                 guide_id=f"reciprocal_return.{path_index}.{plane_name}_hit_residual",
@@ -1261,7 +1307,7 @@ def _make_guides(
                 start=actual,
                 end=expected,
                 color="#0ea5e9",
-                label=f"return {plane_name} actual hit / residual",
+                label=label,
                 source="phase2_4_r1_report",
                 metadata=metadata,
             )
@@ -1505,13 +1551,21 @@ def build_viewport_scene(
     reciprocal_section = report_data.get("reciprocal_return")
     if isinstance(reciprocal_section, dict) and _reciprocal_path_records(report_data):
         return_power = reciprocal_section.get("return_power")
+        fiber_coupling = _fiber_coupling_record(report_data)
         if isinstance(return_power, dict):
-            warnings_list.append(
-                "Phase 2.4-R2 return overlay의 power는 작은 Lambertian footprint와 "
-                "center-ray aperture pass/miss를 사용한 scalar analytical plane power입니다. "
-                "Return beam radius, spatial aperture integral, coherent field와 fiber mode "
-                "coupling을 나타내지 않습니다."
-            )
+            if fiber_coupling is None:
+                warnings_list.append(
+                    "Phase 2.4-R2 return overlay의 power는 작은 Lambertian footprint와 "
+                    "center-ray aperture pass/miss를 사용한 scalar analytical plane power입니다. "
+                    "Return beam radius, spatial aperture integral, coherent field와 fiber mode "
+                    "coupling을 나타내지 않습니다."
+                )
+            else:
+                warnings_list.append(
+                    "Return ray segment의 power는 계속 Phase 2.4-R2 fiber-plane 이전의 "
+                    "scalar analytical plane power입니다. Phase 2.4-R3 결합 결과는 fiber "
+                    "reference point metadata에만 표시하며 새 ray/beam/field를 만들지 않습니다."
+                )
             warnings_list.extend(str(item) for item in return_power.get("warnings", ()))
         else:
             warnings_list.append(
@@ -1519,6 +1573,15 @@ def build_viewport_scene(
                 "diffraction 또는 fiber coupling을 나타내지 않습니다."
             )
         warnings_list.extend(str(item) for item in reciprocal_section.get("warnings", ()))
+        if fiber_coupling is not None:
+            warnings_list.append(
+                "Phase 2.4-R3 gaussian_alignment_proxy는 Lambertian diffuse-return의 "
+                "upper-bound/reference 정렬 지표이며 calibrated hardware prediction이 아닙니다. "
+                "Mode overlap의 임의 기준 위상은 coherent output으로 사용할 수 없습니다."
+            )
+            warnings_list.extend(
+                str(item) for item in fiber_coupling.get("warnings", ())
+            )
         for path in _reciprocal_path_records(report_data):
             warnings_list.extend(str(item) for item in path.get("warnings", ()))
     warnings = tuple(dict.fromkeys(warnings_list))
