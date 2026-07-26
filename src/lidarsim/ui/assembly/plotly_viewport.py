@@ -29,6 +29,7 @@ _COMPONENT_COLORS = {
     "collimator": "#19a974",
     "scanner_mirror": "#8c5de8",
     "rectangle_plane_target": "#d97706",
+    "stl_asset_target": "#d97706",
     "virtual_monostatic": "#c026d3",
     "virtual_aperture": "#c026d3",
 }
@@ -253,6 +254,64 @@ def build_interactive_viewport_figure(
             )
         )
 
+    for mesh in scene.meshes:
+        triangles = np.asarray(mesh.triangles_world_m, dtype=np.float64)
+        vertices = triangles.reshape(-1, 3)
+        face_start = 3 * np.arange(mesh.display_triangle_count, dtype=np.int64)
+        figure.add_trace(
+            go.Mesh3d(
+                x=vertices[:, 0],
+                y=vertices[:, 1],
+                z=vertices[:, 2],
+                i=face_start,
+                j=face_start + 1,
+                k=face_start + 2,
+                color="#d97706",
+                opacity=0.32,
+                flatshading=True,
+                hovertemplate=(
+                    f"<b>{mesh.target_id} STL mesh</b><br>"
+                    f"asset: {mesh.asset_id}<br>"
+                    f"display triangles: {mesh.display_triangle_count}/"
+                    f"{mesh.source_triangle_count}<br>"
+                    "geometry-only display; triangles are not optical scatterers"
+                    "<extra></extra>"
+                ),
+                name="STL target mesh (geometry-only)",
+                legendgroup="stl_target_mesh",
+                showlegend=True,
+            )
+        )
+
+    for hit in scene.mesh_hits:
+        color = "#06b6d4" if hit.contributes_to_center_ray_visibility else "#94a3b8"
+        figure.add_trace(
+            go.Scatter3d(
+                x=(hit.point_m[0], hit.normal_end_m[0]),
+                y=(hit.point_m[1], hit.normal_end_m[1]),
+                z=(hit.point_m[2], hit.normal_end_m[2]),
+                mode="lines+markers",
+                line={"color": color, "width": 5},
+                marker={"color": color, "size": (7, 3), "symbol": "cross"},
+                hovertemplate=(
+                    f"<b>{hit.target_id} STL closest hit</b><br>"
+                    f"triangle: {hit.triangle_index}<br>"
+                    f"distance: {hit.distance_m:.6g} m<br>"
+                    f"face: {hit.face}<br>"
+                    f"visibility: {hit.visibility_status}<br>"
+                    "geometric normal from triangle winding; footprint/power not evaluated"
+                    "<extra></extra>"
+                ),
+                name=(
+                    "STL closest hit + normal (geometry-only)"
+                    if hit.contributes_to_center_ray_visibility
+                    else "STL occluded hit + normal (geometry-only)"
+                ),
+                legendgroup="stl_target_hit",
+                showlegend=True,
+            )
+        )
+
     guides_by_type: dict[str, list[Any]] = {}
     for guide in scene.guides:
         if guide.enabled and guide.guide_type in guide_types:
@@ -297,10 +356,24 @@ def build_interactive_viewport_figure(
         start = ray.start_m
         end = ray.end_m
         is_return = ray.propagation_role == "return"
-        color = "#0ea5e9" if is_return else "#f59e0b" if ray.status == "target_hit" else "#ef4444"
-        trace_name = "Reciprocal return (geometry-only)" if is_return else "Beam path"
-        legend_group = "return_path" if is_return else "beam_path"
-        power_text = "not evaluated (R1 geometry-only)" if ray.power_w is None else f"{ray.power_w:.6g} W"
+        is_stl_hit = ray.status == "stl_target_hit_geometry_only"
+        color = "#0ea5e9" if is_return else "#f59e0b" if ray.status == "target_hit" or is_stl_hit else "#ef4444"
+        trace_name = (
+            "Reciprocal return (geometry-only)"
+            if is_return
+            else "STL center ray (geometry-only)"
+            if is_stl_hit
+            else "Beam path"
+        )
+        legend_group = "return_path" if is_return else "stl_hit_ray" if is_stl_hit else "beam_path"
+        legend_role = "stl_hit" if is_stl_hit else ray.propagation_role
+        power_text = (
+            "not evaluated (R1 geometry-only)"
+            if ray.power_w is None and is_return
+            else "not evaluated (M1 geometry-only)"
+            if ray.power_w is None
+            else f"{ray.power_w:.6g} W"
+        )
         figure.add_trace(
             go.Scatter3d(
                 x=(start[0], end[0]),
@@ -318,10 +391,10 @@ def build_interactive_viewport_figure(
                 ),
                 name=trace_name,
                 legendgroup=legend_group,
-                showlegend=ray.propagation_role not in shown_ray_roles,
+                showlegend=legend_role not in shown_ray_roles,
             )
         )
-        shown_ray_roles.add(ray.propagation_role)
+        shown_ray_roles.add(legend_role)
 
     for footprint in scene.footprints:
         points = _footprint_coordinates(footprint)

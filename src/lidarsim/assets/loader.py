@@ -12,7 +12,12 @@ import numpy as np
 import yaml
 
 from lidarsim.assets.measurement import MeasurementRecord, load_measurement
-from lidarsim.assets.stl import MeshAudit, inspect_stl
+from lidarsim.assets.stl import (
+    MeshAudit,
+    MeshGeometry,
+    inspect_mesh_geometry,
+    load_stl_geometry,
+)
 from lidarsim.catalog.loader import Catalog
 from lidarsim.config.immutable import deep_freeze, deep_thaw
 from lidarsim.config.schema import SchemaStore
@@ -30,6 +35,7 @@ class StlAsset:
     mesh_path: Path
     data: Mapping[str, Any]
     T_parent_from_mesh: RigidTransform
+    geometry: MeshGeometry
     audit: MeshAudit
     warnings: tuple[Diagnostic, ...]
 
@@ -230,7 +236,11 @@ def load_stl_asset(
     mesh_path = (path.parent / str(resolved["mesh"]["file"])).resolve()
     if diagnostics:
         raise ConfigValidationError(diagnostics)
-    audit = inspect_stl(mesh_path, unit_scale_m=float(resolved["mesh"]["unit_scale_m"]))
+    geometry = load_stl_geometry(mesh_path)
+    audit = inspect_mesh_geometry(
+        geometry,
+        unit_scale_m=float(resolved["mesh"]["unit_scale_m"]),
+    )
 
     if resolved["mesh"].get("binary_preferred", False) and audit.encoding != "binary":
         warnings.append(
@@ -324,6 +334,7 @@ def load_stl_asset(
         mesh_path=mesh_path,
         data=deep_freeze(resolved),
         T_parent_from_mesh=transform,
+        geometry=geometry,
         audit=audit,
         warnings=tuple(warnings),
     )

@@ -17,7 +17,13 @@ from lidarsim.receiver import (
     evaluate_project_reciprocal_return,
 )
 from lidarsim.results.accuracy import assess_readiness
-from lidarsim.scene import TargetFootprint, evaluate_target_footprints
+from lidarsim.scene import (
+    StlTargetIntersection,
+    TargetFootprint,
+    evaluate_stl_target_intersections,
+    evaluate_target_footprints,
+    resolve_mixed_target_visibility,
+)
 
 
 Q_PARAMETER_TOLERANCE = 1e-12
@@ -32,6 +38,7 @@ class Phase2OpticalTrainReport:
     model: dict[str, Any]
     optical_train: dict[str, Any]
     target_footprints: tuple[dict[str, Any], ...]
+    stl_intersections: tuple[dict[str, Any], ...]
     scene_energy_ledger: dict[str, Any]
     receiver_return: dict[str, Any]
     reciprocal_return: dict[str, Any]
@@ -39,7 +46,7 @@ class Phase2OpticalTrainReport:
 
     def to_dict(self) -> dict[str, Any]:
         return {
-            "schema_version": 2,
+            "schema_version": 3,
             "report_type": "phase2_optical_train",
             "manifest": deep_thaw(self.manifest),
             "summary": deep_thaw(self.summary),
@@ -47,6 +54,7 @@ class Phase2OpticalTrainReport:
             "model": deep_thaw(self.model),
             "optical_train": deep_thaw(self.optical_train),
             "target_footprints": deep_thaw(self.target_footprints),
+            "stl_intersections": deep_thaw(self.stl_intersections),
             "scene_energy_ledger": deep_thaw(self.scene_energy_ledger),
             "receiver_return": deep_thaw(self.receiver_return),
             "reciprocal_return": deep_thaw(self.reciprocal_return),
@@ -198,24 +206,90 @@ def _target_footprint_check(footprints: tuple[TargetFootprint, ...]) -> dict[str
     }
 
 
+def _stl_closest_hit_check(
+    intersections: tuple[StlTargetIntersection, ...],
+) -> dict[str, Any]:
+    evaluated = [item for item in intersections if item.intersection is not None]
+    hits = [item for item in intersections if item.hit]
+    visible = [
+        item for item in intersections if item.contributes_to_center_ray_visibility
+    ]
+    if len(visible) > 1:
+        status = "fail"
+    elif not intersections:
+        status = "not_evaluated"
+    elif len(evaluated) != len(intersections):
+        status = "warning"
+    else:
+        status = "pass"
+    return {
+        "target_count": len(intersections),
+        "evaluated_count": len(evaluated),
+        "hit_count": len(hits),
+        "visible_hit_count": len(visible),
+        "visible_target_id": visible[0].target_id if visible else None,
+        "status": status,
+        "message": (
+            "STL sidecar scale/placement를 적용한 CPU float64 center-ray nearest "
+            "positive triangle hit와 explicit miss를 검사합니다."
+        ),
+    }
+
+
+def _visible_center_ray_target(
+    footprints: tuple[TargetFootprint, ...],
+    stl_intersections: tuple[StlTargetIntersection, ...],
+) -> tuple[str | None, str | None]:
+    for footprint in footprints:
+        if footprint.contributes_to_scene_energy:
+            return footprint.target_id, "rectangle_plane"
+    for intersection in stl_intersections:
+        if intersection.contributes_to_center_ray_visibility:
+            return intersection.target_id, "stl_asset"
+    return None, None
+
+
 def _scene_energy_ledger(
     final_power_w: float,
     footprints: tuple[TargetFootprint, ...],
+    stl_intersections: tuple[StlTargetIntersection, ...],
 ) -> dict[str, Any]:
     entries = [
         {
             "target_id": footprint.target_id,
+            "geometry_type": "rectangle_plane",
             "hit": footprint.hit,
             "visibility_status": footprint.visibility_status,
+            "power_status": "evaluated",
             "candidate_power_on_target_w": (
                 footprint.candidate_estimated_power_on_target_w
             ),
             "contributing_power_on_target_w": footprint.estimated_power_on_target_w,
             "contributes_to_scene_energy": footprint.contributes_to_scene_energy,
+            "contributes_to_center_ray_visibility": (
+                footprint.contributes_to_scene_energy
+            ),
             "occluded_by_target_id": footprint.occluded_by_target_id,
         }
         for footprint in footprints
     ]
+    entries.extend(
+        {
+            "target_id": item.target_id,
+            "geometry_type": "stl_asset",
+            "hit": item.hit,
+            "visibility_status": item.visibility_status,
+            "power_status": "not_evaluated",
+            "candidate_power_on_target_w": None,
+            "contributing_power_on_target_w": None,
+            "contributes_to_scene_energy": False,
+            "contributes_to_center_ray_visibility": (
+                item.contributes_to_center_ray_visibility
+            ),
+            "occluded_by_target_id": item.occluded_by_target_id,
+        }
+        for item in stl_intersections
+    )
     total = sum(
         footprint.estimated_power_on_target_w
         for footprint in footprints
@@ -223,19 +297,36 @@ def _scene_energy_ledger(
     )
     oversubscription = max(total - float(final_power_w), 0.0)
     tolerance = max(ENERGY_LEDGER_TOLERANCE_W, abs(float(final_power_w)) * 1.0e-12)
+    visible_target_id, visible_geometry_type = _visible_center_ray_target(
+        footprints,
+        stl_intersections,
+    )
+    partial = visible_geometry_type == "stl_asset" and float(final_power_w) > tolerance
     return {
         "policy": "nearest_positive_center_ray_hit_is_opaque_visible_target",
         "input_beam_power_w": float(final_power_w),
         "entries": entries,
+        "visible_target_id": visible_target_id,
+        "visible_geometry_type": visible_geometry_type,
+        "power_accounting_status": (
+            "partial_not_evaluated" if partial else "complete"
+        ),
         "total_contributing_power_on_target_w": total,
         "unintercepted_or_unmodeled_power_w": max(float(final_power_w) - total, 0.0),
         "oversubscription_residual_w": oversubscription,
         "tolerance_w": tolerance,
-        "status": "pass" if oversubscription <= tolerance else "fail",
+        "status": (
+            "fail"
+            if oversubscription > tolerance
+            else "warning"
+            if partial
+            else "pass"
+        ),
         "assumptions": [
-            "모든 rectangle-plane 후보 교차는 report에 보존합니다.",
+            "모든 rectangle-plane 후보와 STL closest-hit 결과는 report에 보존합니다.",
             "현재 단일 center ray visibility에서는 가장 가까운 positive hit 하나를 opaque visible target으로 선택합니다.",
             "더 먼 hit의 후보 footprint geometry는 보존하지만 target/receiver scene energy는 0으로 둡니다.",
+            "Visible STL target의 full footprint power는 M1에서 not_evaluated이므로 scene power accounting은 partial입니다.",
             "Beam footprint 일부가 서로 다른 target에 나뉘는 면적 visibility 적분은 아직 계산하지 않습니다.",
         ],
     }
@@ -341,6 +432,7 @@ def _accuracy(
     project: Any,
     result: OpticalTrainResult,
     footprints: tuple[TargetFootprint, ...],
+    stl_intersections: tuple[StlTargetIntersection, ...],
     returns: tuple[ReceiverReturn, ...],
     reciprocal_return: ProjectReciprocalReturn,
 ) -> dict[str, Any]:
@@ -350,6 +442,12 @@ def _accuracy(
     warnings.extend(result.warnings)
     for footprint in footprints:
         warnings.extend(footprint.warnings)
+    for intersection in stl_intersections:
+        warnings.extend(intersection.warnings)
+        if intersection.hit:
+            warnings.append(
+                f"STL target {intersection.target_id!r} center-ray hit는 계산했지만 full footprint와 radiometry는 not_evaluated입니다."
+            )
     for receiver_return in returns:
         warnings.extend(receiver_return.warnings)
     warnings.extend(reciprocal_return.warnings)
@@ -370,20 +468,21 @@ def _accuracy(
         "calibration_status": readiness.calibration_status,
         "calibration_evidence": readiness.calibration_evidence,
         "scope": (
-            "source_to_static_mirror_rectangle_target_lambertian_virtual_aperture_"
-            "and_reciprocal_center_ray_geometry"
+            "source_to_static_mirror_rectangle_or_stl_center_ray_target_"
+            "lambertian_virtual_aperture_and_reciprocal_center_ray_geometry"
         ),
         "assumptions": [
             "Source부터 collimator까지는 scalar paraxial Gaussian q-parameter로 계산합니다.",
             "Collimator는 catalog의 ideal_thin_lens, clear aperture와 power_transmission만 사용합니다.",
             "Scanner mirror는 catalog base pose에 static command angle을 적용하고 catalog reflectivity를 사용합니다.",
             "Rectangle-plane target footprint는 projected Gaussian first-order model로 계산합니다.",
+            "STL target는 sidecar world placement가 적용된 CPU float64 closest-hit와 geometric normal만 계산합니다.",
             "Target roll은 geometry.width_axis로 고정하고 material surface sidedness를 intersection과 radiometry에 동일하게 적용합니다.",
             "Mirror aperture와 target footprint 적분은 base/refined Gauss-Legendre 수렴 잔차를 보고합니다.",
             "Receiver return은 Lambertian small-footprint analytical virtual-aperture approximation입니다.",
             "Reciprocal return은 nearest-visible target에서 same mirror/collimator/fiber plane까지의 geometry-only R1입니다.",
             "Aperture clipping 뒤 profile shape, diffraction과 edge scattering은 계산하지 않고 power loss만 반영합니다.",
-            "Scanner time dynamics, STL hit detection, BRDF/BSDF, detector noise와 coherent FMCW는 계산하지 않습니다.",
+            "Scanner time dynamics, STL full footprint/radiometry, BRDF/BSDF, detector noise와 coherent FMCW는 계산하지 않습니다.",
         ],
         "warnings": warnings,
     }
@@ -407,6 +506,19 @@ def build_phase2_optical_train_report(
             else str(train.termination["reason"])
         ),
     )
+    stl_intersections = evaluate_stl_target_intersections(
+        project,
+        train.final_state.state,
+        blocked_reason=(
+            None
+            if train.termination is None
+            else str(train.termination["reason"])
+        ),
+    )
+    footprints, stl_intersections = resolve_mixed_target_visibility(
+        footprints,
+        stl_intersections,
+    )
     receiver_returns = _virtual_aperture_regression_returns(project, footprints)
     reciprocal_return = evaluate_project_reciprocal_return(
         project,
@@ -418,13 +530,19 @@ def build_phase2_optical_train_report(
     energy_check = _energy_check(train)
     aperture_check = _aperture_check(train)
     target_check = _target_footprint_check(footprints)
-    scene_ledger = _scene_energy_ledger(train.final_state.state.power_w, footprints)
+    stl_check = _stl_closest_hit_check(stl_intersections)
+    scene_ledger = _scene_energy_ledger(
+        train.final_state.state.power_w,
+        footprints,
+        stl_intersections,
+    )
     receiver_check = _receiver_return_check(receiver_returns)
     reciprocal_check = _reciprocal_return_check(reciprocal_return)
     accuracy = _accuracy(
         project,
         train,
         footprints,
+        stl_intersections,
         receiver_returns,
         reciprocal_return,
     )
@@ -442,6 +560,7 @@ def build_phase2_optical_train_report(
         receiver_check["status"],
         scene_ledger["status"],
         reciprocal_check["status"],
+        stl_check["status"],
     ]
     overall_status = (
         "fail"
@@ -456,6 +575,10 @@ def build_phase2_optical_train_report(
         else "pass"
     )
     receiver_section = _receiver_return_section(receiver_returns)
+    visible_target_id, visible_geometry_type = _visible_center_ray_target(
+        footprints,
+        stl_intersections,
+    )
 
     return Phase2OpticalTrainReport(
         manifest={
@@ -480,7 +603,11 @@ def build_phase2_optical_train_report(
             "total_loss_db": total_loss_db,
             "processed_component_count": len(train.component_reports),
             "unsupported_element_count": len(train.unsupported_elements),
-            "target_hit_count": target_check["hit_count"],
+            "target_hit_count": target_check["hit_count"] + stl_check["hit_count"],
+            "rectangle_target_hit_count": target_check["hit_count"],
+            "stl_target_hit_count": stl_check["hit_count"],
+            "visible_target_id": visible_target_id,
+            "visible_geometry_type": visible_geometry_type,
             "estimated_power_on_target_w": target_check[
                 "total_estimated_power_on_target_w"
             ],
@@ -491,6 +618,7 @@ def build_phase2_optical_train_report(
             "energy_ledger_status": energy_check["status"],
             "aperture_status": aperture_check["status"],
             "target_footprint_status": target_check["status"],
+            "stl_closest_hit_status": stl_check["status"],
             "receiver_return_status": receiver_check["status"],
             "reciprocal_return_status": reciprocal_check["status"],
         },
@@ -500,14 +628,14 @@ def build_phase2_optical_train_report(
             "radius_definition": "1/e^2 irradiance radius",
             "validity": (
                 "Paraxial scalar Gaussian, ideal thin lens with deterministic off-axis chief ray, projected apertures, "
-                "static flat mirror reflection, rectangle-plane footprint and Lambertian virtual-aperture return"
+                "static flat mirror reflection, rectangle-plane footprint, CPU STL center-ray closest-hit and Lambertian virtual-aperture return"
             ),
             "limitations": [
                 "No aberration, diffraction, coating spectral curve, polarization or ghost reflection.",
                 "Deterministic placement decenter/tilt is geometric/paraxial only; no aberration model or stochastic tolerance ensemble yet.",
                 "This Phase 2 report applies one static scanner command angle; use the ideal scanner-path report for forward-line samples.",
                 "No scanner motor lag, jitter, bidirectional return stroke or calibration table yet.",
-                "No STL mesh hit detection, visibility, occlusion or BVH yet.",
+                "STL center-ray closest-hit is implemented; no STL full footprint clipping, area visibility, occlusion graph or BVH yet.",
                 "No non-Lambertian BRDF/BSDF, roughness, speckle or coherent FMCW yet.",
                 "R1 reciprocal target-to-scanner-to-collimator-to-fiber center-ray geometry is implemented; return spatial power integration is not.",
                 "estimated_received_power_w and power_at_virtual_aperture_w are analytical virtual-aperture values, not fiber-coupled power.",
@@ -518,6 +646,7 @@ def build_phase2_optical_train_report(
         },
         optical_train=train.to_dict(),
         target_footprints=tuple(footprint.to_dict() for footprint in footprints),
+        stl_intersections=tuple(item.to_dict() for item in stl_intersections),
         scene_energy_ledger=scene_ledger,
         receiver_return=receiver_section,
         reciprocal_return=reciprocal_return.to_dict(),
@@ -527,6 +656,7 @@ def build_phase2_optical_train_report(
             "energy_ledger": energy_check,
             "aperture_fraction": aperture_check,
             "target_footprint": target_check,
+            "stl_closest_hit": stl_check,
             "scene_energy_ledger": {
                 "status": scene_ledger["status"],
                 "message": (

@@ -20,8 +20,11 @@
 - UI variant scenario/project/provenance와 result bundle을 rollback 단위로 묶었다. Validation, simulation 또는 render 실패 시 기존 성공 파일을 복원하며, 강제 render 실패 test가 byte snapshot과 result marker 보존을 검증한다. Baseline/parent/variant provenance를 분리해 반복 저장 ID·description 누적을 막았다.
 - Projected Gaussian footprint는 metric eigensystem의 major/minor local·world unit axis를 보고하고 `cross(major, minor)=target_normal`을 유지한다. Phase 2/ViewportScene strict schema, Plotly와 Matplotlib이 같은 축을 사용한다.
 - Phase 2.4-R1 Gate를 완료했다. Baseline receiver는 `reciprocal_single_mode_fiber` architecture와 명시적인 target/scanner/collimator/fiber reference를 사용한다. Nearest-visible target hit에서 동일 scanner mirror로 돌아온 center ray를 실제 plane에서 재반사하고, collimator receive plane의 실제 hit offset에 역방향 paraxial ideal thin-lens law를 적용해 source fiber reference plane까지 추적한다. Mirror·collimator aperture miss, parallel/behind 교차는 후속 plane으로 재중심화하지 않고 명시적으로 종료한다.
-- Phase 2 report schema는 reciprocal 계약 추가에 따라 `schema_version: 2`다. Strict `reciprocal_return` section은 각 plane hit, local/aperture residual, 위치·각도 closure와 `power_status/fiber_coupling_status/detector_status: not_evaluated`를 구분한다. 기존 `estimated_received_power_w`는 명시적인 `power_at_virtual_aperture_w` regression intermediate와 같은 값이며 R1 경로의 파워가 아니다.
+- Phase 4.1-M1 Gate를 완료했다. Binary/ASCII STL triangle을 immutable NumPy float64 geometry로 보존하고 sidecar의 명시적 unit scale과 world placement를 적용한 뒤, CPU Möller–Trumbore reference가 center ray의 nearest positive hit, barycentric coordinate, winding 기반 geometric normal, distance, triangle ID와 front/back face를 계산한다. Degenerate triangle은 hit 후보에서 제외하며 parallel/behind/self-hit/no-hit를 구분한다.
+- Scene target는 안정적인 `geometry.asset_ref`로 asset registry의 `asset_id`를 참조하는 방식을 권장한다. Legacy `metadata_file`은 project-root-relative 경로이며 registry의 정확히 한 sidecar와 일치할 때만 허용한다. Target role, sidecar/scenario material 일치와 `placement.parent_frame: world`를 semantic validation에서 확인한다.
+- Phase 2 report schema는 M1 계약 추가에 따라 `schema_version: 3`이다. Strict `stl_intersections`는 mesh summary, hit/miss, visibility, `footprint_status/radiometry_status: not_evaluated`를 분리한다. Strict `reciprocal_return`은 각 plane hit, local/aperture residual, 위치·각도 closure와 R1의 `power_status/fiber_coupling_status/detector_status: not_evaluated`를 계속 구분한다. 기존 `estimated_received_power_w`는 명시적인 `power_at_virtual_aperture_w` regression intermediate와 같은 값이며 R1 경로의 파워가 아니다.
 - `ViewportScene`과 Plotly/Matplotlib renderer는 R1 return ray를 `propagation_role: return`으로 송신 ray와 구분하고 target→mirror→collimator→fiber의 실제 hit segment와 residual guide를 표시한다. Geometry-only segment의 `power_w`는 `null`이며 종료된 경로는 실제 termination point까지만 표시한다.
+- `ViewportScene`은 M1 mesh/mesh-hit 계약 추가에 따라 `schema_version: 2`다. Plotly와 Matplotlib은 sidecar world transform이 적용된 STL mesh, 실제 closest-hit marker와 geometric-normal segment를 표시한다. 큰 mesh의 display decimation은 deterministic하며 보고된 hit triangle을 보존한다. STL miss에는 가짜 hit ray나 footprint를 만들지 않는다.
 - 프로젝트의 중심 범위는 catalog 기반 또는 사용자 정의 광학 부품의 3D 배치, 포인트·라인·면적 빔, collimator 광학계, 사용자 정의 scanner, target interaction과 receiver return 분석이다.
 - Draft v0.2에는 model fidelity contract, commercial component catalog, optical/CAD import, coordinate frame, rigid transform, optical port, placement constraint, structured result, visualization과 tolerance analysis가 포함된다.
 - Phase 0~5의 임시 초기값은 `docs/specs/INITIAL_BASELINE.md`에 정리되어 있으며 모든 값은 configuration으로 교체할 수 있다.
@@ -68,7 +71,7 @@
 - UI 편집값이 3D에 반영되지 않은 것처럼 보이던 UX를 수정했다. Inspector 상단에 `변경값 반영 · 시뮬레이션` action과 pending/applied 상태를 표시하고, active config hash가 바뀌면 cached `UiSimulationRun`을 자동 갱신한다.
 - UI에서 같은 Scenario ID를 반복 적용할 때 기존 `configs/ui_runs` 작업 variant 때문에 실패하던 문제를 수정했다. 작업 variant 덮어쓰기는 기본으로 켜져 있고 기존 파일이 있으면 보존 방법을 안내하며, baseline config는 계속 수정하지 않는다.
 - 3D UI에 기본 `광학 헤드 확대`, `전체 광로`, `선택 부품 확대` view range를 추가했다. 10 m target 때문에 겹치던 source·collimator·scanner mirror를 근거리 동일 축척, component label과 확대 marker로 확인할 수 있다. Scanner static angle은 실제 기계각으로 명시하고 rotation-axis X/Y/Z는 고급 단위벡터 설정으로 분리했으며 non-unit 입력은 저장 시 명시적으로 정규화한다.
-- UI-S와 reciprocal R1 검수 이슈는 2026-07-26에 닫았다. 현재 핵심 미구현은 CPU STL closest-hit, R2 return ledger, R3 fiber coupling과 R4 detector boundary다.
+- UI-S, reciprocal R1과 CPU STL closest-hit M1 검수 이슈는 2026-07-26에 닫았다. 현재 핵심 미구현은 R2 return ledger, R3 fiber coupling과 R4 detector boundary다. STL full Gaussian footprint/radiometry, BVH, footprint-area occlusion, multi-bounce와 coherent scatterer map도 후속 범위다.
 - `configs/ui_runs/baseline_1550nm_ui_variant*.yaml` 두 파일은 사용자 생성 미추적 작업물이므로 보존한다. 현재 `[10, 10, 0]` scanner rotation axis는 10 degree가 아니라 정규화 후 X-Y 대각 방향축이므로 사용자 의도를 확인하기 전에는 자동 교정하거나 커밋하지 않는다.
 
 ## 유지할 결정 사항
@@ -87,9 +90,14 @@
 
 ## 가장 좋은 다음 작업
 
-추천 1순위는 `Phase 4.1-M1` CPU STL closest-hit를 active scene/report와 viewport에 통합하고 평면 2-triangle STL과 `rectangle_plane`의 hit point·normal·distance parity Gate를 닫는 것이다. 그 다음 rectangle-plane analytical baseline을 유지하면서 R2 return optical power ledger를 연결한다.
+추천 1순위는 `Phase 2.4-R2`에서 rectangle-plane analytical baseline을 유지하면서 target radiance→same scanner mirror→collimator receive plane의 return optical power ledger를 연결하는 것이다. M1의 STL hit는 geometry/normal과 center-ray nearest visibility만 제공하므로 R2에서 STL footprint 또는 radiometry가 완료됐다고 확장 해석하지 않는다.
 
 ## 검증 기록
+
+- 2026-07-26 Phase 4.1-M1 checkpoint: immutable float64 STL triangle geometry, sidecar unit/world placement, CPU nearest positive center-ray hit, one-sided backface 정책, rectangle/STL mixed nearest visibility, strict Phase 2 report schema v3와 `ViewportScene` v2, Plotly/Matplotlib mesh·hit overlay를 구현했다.
+- M1 focused suite: `tests/test_stl_mesh.py`, `tests/test_stl_project.py`, `tests/test_ui_stl_viewport.py`의 analytical parity, hit/miss/semantic gate, schema/CLI와 두 renderer 검증을 통과했다.
+- M1 통합 후 전체 suite `python -m pytest -q`: 통과, `280 passed`.
+- M1 통합 후 strict warning suite `python -W error::DeprecationWarning -W error::UserWarning -m pytest -q`: 통과, `280 passed`.
 
 - 2026-07-26 Phase 2.4-R1 checkpoint: `reciprocal_single_mode_fiber` config/schema, bidirectional source/collimator port, nearest-visible target→same mirror→collimator receive plane→fiber reference plane center ray, actual aperture termination, reverse ideal thin-lens chief ray와 closure residual을 구현했다.
 - R1 report/viewport checkpoint는 strict Phase 2/ViewportScene schema, `propagation_role: return`, nullable geometry-only power와 residual guide를 포함한다. Baseline closure는 `pass`, 최대 위치 residual은 약 `1.78e-17 m`, 최대 각도 residual은 `0 rad`다.
@@ -204,7 +212,7 @@
 - `python -W error::DeprecationWarning -W error::UserWarning -m pytest -q`: 91개 통과.
 - `lidarsim validate configs/project.yaml`: 통과. 현재 output warning은 scanner time dynamics가 아직 없는 `scan_path`만 남는다.
 - `lidarsim optical-train configs/project.yaml`: 통과. Final plane은 `scan_mirror.reflected`, target hit count `1`, target power `0.00999997341 W`, receiver power `2.49999335e-09 W`, link loss `66.02059991327963 dB`, q/energy/aperture/target/receiver check `pass`, unsupported downstream element `0`.
-- 현재 Phase 2 한계: deterministic placement offset/tilt는 실제 hit와 paraxial chief ray에 반영하지만 aperture 뒤 diffraction/truncated profile shape, mirror edge scattering, polarization, Fresnel/coating/dispersion, aberration, stochastic tolerance ensemble, vendor black-box execution, STL hit detection, footprint-area visibility/occlusion, non-Lambertian BRDF/BSDF, detector noise, coherent FMCW와 time-dependent scanner motion은 아직 계산하지 않는다.
+- 현재 Phase 2/R1/M1 한계: deterministic placement offset/tilt는 실제 hit와 paraxial chief ray에 반영하고 STL center-ray closest hit는 계산하지만 aperture 뒤 diffraction/truncated profile shape, mirror edge scattering, polarization, Fresnel/coating/dispersion, aberration, stochastic tolerance ensemble, vendor black-box execution, STL full footprint/radiometry·BVH·footprint-area visibility/occlusion, non-Lambertian BRDF/BSDF, detector noise, coherent FMCW와 time-dependent scanner motion은 아직 계산하지 않는다.
 - `docs/UI_SIMULATION_DASHBOARD.md`를 추가해 UI 최종 목표를 단순 dashboard가 아닌 SolidWorks-like Optical Assembly Workspace로 정리했다. 진행 규칙은 얇은 workspace UI 골격을 먼저 만들고, 이후 물리 기능을 하나씩 추가할 때마다 UI에 연결하는 방식이다.
 - 문서 전용 변경이므로 자동 test는 실행하지 않았고 `git diff --check`로 형식만 확인한다.
 - UI MVP 0 첫 vertical slice에서 `src/lidarsim/ui/assembly/viewport_data.py`, `src/lidarsim/visualization/workspace.py`, `lidarsim workspace` CLI, viewport scene YAML 저장, 2패널 workspace PNG renderer와 UI workspace test를 추가했다.

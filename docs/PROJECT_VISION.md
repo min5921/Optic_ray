@@ -907,7 +907,7 @@ Phase 2-S0 신뢰도·계약 안정화
 
 `UI-S`는 `Phase 2-S0/S1`과 병행할 수 있지만, 각 단계의 완료 선언과 checkpoint는 위 Gate 순서를 따른다. 상세 문제 ID, 영향과 완료 조건은 [`specs/IMPLEMENTATION_AUDIT_2026-07-15.md`](specs/IMPLEMENTATION_AUDIT_2026-07-15.md)에 기록한다. Phase 2.2 target footprint와 Phase 2.3 virtual-aperture return은 Phase 4·5 기능을 앞당겨 검증한 vertical slice이며 Phase 4·5 전체 완료를 뜻하지 않는다.
 
-2026-07-26 Phase 2-S0, Phase 2-S1, UI-S와 Phase 2.4-R1 Gate를 완료했다. Calibration evidence, zero-power, 방향 벡터, nearest-visible target energy, strict schema, actual-hit/no-teleport geometry, scanner pivot·target sidedness·quadrature, project-wide draft/rollback에 이어 명시적인 reciprocal receiver contract, reverse mirror/collimator/fiber reference-plane 교차, 역방향 ideal thin-lens와 closure residual을 regression test로 검증했다. Viewport는 geometry-only return ray와 residual을 별도 role로 표시한다. 다음 활성 단계는 `Phase 4.1-M1` CPU STL target closest-hit다.
+2026-07-26 Phase 2-S0, Phase 2-S1, UI-S, Phase 2.4-R1과 Phase 4.1-M1 Gate를 완료했다. Calibration evidence, zero-power, 방향 벡터, nearest-visible target energy, strict schema, actual-hit/no-teleport geometry, scanner pivot·target sidedness·quadrature, project-wide draft/rollback, reciprocal receiver center-ray와 closure residual에 이어 sidecar unit/world placement를 적용한 CPU/float64 STL nearest positive hit를 regression test로 검증했다. Strict Phase 2 report schema v3와 `ViewportScene` v2는 geometry-only STL hit와 mesh overlay를 파워/footprint 결과와 명시적으로 분리한다. 다음 활성 단계는 `Phase 2.4-R2` return optical power ledger다.
 
 ### Phase 0 — Contract, Configuration, Coordinate와 Viewer Skeleton
 
@@ -953,7 +953,7 @@ Phase 1 완료 상태 (2026-07-04): 불변 `BeamState`, 오른손 local beam fra
 
 완료 조건: 상용 또는 custom collimator와 mirror를 배치한 transmitter train이 config에서 재현되고 element별 BeamState와 loss가 표시된다.
 
-Phase 2/R1 vertical slice 상태 (2026-07-26): `src/lidarsim/optics/`에 paraxial `ABCDMatrix`, free-space와 ideal thin-lens q-parameter transform, 실제 ray-plane interaction, projected circular/rectangular aperture clipping, static flat-mirror reflection과 transmitter train propagation을 구현했다. Phase 2.2/2.3 확장으로 `rectangle_plane` target 중심 ray hit, projected Gaussian footprint, target power, Lambertian small-footprint virtual-aperture power와 link budget을 analytical reference로 계산한다. Collimator·mirror offset/tilt는 실제 plane hit와 aperture local coordinate에 반영되고 center ray miss는 0 W terminated path가 된다. Scanner surface frame은 catalog pivot 기준으로 회전한다. Target roll은 `geometry.width_axis`, front/back 정책은 material `optical.surface_sidedness`로 고정하며 two-sided radiometric normal을 return cosine까지 일관되게 사용한다. Mirror aperture와 target footprint 적분은 base/refined order, relative residual과 tolerance를 보고하며 refined power를 ledger에 사용한다. Phase 2.4-R1은 nearest-visible configured target hit에서 동일 scanner mirror로 향하는 center ray를 생성해 실제 mirror·collimator receive plane·source fiber reference plane을 순서대로 교차하고, reverse-oriented paraxial ideal thin-lens chief-ray와 transmit path 대비 위치·각도 closure residual을 strict report에 기록한다. Plane/aperture miss는 실제 지점에서 종료하며 viewport가 같은 return segment와 residual을 표시한다. 이 R1 경로는 geometry-only다. 기존 virtual aperture 파워는 별도 regression intermediate이며 return spatial power, fiber mode overlap, duplexer/detector 전달, truncated-aperture diffraction, aberration, stochastic tolerance ensemble, commercial vendor black-box execution, STL hit detection, footprint-area occlusion, non-Lambertian BRDF/BSDF, detector noise와 coherent FMCW는 아직 계산하지 않는다. 이 report는 한 개의 static pose만 계산하고 ideal time sample은 Phase 3 `scanner-path`에서 생성한다. x/y waist 위치가 분리되는 astigmatic post-lens beam은 현재 `BeamState` contract로 정확히 표현할 수 없으므로 silent approximation 대신 명시적으로 거부한다.
+Phase 2/R1/M1 vertical slice 상태 (2026-07-26): `src/lidarsim/optics/`에 paraxial `ABCDMatrix`, free-space와 ideal thin-lens q-parameter transform, 실제 ray-plane interaction, projected circular/rectangular aperture clipping, static flat-mirror reflection과 transmitter train propagation을 구현했다. Phase 2.2/2.3 확장으로 `rectangle_plane` target 중심 ray hit, projected Gaussian footprint, target power, Lambertian small-footprint virtual-aperture power와 link budget을 analytical reference로 계산한다. Collimator·mirror offset/tilt는 실제 plane hit와 aperture local coordinate에 반영되고 center ray miss는 0 W terminated path가 된다. Scanner surface frame은 catalog pivot 기준으로 회전한다. Target roll은 `geometry.width_axis`, front/back 정책은 material `optical.surface_sidedness`로 고정하며 two-sided radiometric normal을 return cosine까지 일관되게 사용한다. Mirror aperture와 target footprint 적분은 base/refined order, relative residual과 tolerance를 보고하며 refined power를 ledger에 사용한다. Phase 2.4-R1은 nearest-visible configured target hit에서 동일 scanner mirror로 향하는 center ray를 생성해 실제 mirror·collimator receive plane·source fiber reference plane을 순서대로 교차하고, reverse-oriented paraxial ideal thin-lens chief-ray와 transmit path 대비 위치·각도 closure residual을 strict report에 기록한다. Plane/aperture miss는 실제 지점에서 종료하며 viewport가 같은 return segment와 residual을 표시한다. Phase 4.1-M1은 Binary/ASCII STL triangle을 immutable float64로 보존하고 sidecar unit/world placement를 적용해 center ray의 nearest positive triangle hit, geometric normal, distance, triangle ID와 front/back face를 계산한다. Rectangle과 STL target가 섞이면 center-ray distance로 하나의 nearest-visible target을 선택하며 Plotly/Matplotlib viewport가 실제 world mesh와 hit marker를 표시한다. R1과 M1 결과는 geometry-only다. 기존 virtual aperture 파워는 별도 regression intermediate이며 return spatial power, fiber mode overlap, duplexer/detector 전달, STL full footprint/radiometry·BVH·footprint-area occlusion, truncated-aperture diffraction, aberration, stochastic tolerance ensemble, commercial vendor black-box execution, non-Lambertian BRDF/BSDF, detector noise와 coherent FMCW는 아직 계산하지 않는다. 이 report는 한 개의 static pose만 계산하고 ideal time sample은 Phase 3 `scanner-path`에서 생성한다. x/y waist 위치가 분리되는 astigmatic post-lens beam은 현재 `BeamState` contract로 정확히 표현할 수 없으므로 silent approximation 대신 명시적으로 거부한다.
 
 #### Phase 2-S — R1 착수 전 안정화 Gate
 
@@ -988,7 +988,7 @@ Phase 3 reference slice 상태 (2026-07-10): `scanner.static_command_angle_rad`�
 - point/line footprint projection
 - irradiance integration
 
-Phase 4.1-M1의 첫 STL 범위는 CPU/float64 center-ray nearest-hit로 제한한다. Binary·ASCII STL triangle, sidecar unit/placement, 최근접 양의 hit point, geometric normal, distance와 triangle ID를 보고하고 viewport에 mesh와 hit marker를 표시한다. 평면 2-triangle STL은 기존 `rectangle_plane`과 hit point·normal·distance가 tolerance 안에서 일치해야 한다. BVH, full occlusion graph, multi-bounce와 STL triangle별 optical scatterer 생성은 이후 범위다.
+Phase 4.1-M1의 첫 STL 범위는 2026-07-26 완료했다. Binary·ASCII STL triangle을 immutable NumPy float64로 보존하고 sidecar unit/world placement를 적용한 CPU Möller–Trumbore center-ray nearest positive hit를 구현했다. Strict report는 hit point, barycentric coordinate, winding 기반 geometric normal, distance, triangle ID, front/back face와 miss 사유를 기록한다. 평면 2-triangle STL과 기존 `rectangle_plane`의 hit point·normal·distance parity, one-sided backface, mixed rectangle/STL nearest visibility, CLI/schema round-trip을 검증했다. Strict `ViewportScene` v2와 Plotly/Matplotlib은 world mesh, 실제 hit marker와 normal을 표시한다. BVH, full footprint-area occlusion, multi-bounce, STL full Gaussian footprint/radiometry와 STL triangle별 optical scatterer 생성은 이후 범위다.
 
 완료 조건: target에 도달한 power가 clipping/transmission을 제외하면 송신 power와 일관되고 입사각에 따른 footprint 변화가 검증된다.
 
@@ -1001,7 +1001,7 @@ Phase 4.1-M1의 첫 STL 범위는 CPU/float64 center-ray nearest-hit로 제한�
 - optional independent receiver aperture/FOV/receive optics
 - material/path contribution report
 
-세부 구현은 [`specs/RECIPROCAL_FIBER_RETURN.md`](specs/RECIPROCAL_FIBER_RETURN.md)를 따른다. R1 center-ray geometry는 완료했다. 다음 Phase 4.1-M1 STL closest-hit를 추가한 뒤, rectangle-plane analytical baseline을 유지하면서 R2 return ledger, R3 fiber coupling과 R4 duplexer/detector boundary를 순서대로 구현한다. STL closest-hit만으로 mesh 전체 footprint·BRDF 적분이 완료됐다고 주장하지 않는다.
+세부 구현은 [`specs/RECIPROCAL_FIBER_RETURN.md`](specs/RECIPROCAL_FIBER_RETURN.md)를 따른다. R1 center-ray geometry와 Phase 4.1-M1 STL closest-hit를 완료했다. 다음은 rectangle-plane analytical baseline을 유지하면서 R2 return ledger, R3 fiber coupling과 R4 duplexer/detector boundary를 순서대로 구현한다. STL closest-hit만으로 mesh 전체 footprint·BRDF 적분이 완료됐다고 주장하지 않는다.
 
 완료 조건: 거리, aperture, angle, reflectivity, 정렬과 component/config 변화에 물리적으로 일관된 fiber-coupled power가 나오며 각 intermediate plane의 power ledger가 보존된다.
 
@@ -1147,9 +1147,10 @@ Tolerance 대상:
 - [x] virtual monostatic 25 mm aperture를 analytical regression용 intermediate로 구현
 - [x] 첫 return 결과는 virtual-aperture optical power와 해당 plane까지의 link budget
 - [x] 목표 수신 architecture를 shared scanner/collimator의 reciprocal single-mode fiber path로 확정
-- [ ] calibration evidence gate, zero-power 계약과 실제 ray-plane/port 교차 안정화
-- [ ] target→same scanner→same collimator의 reverse center-ray와 aperture ledger
-- [ ] CPU STL target closest-hit와 2-triangle plane parity 검증
+- [x] calibration evidence gate, zero-power 계약과 실제 ray-plane/port 교차 안정화
+- [x] target→same scanner→same collimator의 reverse center-ray geometry
+- [ ] return mirror·collimator aperture power ledger
+- [x] CPU STL target closest-hit와 2-triangle plane parity 검증
 - [ ] single-mode fiber mode overlap과 coupled power
 - [ ] circulator/coupler와 detector input plane
 - [x] Matplotlib 검증 plot과 Plotly interactive 3D layout 우선
@@ -1163,7 +1164,7 @@ Tolerance 대상:
 - [x] STL의 unit/role/material/placement/pivot는 `.stl.yaml` sidecar로 보완
 - [x] multi-material/moving part는 separate STL로 export
 - [x] lens STL은 visualization/mechanical geometry로만 사용
-- [ ] STL triangle nearest-hit, surface normal과 viewport mesh/hit marker
+- [x] STL triangle nearest-hit, surface normal과 viewport mesh/hit marker
 - [ ] STL footprint clipping, visibility/occlusion와 material surface integration
 
 ### 실제 장비가 정해지면 교체할 항목
@@ -1197,7 +1198,7 @@ editable baseline config and component references
 → beam envelope, round-trip path, footprint, fiber-coupled power and link budget
 ```
 
-현재 virtual aperture result는 위 경로의 파워 모델을 구현하기 위한 회귀 기준으로 유지한다. [`specs/IMPLEMENTATION_AUDIT_2026-07-15.md`](specs/IMPLEMENTATION_AUDIT_2026-07-15.md)의 안정화 Gate와 왕복 center-ray geometry는 완료했다. 다음 CPU STL closest-hit를 추가하고, return power ledger, fiber mode coupling과 duplexer/detector boundary가 analytical result와 일치하면 sequential prescription, vendor file import, STEP assembly, complex BSDF, coherent FMCW와 GPU 순서로 확장한다.
+현재 virtual aperture result는 위 경로의 파워 모델을 구현하기 위한 회귀 기준으로 유지한다. [`specs/IMPLEMENTATION_AUDIT_2026-07-15.md`](specs/IMPLEMENTATION_AUDIT_2026-07-15.md)의 안정화 Gate, 왕복 center-ray geometry와 CPU STL closest-hit parity는 완료했다. 다음 return power ledger, fiber mode coupling과 duplexer/detector boundary가 analytical result와 일치하면 sequential prescription, vendor file import, STEP assembly, complex BSDF, coherent FMCW와 GPU 순서로 확장한다.
 
 ## 22. 참고 자료
 

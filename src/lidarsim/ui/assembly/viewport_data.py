@@ -19,11 +19,17 @@ from lidarsim.geometry import AssemblyPlacement, resolve_assembly
 from lidarsim.geometry.transform import normalize_vector
 from lidarsim.results import Phase2OpticalTrainReport, build_phase2_optical_train_report
 from lidarsim.scene.footprint import FOOTPRINT_AXIS_CONVENTION
+from lidarsim.scene.mesh import TriangleMesh, world_triangle_mesh_from_asset
+from lidarsim.scene.mesh_targets import resolve_project_stl_asset
 from lidarsim.scene.targets import rectangle_plane_axes
 
 
 Vec3 = tuple[float, float, float]
 Mat3 = tuple[tuple[float, float, float], tuple[float, float, float], tuple[float, float, float]]
+Triangle3 = tuple[Vec3, Vec3, Vec3]
+
+
+MAX_VIEWPORT_MESH_TRIANGLES = 2_000
 
 
 def _vec3(value: Any, *, name: str) -> Vec3:
@@ -284,6 +290,146 @@ class FootprintOverlay:
 
 
 @dataclass(frozen=True, slots=True)
+class ViewportMesh:
+    """렌더링 전용 STL triangle subset.
+
+    ``triangles_world_m``은 simulation mesh의 복사된 표시 snapshot이다. 원본
+    ``TriangleMesh``의 triangle 수와 index를 함께 기록해 decimation을 숨기지 않는다.
+    """
+
+    target_id: str
+    asset_id: str
+    material_ref: str
+    triangles_world_m: tuple[Triangle3, ...]
+    source_triangle_count: int
+    display_triangle_indices: tuple[int, ...]
+    display_triangle_limit: int
+    display_selection: str
+    geometry_semantics: str = "geometry_only_not_optical_scatterers"
+
+    def __post_init__(self) -> None:
+        triangles = np.asarray(self.triangles_world_m, dtype=np.float64)
+        if triangles.ndim != 3 or triangles.shape[1:] != (3, 3) or triangles.shape[0] == 0:
+            raise ValueError("ViewportMesh triangles_world_m shape은 (N, 3, 3), N > 0이어야 합니다.")
+        if not np.all(np.isfinite(triangles)):
+            raise ValueError("ViewportMesh triangle 좌표는 모두 유한해야 합니다.")
+        indices = tuple(int(index) for index in self.display_triangle_indices)
+        if len(indices) != triangles.shape[0]:
+            raise ValueError("ViewportMesh triangle payload와 display index 수가 일치해야 합니다.")
+        if len(set(indices)) != len(indices) or tuple(sorted(indices)) != indices:
+            raise ValueError("ViewportMesh display triangle index는 중복 없이 오름차순이어야 합니다.")
+        if self.source_triangle_count <= 0:
+            raise ValueError("ViewportMesh source_triangle_count는 0보다 커야 합니다.")
+        if self.display_triangle_limit <= 0:
+            raise ValueError("ViewportMesh display_triangle_limit는 0보다 커야 합니다.")
+        if len(indices) > self.display_triangle_limit:
+            raise ValueError("ViewportMesh display triangle 수가 표시 limit를 넘었습니다.")
+        if indices[0] < 0 or indices[-1] >= self.source_triangle_count:
+            raise ValueError("ViewportMesh display triangle index가 source 범위를 벗어났습니다.")
+        if self.display_selection not in {
+            "all",
+            "deterministic_evenly_spaced_with_reported_hit_preservation",
+        }:
+            raise ValueError(f"지원하지 않는 mesh display selection입니다: {self.display_selection!r}")
+        frozen_triangles: tuple[Triangle3, ...] = tuple(
+            tuple(_vec3(vertex, name="viewport mesh vertex") for vertex in triangle)  # type: ignore[arg-type]
+            for triangle in triangles
+        )  # type: ignore[assignment]
+        object.__setattr__(self, "triangles_world_m", frozen_triangles)
+        object.__setattr__(self, "display_triangle_indices", indices)
+
+    @property
+    def display_triangle_count(self) -> int:
+        return len(self.triangles_world_m)
+
+    @property
+    def decimated(self) -> bool:
+        return self.display_triangle_count < self.source_triangle_count
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "target_id": self.target_id,
+            "asset_id": self.asset_id,
+            "material_ref": self.material_ref,
+            "triangles_world_m": [
+                [list(vertex) for vertex in triangle]
+                for triangle in self.triangles_world_m
+            ],
+            "source_triangle_count": self.source_triangle_count,
+            "display_triangle_count": self.display_triangle_count,
+            "display_triangle_indices": list(self.display_triangle_indices),
+            "display_triangle_limit": self.display_triangle_limit,
+            "display_selection": self.display_selection,
+            "decimated": self.decimated,
+            "geometry_semantics": self.geometry_semantics,
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class MeshHitOverlay:
+    """M1 closest-hit report에서 가져온 geometry-only hit marker와 법선."""
+
+    target_id: str
+    asset_id: str
+    point_m: Vec3
+    geometric_normal: Vec3
+    normal_end_m: Vec3
+    distance_m: float
+    triangle_index: int
+    front_face: bool
+    face: str
+    contributes_to_center_ray_visibility: bool
+    visibility_status: str
+    source: str = "phase4_1_m1_report"
+    geometry_only: bool = True
+    status: str = "hit"
+
+    def __post_init__(self) -> None:
+        point = _vec3(self.point_m, name="mesh hit point")
+        normal = _vec3(
+            normalize_vector(self.geometric_normal, name="mesh hit geometric normal"),
+            name="mesh hit geometric normal",
+        )
+        normal_end = _vec3(self.normal_end_m, name="mesh hit normal end")
+        if not math.isfinite(self.distance_m) or self.distance_m <= 0.0:
+            raise ValueError("Mesh hit distance_m은 0보다 큰 유한한 값이어야 합니다.")
+        if self.triangle_index < 0:
+            raise ValueError("Mesh hit triangle_index는 0 이상이어야 합니다.")
+        if self.face not in {"front", "back"}:
+            raise ValueError("Mesh hit face는 'front' 또는 'back'이어야 합니다.")
+        if (self.face == "front") != self.front_face:
+            raise ValueError("Mesh hit face와 front_face가 일치하지 않습니다.")
+        if self.status != "hit" or not self.geometry_only:
+            raise ValueError("MeshHitOverlay는 geometry-only hit만 표현합니다.")
+        normal_segment = np.asarray(normal_end) - np.asarray(point)
+        if float(np.linalg.norm(normal_segment)) <= 0.0:
+            raise ValueError("Mesh hit normal 표시 길이는 0보다 커야 합니다.")
+        if float(np.dot(normalize_vector(normal_segment, name="mesh hit normal segment"), normal)) < 1.0 - 1.0e-9:
+            raise ValueError("Mesh hit normal_end_m은 geometric_normal 방향에 있어야 합니다.")
+        object.__setattr__(self, "point_m", point)
+        object.__setattr__(self, "geometric_normal", normal)
+        object.__setattr__(self, "normal_end_m", normal_end)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "target_id": self.target_id,
+            "asset_id": self.asset_id,
+            "point_m": list(self.point_m),
+            "geometric_normal": list(self.geometric_normal),
+            "normal_end_m": list(self.normal_end_m),
+            "distance_m": self.distance_m,
+            "triangle_index": self.triangle_index,
+            "front_face": self.front_face,
+            "face": self.face,
+            "contributes_to_center_ray_visibility": self.contributes_to_center_ray_visibility,
+            "visibility_status": self.visibility_status,
+            "source": self.source,
+            "geometry_only": self.geometry_only,
+            "status": self.status,
+        }
+
+
+@dataclass(frozen=True, slots=True)
 class PlacementConstraint:
     """향후 mate/constraint editor에서 사용할 serializable placement relation."""
 
@@ -352,10 +498,12 @@ class ViewportScene:
     guides: tuple[GuideLine, ...]
     rays: tuple[RaySegment, ...]
     footprints: tuple[FootprintOverlay, ...]
+    meshes: tuple[ViewportMesh, ...]
+    mesh_hits: tuple[MeshHitOverlay, ...]
     constraints: tuple[PlacementConstraint, ...]
     placement_edits: tuple[PlacementEdit, ...]
     warnings: tuple[str, ...]
-    schema_version: int = 1
+    schema_version: int = 2
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -369,10 +517,76 @@ class ViewportScene:
             "guides": [guide.to_dict() for guide in self.guides],
             "rays": [ray.to_dict() for ray in self.rays],
             "footprints": [footprint.to_dict() for footprint in self.footprints],
+            "meshes": [mesh.to_dict() for mesh in self.meshes],
+            "mesh_hits": [hit.to_dict() for hit in self.mesh_hits],
             "constraints": [constraint.to_dict() for constraint in self.constraints],
             "placement_edits": [edit.to_dict() for edit in self.placement_edits],
             "warnings": list(self.warnings),
         }
+
+
+@dataclass(frozen=True, slots=True)
+class _ActiveStlTarget:
+    target_id: str
+    material_ref: str
+    asset: Any
+    mesh: TriangleMesh
+
+
+def _stl_intersection_records(report_data: Mapping[str, Any]) -> tuple[dict[str, Any], ...]:
+    records = report_data.get("stl_intersections", ())
+    if not isinstance(records, (list, tuple)):
+        return ()
+    return tuple(record for record in records if isinstance(record, dict))
+
+
+def _resolve_active_stl_targets(
+    project: Any,
+    report_data: Mapping[str, Any],
+) -> tuple[tuple[_ActiveStlTarget, ...], tuple[str, ...]]:
+    records_by_target = {
+        str(record.get("target_id")): record
+        for record in _stl_intersection_records(report_data)
+        if record.get("target_id") is not None
+    }
+    resolved: list[_ActiveStlTarget] = []
+    warnings: list[str] = []
+    for target in project.active_scenario["scene"]["targets"]:
+        geometry = target["geometry"]
+        if geometry["type"] != "stl_asset":
+            continue
+        target_id = str(target["id"])
+        record = records_by_target.get(target_id, {})
+        reported_asset_id = (
+            str(record["asset_id"])
+            if isinstance(record, dict) and record.get("asset_id") is not None
+            else None
+        )
+        try:
+            asset = resolve_project_stl_asset(project, geometry)
+        except ValueError as exc:
+            warnings.append(f"{target_id}: {exc}")
+            continue
+        if reported_asset_id is not None and reported_asset_id != asset.identifier:
+            warnings.append(
+                f"{target_id}: report asset_id {reported_asset_id!r}와 config asset "
+                f"{asset.identifier!r}가 일치하지 않아 viewport mesh를 표시하지 않습니다."
+            )
+            continue
+        try:
+            mesh = world_triangle_mesh_from_asset(asset)
+        except ValueError as exc:
+            warnings.append(f"{target_id}: STL viewport world transform을 만들 수 없습니다: {exc}")
+            continue
+        resolved.append(
+            _ActiveStlTarget(
+                target_id=target_id,
+                material_ref=str(target["material_ref"]),
+                asset=asset,
+                mesh=mesh,
+            )
+        )
+    return tuple(resolved), tuple(warnings)
 
 
 def _component_bounds(component: dict[str, Any]) -> tuple[Vec3, Vec3] | None:
@@ -401,7 +615,11 @@ def _target_bounds(geometry: dict[str, Any]) -> tuple[Vec3, Vec3] | None:
     return ((-half_width, -half_height, 0.0), (half_width, half_height, 0.0))
 
 
-def _make_components(project: Any, assembly: AssemblyPlacement) -> tuple[ViewportComponent, ...]:
+def _make_components(
+    project: Any,
+    assembly: AssemblyPlacement,
+    stl_targets: tuple[_ActiveStlTarget, ...],
+) -> tuple[ViewportComponent, ...]:
     components: list[ViewportComponent] = []
     for element_id, element in assembly.elements.items():
         record = project.catalog[element.component_ref].data
@@ -442,6 +660,32 @@ def _make_components(project: Any, assembly: AssemblyPlacement) -> tuple[Viewpor
                 bounds_m=_target_bounds(dict(geometry)),
                 display_role="target",
                 editable=True,
+            )
+        )
+
+    for stl_target in stl_targets:
+        transform = stl_target.asset.T_parent_from_mesh
+        material = project.catalog[stl_target.material_ref].data
+        components.append(
+            ViewportComponent(
+                element_id=stl_target.target_id,
+                component_ref=str(stl_target.asset.identifier),
+                component_type="stl_asset_target",
+                model_level=str(material.get("model_level", "unknown")),
+                origin_world_m=_vec3(
+                    transform.translation_m,
+                    name=f"{stl_target.target_id}.stl_origin",
+                ),
+                rotation_world_from_component=_matrix3(
+                    transform.rotation,
+                    name=f"{stl_target.target_id}.stl_rotation",
+                ),
+                bounds_m=(
+                    _vec3(stl_target.asset.audit.bounds_m[0], name="STL lower bounds"),
+                    _vec3(stl_target.asset.audit.bounds_m[1], name="STL upper bounds"),
+                ),
+                display_role="target",
+                editable=False,
             )
         )
 
@@ -508,10 +752,20 @@ def _guide_length(report_data: dict[str, Any]) -> float:
         dtype=np.float64,
     )
     distances = []
-    for footprint in report_data["target_footprints"]:
+    for footprint in report_data.get("target_footprints", ()):
         hit = footprint.get("hit_center_m")
         if hit is not None:
             distances.append(float(np.linalg.norm(np.asarray(hit, dtype=np.float64) - final_origin)))
+    for record in _stl_intersection_records(report_data):
+        intersection = record.get("intersection")
+        if isinstance(intersection, dict) and intersection.get("point_m") is not None:
+            distances.append(
+                float(
+                    np.linalg.norm(
+                        np.asarray(intersection["point_m"], dtype=np.float64) - final_origin
+                    )
+                )
+            )
     return max(distances, default=1.0)
 
 
@@ -632,6 +886,167 @@ def _return_path_points(path: dict[str, Any]) -> tuple[tuple[str, Vec3], ...]:
     return tuple(points)
 
 
+def _display_triangle_indices(
+    source_triangle_count: int,
+    *,
+    limit: int = MAX_VIEWPORT_MESH_TRIANGLES,
+    preserve: tuple[int, ...] = (),
+) -> tuple[int, ...]:
+    """표시용 triangle index를 결정적으로 선택하고 reported hit face를 보존한다."""
+
+    count = int(source_triangle_count)
+    resolved_limit = int(limit)
+    if count <= 0:
+        raise ValueError("source_triangle_count는 0보다 커야 합니다.")
+    if resolved_limit <= 0:
+        raise ValueError("mesh display limit는 0보다 커야 합니다.")
+    required = tuple(sorted({int(index) for index in preserve if 0 <= int(index) < count}))
+    if len(required) > resolved_limit:
+        raise ValueError("보존할 hit triangle 수가 mesh display limit보다 많습니다.")
+    if count <= resolved_limit:
+        return tuple(range(count))
+    if resolved_limit == 1:
+        return required[:1] if required else (0,)
+
+    evenly_spaced = {
+        int(round(index * (count - 1) / (resolved_limit - 1)))
+        for index in range(resolved_limit)
+    }
+    selected = evenly_spaced | set(required)
+    while len(selected) > resolved_limit:
+        removable = sorted(selected - set(required), reverse=True)
+        if not removable:
+            break
+        selected.remove(removable[0])
+    if len(selected) < resolved_limit:
+        # round()가 같은 index를 만든 경우에만 실행된다. 전체 N을 순회하지 않고
+        # 낮은 index부터 빈 slot을 채워 결과를 deterministic하게 유지한다.
+        candidate = 0
+        while len(selected) < resolved_limit:
+            selected.add(candidate)
+            candidate += 1
+    return tuple(sorted(selected))
+
+
+def _reported_hit_indices(report_data: Mapping[str, Any], target_id: str) -> tuple[int, ...]:
+    indices: list[int] = []
+    for record in _stl_intersection_records(report_data):
+        if str(record.get("target_id")) != target_id:
+            continue
+        intersection = record.get("intersection")
+        if not isinstance(intersection, dict) or not bool(intersection.get("hit", False)):
+            continue
+        index = intersection.get("triangle_index")
+        if isinstance(index, int) and not isinstance(index, bool):
+            indices.append(index)
+    return tuple(sorted(set(indices)))
+
+
+def _make_meshes(
+    stl_targets: tuple[_ActiveStlTarget, ...],
+    report_data: Mapping[str, Any],
+) -> tuple[tuple[ViewportMesh, ...], tuple[str, ...]]:
+    meshes: list[ViewportMesh] = []
+    warnings: list[str] = []
+    for target in stl_targets:
+        indices = _display_triangle_indices(
+            target.mesh.triangle_count,
+            preserve=_reported_hit_indices(report_data, target.target_id),
+        )
+        selected = target.mesh.triangle_vertices_m[np.asarray(indices, dtype=np.int64)]
+        selection = (
+            "all"
+            if len(indices) == target.mesh.triangle_count
+            else "deterministic_evenly_spaced_with_reported_hit_preservation"
+        )
+        viewport_mesh = ViewportMesh(
+            target_id=target.target_id,
+            asset_id=str(target.asset.identifier),
+            material_ref=target.material_ref,
+            triangles_world_m=tuple(
+                tuple(_vec3(vertex, name="STL display vertex") for vertex in triangle)  # type: ignore[arg-type]
+                for triangle in selected
+            ),  # type: ignore[arg-type]
+            source_triangle_count=target.mesh.triangle_count,
+            display_triangle_indices=indices,
+            display_triangle_limit=MAX_VIEWPORT_MESH_TRIANGLES,
+            display_selection=selection,
+        )
+        meshes.append(viewport_mesh)
+        if viewport_mesh.decimated:
+            warnings.append(
+                f"{target.target_id}: viewport는 STL {viewport_mesh.source_triangle_count}개 중 "
+                f"{viewport_mesh.display_triangle_count}개 triangle만 결정적으로 표시합니다. "
+                "Simulation closest-hit는 원본 전체 triangle을 사용합니다."
+            )
+    return tuple(meshes), tuple(warnings)
+
+
+def _make_mesh_hits(
+    stl_targets: tuple[_ActiveStlTarget, ...],
+    report_data: Mapping[str, Any],
+) -> tuple[tuple[MeshHitOverlay, ...], tuple[str, ...]]:
+    targets_by_id = {target.target_id: target for target in stl_targets}
+    overlays: list[MeshHitOverlay] = []
+    warnings: list[str] = []
+    for record in _stl_intersection_records(report_data):
+        target_id = str(record.get("target_id", ""))
+        target = targets_by_id.get(target_id)
+        intersection = record.get("intersection")
+        if target is None or not isinstance(intersection, dict):
+            continue
+        if not bool(intersection.get("hit", False)):
+            continue
+        required = {
+            "point_m",
+            "geometric_normal",
+            "distance_m",
+            "triangle_index",
+            "front_face",
+            "face",
+        }
+        missing = sorted(key for key in required if intersection.get(key) is None)
+        if missing:
+            warnings.append(
+                f"{target_id}: STL hit report에 viewport 필드가 없습니다: {', '.join(missing)}"
+            )
+            continue
+        triangle_index = int(intersection["triangle_index"])
+        if not 0 <= triangle_index < target.mesh.triangle_count:
+            warnings.append(
+                f"{target_id}: report triangle_index {triangle_index}가 mesh 범위를 벗어났습니다."
+            )
+            continue
+        point = np.asarray(intersection["point_m"], dtype=np.float64)
+        normal = normalize_vector(
+            intersection["geometric_normal"],
+            name=f"{target_id} STL hit normal",
+        )
+        bounds = target.mesh.bounds_m
+        normal_length = max(float(np.linalg.norm(bounds[1] - bounds[0])) * 0.08, 1.0e-6)
+        overlays.append(
+            MeshHitOverlay(
+                target_id=target_id,
+                asset_id=str(record.get("asset_id") or target.asset.identifier),
+                point_m=_vec3(point, name=f"{target_id} STL hit point"),
+                geometric_normal=_vec3(normal, name=f"{target_id} STL hit normal"),
+                normal_end_m=_vec3(
+                    point + normal_length * normal,
+                    name=f"{target_id} STL hit normal end",
+                ),
+                distance_m=float(intersection["distance_m"]),
+                triangle_index=triangle_index,
+                front_face=bool(intersection["front_face"]),
+                face=str(intersection["face"]),
+                contributes_to_center_ray_visibility=bool(
+                    record.get("contributes_to_center_ray_visibility", False)
+                ),
+                visibility_status=str(record.get("visibility_status", "candidate")),
+            )
+        )
+    return tuple(overlays), tuple(warnings)
+
+
 def _receiver_fov_directions(receiver: dict[str, Any], *, segments: int = 12) -> tuple[np.ndarray, ...]:
     look = normalize_vector(receiver["direction"], name="receiver direction")
     reference = np.array((0.0, 0.0, 1.0), dtype=np.float64)
@@ -654,11 +1069,12 @@ def _make_guides(
     project: Any,
     assembly: AssemblyPlacement,
     report_data: dict[str, Any],
+    components: tuple[ViewportComponent, ...],
 ) -> tuple[GuideLine, ...]:
     guides: list[GuideLine] = []
     length = max(_guide_length(report_data), 0.5)
     axis_length = min(max(length * 0.04, 0.05), 0.5)
-    for component in _make_components(project, assembly):
+    for component in components:
         origin = _point(component.origin_world_m)
         rotation = np.asarray(component.rotation_world_from_component, dtype=np.float64)
         for axis_index, axis_name, color in (
@@ -867,6 +1283,46 @@ def _make_rays(report_data: dict[str, Any]) -> tuple[RaySegment, ...]:
                 )
             )
 
+        rectangle_hit_targets = {
+            str(footprint["target_id"])
+            for footprint in report_data["target_footprints"]
+            if footprint.get("hit") and footprint.get("hit_center_m") is not None
+        }
+        for record in _stl_intersection_records(report_data):
+            target_id = str(record.get("target_id", ""))
+            intersection = record.get("intersection")
+            if (
+                target_id in rectangle_hit_targets
+                or not bool(record.get("contributes_to_center_ray_visibility", False))
+                or not isinstance(intersection, dict)
+                or not bool(intersection.get("hit", False))
+                or intersection.get("point_m") is None
+            ):
+                continue
+            hit = np.asarray(intersection["point_m"], dtype=np.float64)
+            delta = hit - final_origin
+            if float(np.linalg.norm(delta)) <= 1.0e-12:
+                continue
+            direction = normalize_vector(delta, name="STL target hit ray")
+            rays.append(
+                RaySegment(
+                    segment_id=f"stl_target_hit.{target_id}",
+                    start_m=_vec3(final_origin, name="STL target ray start"),
+                    end_m=_vec3(hit, name="STL target ray end"),
+                    direction=_vec3(direction, name="STL target ray direction"),
+                    optical_path_id=optical_path_id,
+                    source_element_id=str(final_state["element_id"]),
+                    target_element_id=target_id,
+                    power_w=None,
+                    radius_start_m=None,
+                    radius_end_m=None,
+                    status="stl_target_hit_geometry_only",
+                    label=f"{final_state['label']} → {target_id} STL closest hit",
+                    propagation_role="transmit",
+                    plane_power_name=None,
+                )
+            )
+
     reciprocal_section = report_data.get("reciprocal_return")
     return_path_config = (
         reciprocal_section.get("return_path", {})
@@ -985,7 +1441,20 @@ def build_viewport_scene(
     )
     phase2_report = report or build_phase2_optical_train_report(project)
     report_data = _as_report_dict(phase2_report)
+    stl_targets, stl_resolution_warnings = _resolve_active_stl_targets(project, report_data)
+    components = _make_components(project, resolved_assembly, stl_targets)
+    meshes, mesh_display_warnings = _make_meshes(stl_targets, report_data)
+    mesh_hits, mesh_hit_warnings = _make_mesh_hits(stl_targets, report_data)
     warnings_list = [str(item) for item in report_data["accuracy"].get("warnings", ())]
+    warnings_list.extend(stl_resolution_warnings)
+    warnings_list.extend(mesh_display_warnings)
+    warnings_list.extend(mesh_hit_warnings)
+    if meshes:
+        warnings_list.append(
+            "Phase 4.1-M1 STL viewport는 전체 triangle을 사용한 CPU center-ray closest-hit의 "
+            "geometry-only 결과입니다. STL footprint, radiometry, diffraction과 scatterer power는 "
+            "표시하지 않습니다."
+        )
     reciprocal_section = report_data.get("reciprocal_return")
     if isinstance(reciprocal_section, dict) and _reciprocal_path_records(report_data):
         warnings_list.append(
@@ -1001,11 +1470,13 @@ def build_viewport_scene(
         scenario_id=str(project.active_scenario["scenario_id"]),
         config_hash=str(project.config_hash),
         model_scope=str(report_data["accuracy"]["scope"]),
-        components=_make_components(project, resolved_assembly),
+        components=components,
         ports=_make_ports(resolved_assembly),
-        guides=_make_guides(project, resolved_assembly, report_data),
+        guides=_make_guides(project, resolved_assembly, report_data, components),
         rays=_make_rays(report_data),
         footprints=_make_footprints(report_data),
+        meshes=meshes,
+        mesh_hits=mesh_hits,
         constraints=(),
         placement_edits=(),
         warnings=warnings,

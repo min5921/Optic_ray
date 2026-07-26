@@ -227,7 +227,7 @@ R2~R4에서는 서로 다른 plane의 파워를 한 field에 섞지 않고 다�
 - viewport에 STL mesh와 hit marker overlay
 - STL triangle을 optical scatterer 하나로 취급하지 않음
 
-이 단계는 R1 이후, R2 전에 수행한다. BVH, full visibility/occlusion, multi-bounce, mesh footprint clipping과 coherent scatterer map은 포함하지 않는다. R2는 우선 rectangle-plane analytical baseline을 유지하고, STL은 확인된 hit-local geometry와 normal만 제공한다.
+상태: 2026-07-26 완료. Binary/ASCII STL triangle을 immutable NumPy float64로 보존하고 sidecar unit/world placement를 적용한 CPU Möller–Trumbore center-ray nearest positive hit를 구현했다. Stable `geometry.asset_ref`를 권장하며 legacy `metadata_file`은 project-root-relative registry reference로만 허용한다. Strict Phase 2 report schema v3의 `stl_intersections`와 strict `ViewportScene` v2는 hit point, geometric normal, distance, triangle ID/front-back face, mesh/hit overlay와 geometry-only `footprint_status/radiometry_status: not_evaluated`를 구분한다. 평면 2-triangle parity, one-sided backface와 mixed rectangle/STL nearest visibility를 검증했다. BVH, full footprint-area visibility/occlusion, multi-bounce, mesh footprint/radiometry와 coherent scatterer map은 포함하지 않는다. 다음 R2는 rectangle-plane analytical baseline을 유지하고, STL은 확인된 hit-local geometry와 normal만 제공한다.
 
 ### Phase 2.4-R2 — Return optical power ledger
 

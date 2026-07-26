@@ -34,6 +34,12 @@ def _scene_points(data: dict[str, Any]) -> np.ndarray:
         points.append(_as_array(ray["end_m"]))
     for footprint in data["footprints"]:
         points.append(_as_array(footprint["hit_center_m"]))
+    for mesh in data.get("meshes", ()):
+        triangles = _as_array(mesh["triangles_world_m"])
+        points.extend(triangles.reshape(-1, 3))
+    for hit in data.get("mesh_hits", ()):
+        points.append(_as_array(hit["point_m"]))
+        points.append(_as_array(hit["normal_end_m"]))
     if not points:
         return np.zeros((1, 3), dtype=np.float64)
     return np.vstack(points)
@@ -153,6 +159,46 @@ def _draw_components(ax: Any, data: dict[str, Any]) -> None:
         _draw_wire_box(ax, component, color=color)
 
 
+def _draw_meshes(ax: Any, data: dict[str, Any]) -> None:
+    for mesh in data.get("meshes", ()):
+        triangles = _as_array(mesh["triangles_world_m"])
+        collection = Poly3DCollection(
+            triangles,
+            facecolors="#d97706",
+            edgecolors="#92400e",
+            alpha=0.25,
+            linewidths=0.35,
+        )
+        collection.set_label(
+            f"{mesh['target_id']} STL mesh ({mesh['display_triangle_count']}/"
+            f"{mesh['source_triangle_count']}; geometry-only)"
+        )
+        ax.add_collection3d(collection)
+
+
+def _draw_mesh_hits(ax: Any, data: dict[str, Any]) -> None:
+    for hit in data.get("mesh_hits", ()):
+        point = _as_array(hit["point_m"])
+        normal_end = _as_array(hit["normal_end_m"])
+        color = "#06b6d4" if hit["contributes_to_center_ray_visibility"] else "#94a3b8"
+        ax.plot(
+            [point[0], normal_end[0]],
+            [point[1], normal_end[1]],
+            [point[2], normal_end[2]],
+            color=color,
+            linewidth=1.8,
+            label="STL closest hit normal (geometry-only)",
+        )
+        ax.scatter(
+            point[0],
+            point[1],
+            point[2],
+            color=color,
+            marker="x",
+            s=52,
+        )
+
+
 def _draw_guides(ax: Any, data: dict[str, Any]) -> None:
     style_by_type = {
         "component_local_frame": {"linewidth": 0.8, "alpha": 0.45, "linestyle": "-"},
@@ -189,8 +235,11 @@ def _draw_rays(ax: Any, data: dict[str, Any]) -> None:
         end = _as_array(ray["end_m"])
         role = str(ray.get("propagation_role", "transmit"))
         is_return = role == "return"
-        color = "#0ea5e9" if is_return else "#e03131" if ray["status"] == "target_hit" else "#ff6b00"
-        linewidth = 2.0 if is_return else 2.2 if ray["status"] == "target_hit" else 1.8
+        is_stl_hit = ray["status"] == "stl_target_hit_geometry_only"
+        is_target_hit = ray["status"] == "target_hit" or is_stl_hit
+        color = "#0ea5e9" if is_return else "#e03131" if is_target_hit else "#ff6b00"
+        linewidth = 2.0 if is_return else 2.2 if is_target_hit else 1.8
+        legend_role = "stl_hit" if is_stl_hit else role
         ax.plot(
             [start[0], end[0]],
             [start[1], end[1]],
@@ -202,12 +251,14 @@ def _draw_rays(ax: Any, data: dict[str, Any]) -> None:
             label=(
                 "Reciprocal return (geometry-only)"
                 if is_return and role not in shown_roles
+                else "STL center ray (geometry-only)"
+                if is_stl_hit and legend_role not in shown_roles
                 else "Transmit beam path"
                 if not is_return and role not in shown_roles
                 else None
             ),
         )
-        shown_roles.add(role)
+        shown_roles.add(legend_role)
 
 
 def _footprint_polygon(footprint: dict[str, Any], *, samples: int = 96) -> np.ndarray:
@@ -268,10 +319,12 @@ def render_viewport_scene(
     full_points = _scene_points(data)
     detail_points = _detail_points(data)
     for ax in (full_ax, detail_ax):
+        _draw_meshes(ax, data)
         _draw_components(ax, data)
         _draw_guides(ax, data)
         _draw_rays(ax, data)
         _draw_footprints(ax, data)
+        _draw_mesh_hits(ax, data)
         ax.set_xlabel("X (m)")
         ax.set_ylabel("Y (m)")
         ax.set_zlabel("Z (m)")
@@ -285,7 +338,8 @@ def render_viewport_scene(
     detail_ax.set_title("Optical head detail")
     fig.suptitle(
         "Optical Assembly Workspace | "
-        f"{data['scenario_id']} | rays={len(data['rays'])} | footprints={len(data['footprints'])}"
+        f"{data['scenario_id']} | rays={len(data['rays'])} | "
+        f"footprints={len(data['footprints'])} | meshes={len(data.get('meshes', ()))}"
     )
     fig.tight_layout(rect=(0.0, 0.0, 1.0, 0.94))
 

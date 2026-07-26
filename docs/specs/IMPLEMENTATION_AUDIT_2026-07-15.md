@@ -121,19 +121,28 @@ python -W error::DeprecationWarning -W error::UserWarning -m pytest -q
 
 ### 3.5 Phase 4.1-M1 — CPU STL target closest-hit MVP
 
-현재 STL은 parser·unit·bounds·topology·normal·hash·sidecar metadata 검사까지만 지원한다. `stl_asset`은 target hit 계산에서 unsupported다.
-
-MVP 범위는 다음으로 제한한다.
+2026-07-26 완료했다. MVP 범위와 구현 결과는 다음과 같다.
 
 - binary/ASCII STL triangle vertex를 immutable float64 mesh data로 보존
-- sidecar placement와 unit scale을 적용해 world-space triangle 또는 acceleration input 생성
+- sidecar placement와 unit scale을 적용해 world-space triangle 생성
 - CPU center-ray/triangle intersection과 nearest positive hit 선택
 - hit point, geometric normal, triangle index, distance와 front/back face 보고
-- Plotly viewport에 STL mesh와 hit marker 표시
+- strict Phase 2 report schema v3의 `stl_intersections`와 strict `ViewportScene` v2 계약
+- Plotly/Matplotlib viewport에 STL mesh, hit marker와 geometric normal 표시
 - material은 mesh/region 단위로 연결
 - 평면을 이루는 2-triangle STL과 기존 `rectangle_plane`의 hit point·normal·distance가 tolerance 안에서 일치하는 analytical test
+- stable `geometry.asset_ref` 권장, legacy project-root-relative `metadata_file` 호환과 semantic validation
+- rectangle/STL 혼합 target 중 center-ray 기준 nearest visible hit 하나 선택
 
 이 단계에서는 BVH, GPU, mesh diffraction, edge scattering, full footprint clipping, occlusion graph와 coherent scatterer sampling을 구현하지 않는다. STL triangle은 geometry와 normal의 기준일 뿐 optical scatterer 하나로 취급하지 않는다.
+
+Gate 결과:
+
+- Binary/ASCII STL triangle을 immutable NumPy float64로 보존하고 degenerate triangle을 hit 후보에서 제외한다.
+- CPU Möller–Trumbore reference가 nearest positive hit, barycentric coordinate, winding 기반 geometric normal, distance, triangle ID와 front/back face를 보고하며 parallel/behind/self-hit/no-hit를 구분한다.
+- Sidecar `unit_scale_m`과 world placement를 실제 world triangle에 적용한다. Target role, scenario/sidecar material 일치와 `parent_frame: world`를 검증한다.
+- 2-triangle plane parity, one-sided backface, mixed rectangle/STL nearest visibility, strict report/viewport schema, CLI report와 Plotly/Matplotlib overlay를 검증했다.
+- Phase 4.1-M1 Gate 완료. 다음 활성 단계는 `Phase 2.4-R2` return optical power ledger다.
 
 ## 4. 승인된 활성 구현 순서
 
@@ -151,7 +160,7 @@ MVP 범위는 다음으로 제한한다.
 
 `UI-S`의 코드 작업은 `Phase 2-S0/S1`과 병렬로 진행할 수 있다. 그러나 Git checkpoint와 완료 선언은 위 Gate 순서를 따른다. R1 결과가 생기면 같은 patch 또는 바로 다음 UI patch에서 return `RaySegment`, aperture residual과 fiber-port alignment overlay를 추가한다.
 
-2026-07-26 현재 `Phase 2-S0`, `Phase 2-S1`, `UI-S`와 `Phase 2.4-R1`을 순서대로 완료했다. R1 return `RaySegment`, aperture/closure residual과 fiber reference-plane overlay도 함께 닫았다. 활성 Gate는 `Phase 4.1-M1`이다.
+2026-07-26 현재 `Phase 2-S0`, `Phase 2-S1`, `UI-S`, `Phase 2.4-R1`과 `Phase 4.1-M1`을 순서대로 완료했다. R1 return `RaySegment`, aperture/closure residual과 fiber reference-plane overlay, M1 CPU STL closest-hit, mixed target visibility와 mesh/hit overlay를 함께 닫았다. 활성 Gate는 `Phase 2.4-R2`다.
 
 ## 5. 현재 사용자 variant 처리
 

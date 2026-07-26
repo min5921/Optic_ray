@@ -15,7 +15,7 @@ import yaml
 from lidarsim.assets.loader import AssetRegistry, load_asset_registry
 from lidarsim.catalog.loader import Catalog, load_catalog
 from lidarsim.config.immutable import canonical_hash, deep_freeze, deep_thaw
-from lidarsim.config.paths import schema_directory_for_project
+from lidarsim.config.paths import find_project_root, schema_directory_for_project
 from lidarsim.config.physical import validate_scenario_physics
 from lidarsim.config.schema import SchemaStore
 from lidarsim.config.units import resolve_quantities
@@ -170,6 +170,33 @@ def _validate_vector(
                 hint="Provide a three-component vector with a non-zero magnitude.",
             )
         )
+
+
+def _resolve_registered_stl_asset(
+    geometry: Mapping[str, Any],
+    *,
+    source: Path,
+    assets: AssetRegistry,
+) -> Any | None:
+    """Resolve stable asset ID or the legacy project-root-relative sidecar path."""
+
+    asset_ref = geometry.get("asset_ref")
+    if asset_ref is not None:
+        return assets.meshes.get(str(asset_ref))
+    metadata_file = str(geometry.get("metadata_file", ""))
+    declared = Path(metadata_file)
+    project_root = find_project_root(source)
+    if declared.is_absolute():
+        return None
+    candidate = (project_root / declared).resolve()
+    if not candidate.is_relative_to(project_root):
+        return None
+    matches = [
+        asset
+        for asset in assets.meshes.values()
+        if asset.metadata_path.resolve() == candidate
+    ]
+    return matches[0] if len(matches) == 1 else None
 
 
 def _validate_calibration_evidence(
@@ -508,6 +535,75 @@ def _validate_scenario(
                 path=f"scene.targets[{index}].geometry.width_axis",
                 diagnostics=diagnostics,
             )
+        geometry = target["geometry"]
+        if str(geometry["type"]) == "stl_asset":
+            configured_reference = (
+                f"asset_ref={geometry['asset_ref']!r}"
+                if geometry.get("asset_ref") is not None
+                else f"metadata_file={geometry.get('metadata_file', '')!r}"
+            )
+            asset = _resolve_registered_stl_asset(
+                geometry,
+                source=source,
+                assets=assets,
+            )
+            metadata_path = f"scene.targets[{index}].geometry"
+            if asset is None:
+                diagnostics.append(
+                    Diagnostic(
+                        source=str(source),
+                        path=metadata_path,
+                        message=(
+                            "stl_asset reference가 project asset_paths에서 load된 정확히 한 "
+                            f"STL sidecar를 참조하지 않습니다: {configured_reference}"
+                        ),
+                        hint=(
+                            "안정적인 asset_ref를 권장합니다. Legacy metadata_file은 project "
+                            "root 기준 경로만 허용합니다."
+                        ),
+                    )
+                )
+                continue
+            if str(asset.data["role"]) != "target":
+                diagnostics.append(
+                    Diagnostic(
+                        source=str(source),
+                        path=metadata_path,
+                        message=(
+                            f"stl_asset scene target는 role='target' sidecar가 필요하지만 "
+                            f"{asset.identifier!r}의 role은 {asset.data['role']!r}입니다."
+                        ),
+                    )
+                )
+            parent_frame = str(asset.data["placement"]["parent_frame"])
+            if parent_frame != "world":
+                diagnostics.append(
+                    Diagnostic(
+                        source=str(source),
+                        path=metadata_path,
+                        message=(
+                            "Phase 4.1-M1 stl_asset target는 placement.parent_frame='world'만 "
+                            f"지원합니다: {parent_frame!r}"
+                        ),
+                    )
+                )
+            asset_material = asset.data.get("material")
+            asset_material_ref = (
+                None
+                if not isinstance(asset_material, Mapping)
+                else str(asset_material.get("default_material_ref", ""))
+            )
+            if asset_material_ref != material_ref:
+                diagnostics.append(
+                    Diagnostic(
+                        source=str(source),
+                        path=f"scene.targets[{index}].material_ref",
+                        message=(
+                            f"Scenario material_ref {material_ref!r}가 STL sidecar default "
+                            f"material {asset_material_ref!r}와 일치하지 않습니다."
+                        ),
+                    )
+                )
 
     _validate_vector(
         scenario["receiver"]["direction"],

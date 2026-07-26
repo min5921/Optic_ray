@@ -13,13 +13,14 @@
     "model",
     "optical_train",
     "target_footprints",
+    "stl_intersections",
     "scene_energy_ledger",
     "receiver_return",
     "reciprocal_return",
     "analytical_checks"
   ],
   "properties": {
-    "schema_version": { "const": 2 },
+    "schema_version": { "const": 3 },
     "report_type": { "const": "phase2_optical_train" },
     "manifest": { "$ref": "#/$defs/manifest" },
     "summary": { "$ref": "#/$defs/summary" },
@@ -29,6 +30,10 @@
     "target_footprints": {
       "type": "array",
       "items": { "$ref": "#/$defs/targetFootprint" }
+    },
+    "stl_intersections": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/stlTargetIntersection" }
     },
     "scene_energy_ledger": { "$ref": "#/$defs/sceneEnergyLedger" },
     "receiver_return": { "$ref": "#/$defs/receiverReturnSection" },
@@ -94,6 +99,10 @@
         "processed_component_count",
         "unsupported_element_count",
         "target_hit_count",
+        "rectangle_target_hit_count",
+        "stl_target_hit_count",
+        "visible_target_id",
+        "visible_geometry_type",
         "estimated_power_on_target_w",
         "estimated_received_power_w",
         "power_at_virtual_aperture_w",
@@ -102,6 +111,7 @@
         "energy_ledger_status",
         "aperture_status",
         "target_footprint_status",
+        "stl_closest_hit_status",
         "receiver_return_status",
         "reciprocal_return_status"
       ],
@@ -119,6 +129,13 @@
         "processed_component_count": { "type": "integer", "minimum": 0 },
         "unsupported_element_count": { "type": "integer", "minimum": 0 },
         "target_hit_count": { "type": "integer", "minimum": 0 },
+        "rectangle_target_hit_count": { "type": "integer", "minimum": 0 },
+        "stl_target_hit_count": { "type": "integer", "minimum": 0 },
+        "visible_target_id": { "type": ["string", "null"] },
+        "visible_geometry_type": {
+          "type": ["string", "null"],
+          "enum": ["rectangle_plane", "stl_asset", null]
+        },
         "estimated_power_on_target_w": { "type": "number", "minimum": 0.0 },
         "estimated_received_power_w": { "type": "number", "minimum": 0.0 },
         "power_at_virtual_aperture_w": { "type": "number", "minimum": 0.0 },
@@ -127,6 +144,7 @@
         "energy_ledger_status": { "enum": ["pass", "fail"] },
         "aperture_status": { "enum": ["pass", "fail"] },
         "target_footprint_status": { "enum": ["pass", "warning", "fail"] },
+        "stl_closest_hit_status": { "enum": ["pass", "warning", "fail", "not_evaluated"] },
         "receiver_return_status": { "enum": ["pass", "warning", "fail"] },
         "reciprocal_return_status": { "enum": ["pass", "warning", "fail", "terminated", "not_evaluated"] }
       }
@@ -166,7 +184,7 @@
           ]
         },
         "scope": {
-          "const": "source_to_static_mirror_rectangle_target_lambertian_virtual_aperture_and_reciprocal_center_ray_geometry"
+          "const": "source_to_static_mirror_rectangle_or_stl_center_ray_target_lambertian_virtual_aperture_and_reciprocal_center_ray_geometry"
         },
         "assumptions": { "$ref": "#/$defs/stringArray" },
         "warnings": { "$ref": "#/$defs/stringArray" }
@@ -1006,28 +1024,191 @@
         "warnings": { "$ref": "#/$defs/stringArray" }
       }
     },
+    "meshSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "asset_id",
+        "source_path",
+        "triangle_count",
+        "degenerate_triangle_count",
+        "bounds_m",
+        "normal_source",
+        "triangle_semantics"
+      ],
+      "properties": {
+        "asset_id": { "$ref": "common.schema.json#/$defs/identifier" },
+        "source_path": { "type": "string", "minLength": 1 },
+        "triangle_count": { "type": "integer", "minimum": 1 },
+        "degenerate_triangle_count": { "type": "integer", "minimum": 0 },
+        "bounds_m": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 2,
+          "items": { "$ref": "#/$defs/vec3" }
+        },
+        "normal_source": { "const": "triangle_vertex_winding" },
+        "triangle_semantics": { "const": "geometry_only_not_optical_scatterers" }
+      }
+    },
+    "rayMeshIntersection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "hit",
+        "status",
+        "miss_reason",
+        "ray_origin_m",
+        "ray_direction",
+        "distance_m",
+        "point_m",
+        "triangle_index",
+        "barycentric",
+        "barycentric_convention",
+        "geometric_normal",
+        "geometric_normal_source",
+        "front_face",
+        "face",
+        "face_convention",
+        "tested_triangle_count",
+        "valid_triangle_count",
+        "parallel_epsilon",
+        "barycentric_epsilon",
+        "minimum_distance_m",
+        "assumptions"
+      ],
+      "properties": {
+        "hit": { "type": "boolean" },
+        "status": {
+          "enum": ["hit", "parallel", "behind", "self_hit_filtered", "no_hit"]
+        },
+        "miss_reason": { "type": ["string", "null"] },
+        "ray_origin_m": { "$ref": "#/$defs/vec3" },
+        "ray_direction": { "$ref": "#/$defs/vec3" },
+        "distance_m": { "type": ["number", "null"], "exclusiveMinimum": 0.0 },
+        "point_m": {
+          "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/vec3" }]
+        },
+        "triangle_index": { "type": ["integer", "null"], "minimum": 0 },
+        "barycentric": {
+          "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/vec3" }]
+        },
+        "barycentric_convention": { "const": "weights_for_vertices_v0_v1_v2" },
+        "geometric_normal": {
+          "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/vec3" }]
+        },
+        "geometric_normal_source": { "const": "triangle_vertex_winding" },
+        "front_face": { "type": ["boolean", "null"] },
+        "face": { "type": ["string", "null"], "enum": ["front", "back", null] },
+        "face_convention": { "const": "front_when_dot_ray_direction_geometric_normal_is_negative" },
+        "tested_triangle_count": { "type": "integer", "minimum": 1 },
+        "valid_triangle_count": { "type": "integer", "minimum": 0 },
+        "parallel_epsilon": { "type": "number", "exclusiveMinimum": 0.0 },
+        "barycentric_epsilon": { "type": "number", "minimum": 0.0 },
+        "minimum_distance_m": { "type": "number", "minimum": 0.0 },
+        "assumptions": { "$ref": "#/$defs/stringArray" }
+      }
+    },
+    "stlTargetIntersection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "target_id",
+        "material_ref",
+        "asset_material_ref",
+        "geometry_type",
+        "metadata_file",
+        "asset_id",
+        "mesh",
+        "hit",
+        "status",
+        "miss_reason",
+        "surface_sidedness",
+        "intersection",
+        "visibility_status",
+        "contributes_to_center_ray_visibility",
+        "occluded_by_target_id",
+        "footprint_status",
+        "radiometry_status",
+        "assumptions",
+        "warnings"
+      ],
+      "properties": {
+        "target_id": { "$ref": "common.schema.json#/$defs/identifier" },
+        "material_ref": { "$ref": "common.schema.json#/$defs/identifier" },
+        "asset_material_ref": { "$ref": "common.schema.json#/$defs/identifier" },
+        "geometry_type": { "const": "stl_asset" },
+        "metadata_file": { "type": "string", "minLength": 1 },
+        "asset_id": { "$ref": "common.schema.json#/$defs/identifier" },
+        "mesh": { "$ref": "#/$defs/meshSummary" },
+        "hit": { "type": "boolean" },
+        "status": {
+          "enum": [
+            "hit",
+            "parallel",
+            "behind",
+            "self_hit_filtered",
+            "no_hit",
+            "backface_culled",
+            "not_evaluated"
+          ]
+        },
+        "miss_reason": { "type": ["string", "null"] },
+        "surface_sidedness": { "enum": ["one_sided", "two_sided"] },
+        "intersection": {
+          "oneOf": [
+            { "type": "null" },
+            { "$ref": "#/$defs/rayMeshIntersection" }
+          ]
+        },
+        "visibility_status": {
+          "enum": [
+            "visible_nearest",
+            "occluded_by_nearer_target",
+            "candidate_unresolved",
+            "miss",
+            "not_evaluated"
+          ]
+        },
+        "contributes_to_center_ray_visibility": { "type": "boolean" },
+        "occluded_by_target_id": { "type": ["string", "null"] },
+        "footprint_status": { "const": "not_evaluated" },
+        "radiometry_status": { "const": "not_evaluated" },
+        "assumptions": { "$ref": "#/$defs/stringArray" },
+        "warnings": { "$ref": "#/$defs/stringArray" }
+      }
+    },
     "sceneEnergyEntry": {
       "type": "object",
       "additionalProperties": false,
       "required": [
         "target_id",
+        "geometry_type",
         "hit",
         "visibility_status",
+        "power_status",
         "candidate_power_on_target_w",
         "contributing_power_on_target_w",
         "contributes_to_scene_energy",
+        "contributes_to_center_ray_visibility",
         "occluded_by_target_id"
       ],
       "properties": {
         "target_id": { "type": "string" },
+        "geometry_type": { "enum": ["rectangle_plane", "stl_asset"] },
         "hit": { "type": "boolean" },
         "visibility_status": { "type": "string" },
-        "candidate_power_on_target_w": { "type": "number", "minimum": 0.0 },
+        "power_status": { "enum": ["evaluated", "not_evaluated"] },
+        "candidate_power_on_target_w": {
+          "type": ["number", "null"],
+          "minimum": 0.0
+        },
         "contributing_power_on_target_w": {
-          "type": "number",
+          "type": ["number", "null"],
           "minimum": 0.0
         },
         "contributes_to_scene_energy": { "type": "boolean" },
+        "contributes_to_center_ray_visibility": { "type": "boolean" },
         "occluded_by_target_id": { "type": ["string", "null"] }
       }
     },
@@ -1038,6 +1219,9 @@
         "policy",
         "input_beam_power_w",
         "entries",
+        "visible_target_id",
+        "visible_geometry_type",
+        "power_accounting_status",
         "total_contributing_power_on_target_w",
         "unintercepted_or_unmodeled_power_w",
         "oversubscription_residual_w",
@@ -1054,6 +1238,14 @@
           "type": "array",
           "items": { "$ref": "#/$defs/sceneEnergyEntry" }
         },
+        "visible_target_id": { "type": ["string", "null"] },
+        "visible_geometry_type": {
+          "type": ["string", "null"],
+          "enum": ["rectangle_plane", "stl_asset", null]
+        },
+        "power_accounting_status": {
+          "enum": ["complete", "partial_not_evaluated"]
+        },
         "total_contributing_power_on_target_w": {
           "type": "number",
           "minimum": 0.0
@@ -1067,7 +1259,7 @@
           "minimum": 0.0
         },
         "tolerance_w": { "type": "number", "exclusiveMinimum": 0.0 },
-        "status": { "enum": ["pass", "fail"] },
+        "status": { "enum": ["pass", "warning", "fail"] },
         "assumptions": { "$ref": "#/$defs/stringArray" }
       }
     },
@@ -1425,7 +1617,7 @@
         },
         "max_relative_error": { "type": "number", "minimum": 0.0 },
         "tolerance": { "type": "number", "exclusiveMinimum": 0.0 },
-        "status": { "enum": ["pass", "fail"] },
+        "status": { "enum": ["pass", "warning", "fail"] },
         "message": { "type": "string" }
       }
     },
@@ -1553,7 +1745,7 @@
         "tolerance_w"
       ],
       "properties": {
-        "status": { "enum": ["pass", "fail"] },
+        "status": { "enum": ["pass", "warning", "fail"] },
         "message": { "type": "string" },
         "oversubscription_residual_w": {
           "type": "number",
@@ -1582,6 +1774,28 @@
         "message": { "type": "string" }
       }
     },
+    "stlClosestHitCheck": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "target_count",
+        "evaluated_count",
+        "hit_count",
+        "visible_hit_count",
+        "visible_target_id",
+        "status",
+        "message"
+      ],
+      "properties": {
+        "target_count": { "type": "integer", "minimum": 0 },
+        "evaluated_count": { "type": "integer", "minimum": 0 },
+        "hit_count": { "type": "integer", "minimum": 0 },
+        "visible_hit_count": { "type": "integer", "minimum": 0 },
+        "visible_target_id": { "type": ["string", "null"] },
+        "status": { "enum": ["pass", "warning", "fail", "not_evaluated"] },
+        "message": { "type": "string" }
+      }
+    },
     "analyticalChecks": {
       "type": "object",
       "additionalProperties": false,
@@ -1591,6 +1805,7 @@
         "energy_ledger",
         "aperture_fraction",
         "target_footprint",
+        "stl_closest_hit",
         "scene_energy_ledger",
         "receiver_return",
         "reciprocal_return",
@@ -1602,6 +1817,7 @@
         "energy_ledger": { "$ref": "#/$defs/trainEnergyCheck" },
         "aperture_fraction": { "$ref": "#/$defs/apertureCheck" },
         "target_footprint": { "$ref": "#/$defs/targetCheck" },
+        "stl_closest_hit": { "$ref": "#/$defs/stlClosestHitCheck" },
         "scene_energy_ledger": { "$ref": "#/$defs/sceneEnergyCheck" },
         "receiver_return": { "$ref": "#/$defs/receiverCheck" },
         "reciprocal_return": { "$ref": "#/$defs/reciprocalReturnCheck" },

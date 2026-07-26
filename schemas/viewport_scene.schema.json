@@ -15,12 +15,14 @@
     "guides",
     "rays",
     "footprints",
+    "meshes",
+    "mesh_hits",
     "constraints",
     "placement_edits",
     "warnings"
   ],
   "properties": {
-    "schema_version": { "const": 1 },
+    "schema_version": { "const": 2 },
     "project_id": { "$ref": "common.schema.json#/$defs/identifier" },
     "scenario_id": { "$ref": "common.schema.json#/$defs/identifier" },
     "config_hash": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
@@ -44,6 +46,14 @@
     "footprints": {
       "type": "array",
       "items": { "$ref": "#/$defs/footprintOverlay" }
+    },
+    "meshes": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/viewportMesh" }
+    },
+    "mesh_hits": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/meshHitOverlay" }
     },
     "constraints": {
       "type": "array",
@@ -258,6 +268,91 @@
         "power_on_target_w": { "type": "number", "minimum": 0.0 },
         "clipped_by_target_bounds": { "type": "boolean" },
         "status": { "type": "string", "minLength": 1 }
+      }
+    },
+    "viewportMesh": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "target_id",
+        "asset_id",
+        "material_ref",
+        "triangles_world_m",
+        "source_triangle_count",
+        "display_triangle_count",
+        "display_triangle_indices",
+        "display_triangle_limit",
+        "display_selection",
+        "decimated",
+        "geometry_semantics"
+      ],
+      "properties": {
+        "target_id": { "type": "string", "minLength": 1 },
+        "asset_id": { "type": "string", "minLength": 1 },
+        "material_ref": { "type": "string", "minLength": 1 },
+        "triangles_world_m": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "array",
+            "minItems": 3,
+            "maxItems": 3,
+            "items": { "$ref": "#/$defs/vec3" }
+          }
+        },
+        "source_triangle_count": { "type": "integer", "minimum": 1 },
+        "display_triangle_count": { "type": "integer", "minimum": 1 },
+        "display_triangle_indices": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "type": "integer", "minimum": 0 }
+        },
+        "display_triangle_limit": { "type": "integer", "minimum": 1 },
+        "display_selection": {
+          "enum": [
+            "all",
+            "deterministic_evenly_spaced_with_reported_hit_preservation"
+          ]
+        },
+        "decimated": { "type": "boolean" },
+        "geometry_semantics": { "const": "geometry_only_not_optical_scatterers" }
+      }
+    },
+    "meshHitOverlay": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "target_id",
+        "asset_id",
+        "point_m",
+        "geometric_normal",
+        "normal_end_m",
+        "distance_m",
+        "triangle_index",
+        "front_face",
+        "face",
+        "contributes_to_center_ray_visibility",
+        "visibility_status",
+        "source",
+        "geometry_only",
+        "status"
+      ],
+      "properties": {
+        "target_id": { "type": "string", "minLength": 1 },
+        "asset_id": { "type": "string", "minLength": 1 },
+        "point_m": { "$ref": "#/$defs/vec3" },
+        "geometric_normal": { "$ref": "#/$defs/vec3" },
+        "normal_end_m": { "$ref": "#/$defs/vec3" },
+        "distance_m": { "type": "number", "exclusiveMinimum": 0.0 },
+        "triangle_index": { "type": "integer", "minimum": 0 },
+        "front_face": { "type": "boolean" },
+        "face": { "enum": ["front", "back"] },
+        "contributes_to_center_ray_visibility": { "type": "boolean" },
+        "visibility_status": { "type": "string", "minLength": 1 },
+        "source": { "const": "phase4_1_m1_report" },
+        "geometry_only": { "const": true },
+        "status": { "const": "hit" }
       }
     },
     "placementConstraint": {

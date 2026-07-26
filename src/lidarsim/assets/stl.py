@@ -17,6 +17,85 @@ from lidarsim.errors import ConfigFileError
 FloatArray = NDArray[np.float64]
 
 
+@dataclass(frozen=True, slots=True, eq=False)
+class MeshGeometry:
+    """STL에서 읽은 immutable triangle geometry.
+
+    ``triangle_vertices``와 ``supplied_normals``는 STL mesh frame의 원본 단위를
+    유지한다. ``geometric_normals``는 facet normal을 신뢰하지 않고 vertex winding으로
+    계산한 unit normal이며, degenerate triangle에는 zero vector가 들어간다.
+    """
+
+    path: Path
+    encoding: str
+    triangle_vertices: FloatArray
+    supplied_normals: FloatArray
+    geometric_normals: FloatArray
+    valid_triangle_mask: NDArray[np.bool_]
+    content_sha256: str
+
+    def __post_init__(self) -> None:
+        vertices = np.array(self.triangle_vertices, dtype=np.float64, copy=True)
+        if vertices.ndim != 3 or vertices.shape[1:] != (3, 3) or vertices.shape[0] == 0:
+            raise ValueError("triangle_vertices shape은 (N, 3, 3), N > 0이어야 합니다.")
+        if not np.all(np.isfinite(vertices)):
+            raise ValueError("triangle_vertices에는 유한한 숫자만 사용할 수 있습니다.")
+        triangle_count = vertices.shape[0]
+
+        supplied = np.array(self.supplied_normals, dtype=np.float64, copy=True)
+        geometric = np.array(self.geometric_normals, dtype=np.float64, copy=True)
+        valid = np.array(self.valid_triangle_mask, dtype=np.bool_, copy=True)
+        if supplied.shape != (triangle_count, 3):
+            raise ValueError("supplied_normals shape은 (N, 3)이어야 합니다.")
+        if geometric.shape != (triangle_count, 3):
+            raise ValueError("geometric_normals shape은 (N, 3)이어야 합니다.")
+        if valid.shape != (triangle_count,):
+            raise ValueError("valid_triangle_mask shape은 (N,)이어야 합니다.")
+        if not np.all(np.isfinite(supplied)) or not np.all(np.isfinite(geometric)):
+            raise ValueError("STL normal에는 유한한 숫자만 사용할 수 있습니다.")
+        if np.any(valid):
+            valid_norms = np.linalg.norm(geometric[valid], axis=1)
+            if not np.allclose(valid_norms, 1.0, rtol=0.0, atol=1e-12):
+                raise ValueError("유효한 geometric_normals는 unit vector여야 합니다.")
+        if np.any(~valid) and not np.allclose(
+            geometric[~valid], 0.0, rtol=0.0, atol=0.0
+        ):
+            raise ValueError("Degenerate triangle의 geometric normal은 zero vector여야 합니다.")
+        if self.encoding not in {"ascii", "binary"}:
+            raise ValueError("encoding은 'ascii' 또는 'binary'여야 합니다.")
+        if len(self.content_sha256) != 64:
+            raise ValueError("content_sha256은 64자리 SHA-256 hex digest여야 합니다.")
+
+        for array in (vertices, supplied, geometric, valid):
+            array.setflags(write=False)
+        object.__setattr__(self, "path", Path(self.path).resolve())
+        object.__setattr__(self, "triangle_vertices", vertices)
+        object.__setattr__(self, "supplied_normals", supplied)
+        object.__setattr__(self, "geometric_normals", geometric)
+        object.__setattr__(self, "valid_triangle_mask", valid)
+
+    @property
+    def triangle_count(self) -> int:
+        return int(self.triangle_vertices.shape[0])
+
+    @property
+    def degenerate_triangle_count(self) -> int:
+        return int(np.count_nonzero(~self.valid_triangle_mask))
+
+    def to_dict(self) -> dict[str, Any]:
+        """큰 vertex payload를 제외한 geometry contract 요약을 반환한다."""
+
+        return {
+            "path": str(self.path),
+            "encoding": self.encoding,
+            "triangle_count": self.triangle_count,
+            "degenerate_triangle_count": self.degenerate_triangle_count,
+            "vertex_dtype": str(self.triangle_vertices.dtype),
+            "geometric_normal_source": "triangle_vertex_winding",
+            "content_sha256": self.content_sha256,
+        }
+
+
 @dataclass(frozen=True, slots=True)
 class MeshAudit:
     """STL geometry에서 계산한 immutable audit 결과."""
@@ -146,13 +225,7 @@ def _topology_counts(vertices: FloatArray) -> tuple[int, int, int]:
 
 
 def _geometry_counts(normals: FloatArray, vertices: FloatArray) -> tuple[int, int]:
-    edge_a = vertices[:, 1] - vertices[:, 0]
-    edge_b = vertices[:, 2] - vertices[:, 0]
-    cross = np.cross(edge_a, edge_b)
-    cross_norm = np.linalg.norm(cross, axis=1)
-    extent = float(np.max(np.ptp(vertices.reshape(-1, 3), axis=0)))
-    tolerance = max(extent * extent * 1e-12, 1e-30)
-    valid = cross_norm > tolerance
+    geometric_normals, valid = _compute_geometric_normals(vertices)
     degenerate = int(np.count_nonzero(~valid))
 
     normal_norm = np.linalg.norm(normals, axis=1)
@@ -160,19 +233,34 @@ def _geometry_counts(normals: FloatArray, vertices: FloatArray) -> tuple[int, in
     mismatch = ~supplied_valid
     comparable = valid & supplied_valid
     if np.any(comparable):
-        computed_unit = cross[comparable] / cross_norm[comparable, None]
         supplied_unit = normals[comparable] / normal_norm[comparable, None]
-        mismatch[comparable] = np.einsum("ij,ij->i", computed_unit, supplied_unit) < 0.999
+        mismatch[comparable] = (
+            np.einsum("ij,ij->i", geometric_normals[comparable], supplied_unit) < 0.999
+        )
     return degenerate, int(np.count_nonzero(mismatch))
 
 
-def inspect_stl(path: str | Path, *, unit_scale_m: float) -> MeshAudit:
-    """Binary·ASCII STL을 읽고 scale·topology·normal audit를 수행한다."""
+def _compute_geometric_normals(
+    vertices: FloatArray,
+) -> tuple[FloatArray, NDArray[np.bool_]]:
+    """Vertex winding으로 unit normal과 non-degenerate mask를 계산한다."""
+
+    edge_a = vertices[:, 1] - vertices[:, 0]
+    edge_b = vertices[:, 2] - vertices[:, 0]
+    cross = np.cross(edge_a, edge_b)
+    cross_norm = np.linalg.norm(cross, axis=1)
+    extent = float(np.max(np.ptp(vertices.reshape(-1, 3), axis=0)))
+    tolerance = max(extent * extent * 1e-12, 1e-30)
+    valid = cross_norm > tolerance
+    geometric_normals = np.zeros_like(cross, dtype=np.float64)
+    geometric_normals[valid] = cross[valid] / cross_norm[valid, None]
+    return geometric_normals, valid
+
+
+def load_stl_geometry(path: str | Path) -> MeshGeometry:
+    """Binary·ASCII STL triangle을 손실 없이 float64 geometry로 읽는다."""
 
     mesh_path = Path(path).resolve()
-    scale = float(unit_scale_m)
-    if not np.isfinite(scale) or scale <= 0.0:
-        raise ValueError("unit_scale_m은 유한한 양수여야 합니다.")
     try:
         data = mesh_path.read_bytes()
     except OSError as exc:
@@ -185,18 +273,36 @@ def inspect_stl(path: str | Path, *, unit_scale_m: float) -> MeshAudit:
     else:
         normals, vertices = _parse_ascii(data, mesh_path)
         encoding = "ascii"
-
     if not np.all(np.isfinite(vertices)) or not np.all(np.isfinite(normals)):
         raise ConfigFileError(mesh_path, "STL에는 유한한 vertex와 normal만 사용할 수 있습니다.")
+    geometric_normals, valid = _compute_geometric_normals(vertices)
+    return MeshGeometry(
+        path=mesh_path,
+        encoding=encoding,
+        triangle_vertices=vertices,
+        supplied_normals=normals,
+        geometric_normals=geometric_normals,
+        valid_triangle_mask=valid,
+        content_sha256=hashlib.sha256(data).hexdigest(),
+    )
+
+
+def inspect_mesh_geometry(geometry: MeshGeometry, *, unit_scale_m: float) -> MeshAudit:
+    """이미 읽은 STL geometry에서 기존 audit contract를 계산한다."""
+
+    scale = float(unit_scale_m)
+    if not np.isfinite(scale) or scale <= 0.0:
+        raise ValueError("unit_scale_m은 유한한 양수여야 합니다.")
+    vertices = geometry.triangle_vertices
     bounds_raw = np.stack(
         (np.min(vertices.reshape(-1, 3), axis=0), np.max(vertices.reshape(-1, 3), axis=0))
     )
     unique_vertices, boundary_edges, nonmanifold_edges = _topology_counts(vertices)
-    degenerate, normal_mismatch = _geometry_counts(normals, vertices)
+    degenerate, normal_mismatch = _geometry_counts(geometry.supplied_normals, vertices)
     return MeshAudit(
-        path=mesh_path,
-        encoding=encoding,
-        triangle_count=int(vertices.shape[0]),
+        path=geometry.path,
+        encoding=geometry.encoding,
+        triangle_count=geometry.triangle_count,
         unique_vertex_count=unique_vertices,
         bounds_raw=bounds_raw,
         bounds_m=bounds_raw * scale,
@@ -205,5 +311,14 @@ def inspect_stl(path: str | Path, *, unit_scale_m: float) -> MeshAudit:
         boundary_edge_count=boundary_edges,
         nonmanifold_edge_count=nonmanifold_edges,
         is_closed=boundary_edges == 0 and nonmanifold_edges == 0,
-        content_sha256=hashlib.sha256(data).hexdigest(),
+        content_sha256=geometry.content_sha256,
+    )
+
+
+def inspect_stl(path: str | Path, *, unit_scale_m: float) -> MeshAudit:
+    """Binary·ASCII STL을 읽고 scale·topology·normal audit를 수행한다."""
+
+    return inspect_mesh_geometry(
+        load_stl_geometry(path),
+        unit_scale_m=unit_scale_m,
     )

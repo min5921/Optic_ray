@@ -759,9 +759,16 @@ def _optical_train(args: argparse.Namespace) -> int:
         f"link_loss_db={summary['link_loss_db']}"
     )
     print(
+        f"Target geometry: rectangle_hits={summary['rectangle_target_hit_count']}, "
+        f"stl_hits={summary['stl_target_hit_count']}, "
+        f"visible={summary['visible_target_id']}/{summary['visible_geometry_type']}, "
+        f"stl_closest_hit={summary['stl_closest_hit_status']}"
+    )
+    print(
         f"Checks: q={summary['q_parameter_status']}, "
         f"energy={summary['energy_ledger_status']}, aperture={summary['aperture_status']}, "
         f"target={summary['target_footprint_status']}, "
+        f"stl={summary['stl_closest_hit_status']}, "
         f"receiver={summary['receiver_return_status']}"
     )
     print(

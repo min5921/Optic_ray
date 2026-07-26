@@ -158,18 +158,39 @@
             "properties": {
               "id": { "$ref": "common.schema.json#/$defs/identifier" },
               "geometry": {
-                "type": "object",
-                "additionalProperties": false,
-                "required": ["type"],
-                "properties": {
-                  "type": { "enum": ["rectangle_plane", "stl_asset"] },
-                  "center_m": { "$ref": "common.schema.json#/$defs/vec3" },
-                  "normal": { "$ref": "common.schema.json#/$defs/vec3" },
-                  "width_axis": { "$ref": "common.schema.json#/$defs/vec3" },
-                  "width_m": { "$ref": "common.schema.json#/$defs/quantity" },
-                  "height_m": { "$ref": "common.schema.json#/$defs/quantity" },
-                  "metadata_file": { "type": "string" }
-                }
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": ["type", "center_m", "normal", "width_m", "height_m"],
+                    "properties": {
+                      "type": { "const": "rectangle_plane" },
+                      "center_m": { "$ref": "common.schema.json#/$defs/vec3" },
+                      "normal": { "$ref": "common.schema.json#/$defs/vec3" },
+                      "width_axis": { "$ref": "common.schema.json#/$defs/vec3" },
+                      "width_m": { "$ref": "common.schema.json#/$defs/quantity" },
+                      "height_m": { "$ref": "common.schema.json#/$defs/quantity" }
+                    }
+                  },
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": ["type"],
+                    "properties": {
+                      "type": { "const": "stl_asset" },
+                      "asset_ref": { "$ref": "common.schema.json#/$defs/identifier" },
+                      "metadata_file": {
+                        "type": "string",
+                        "minLength": 1,
+                        "pattern": "\\.stl\\.yaml$"
+                      }
+                    },
+                    "oneOf": [
+                      { "required": ["asset_ref"], "not": { "required": ["metadata_file"] } },
+                      { "required": ["metadata_file"], "not": { "required": ["asset_ref"] } }
+                    ]
+                  }
+                ]
               },
               "material_ref": { "$ref": "common.schema.json#/$defs/identifier" }
             }

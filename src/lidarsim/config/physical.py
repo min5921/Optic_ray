@@ -791,12 +791,12 @@ def validate_scenario_physics(
                         path=f"{base_path}.{field}",
                         diagnostics=diagnostics,
                     )
-        elif not geometry.get("metadata_file"):
+        elif not geometry.get("asset_ref") and not geometry.get("metadata_file"):
             diagnostics.append(
                 Diagnostic(
                     source=source_text,
-                    path=f"{base_path}.metadata_file",
-                    message="stl_asset geometry에는 metadata_file이 필요합니다.",
+                    path=base_path,
+                    message="stl_asset geometry에는 asset_ref 또는 legacy metadata_file이 필요합니다.",
                 )
             )
         if wavelength is not None:

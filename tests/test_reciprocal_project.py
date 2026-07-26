@@ -202,7 +202,7 @@ def test_reciprocal_report_schema_and_yaml_round_trip(project_root: Path) -> Non
         "phase2_optical_train_report.schema.json",
         source="round-trip",
     )
-    assert loaded["schema_version"] == 2
+    assert loaded["schema_version"] == 3
     assert loaded["reciprocal_return"]["status"] == "pass"
     assert loaded["analytical_checks"]["reciprocal_return"]["status"] == "pass"
     assert loaded["receiver_return"]["power_at_virtual_aperture_w"] > 0.0

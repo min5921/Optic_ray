@@ -386,23 +386,9 @@ def evaluate_target_footprints(
             material["optical"].get("surface_sidedness", "two_sided")
         )
         if geometry_type != "rectangle_plane":
-            normal = np.array([0.0, 0.0, 1.0], dtype=np.float64)
-            width_axis, height_axis = rectangle_plane_axes(normal)
-            intersection = _miss(
-                target_id=target_id,
-                material_ref=material_ref,
-                geometry_type=geometry_type,
-                reason=f"unsupported_geometry_type:{geometry_type}",
-                center=np.zeros(3, dtype=np.float64),
-                normal=normal,
-                width_axis=width_axis,
-                height_axis=height_axis,
-                surface_sidedness=surface_sidedness,
-                width_m=1.0,
-                height_m=1.0,
-                assumptions=("STL/CAD target hit detection은 이번 Phase 2.2 patch 범위 밖입니다.",),
-            )
-            footprints.append(estimate_rectangle_plane_footprint(beam, intersection))
+            # STL target의 center-ray closest-hit는 ``scene.mesh_targets``에서
+            # 별도 contract로 계산한다. Rectangle 전용 footprint 구조에 가짜 miss를
+            # 넣지 않아 geometry hit와 footprint 미구현 상태를 혼동하지 않는다.
             continue
         if blocked_reason is not None:
             center = _vec3(geometry["center_m"], name="target center_m")
