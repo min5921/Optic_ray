@@ -74,7 +74,7 @@
 - UI 편집값이 3D에 반영되지 않은 것처럼 보이던 UX를 수정했다. Inspector 상단에 `변경값 반영 · 시뮬레이션` action과 pending/applied 상태를 표시하고, active config hash가 바뀌면 cached `UiSimulationRun`을 자동 갱신한다.
 - UI에서 같은 Scenario ID를 반복 적용할 때 기존 `configs/ui_runs` 작업 variant 때문에 실패하던 문제를 수정했다. 작업 variant 덮어쓰기는 기본으로 켜져 있고 기존 파일이 있으면 보존 방법을 안내하며, baseline config는 계속 수정하지 않는다.
 - 3D UI에 기본 `광학 헤드 확대`, `전체 광로`, `선택 부품 확대` view range를 추가했다. 10 m target 때문에 겹치던 source·collimator·scanner mirror를 근거리 동일 축척, component label과 확대 marker로 확인할 수 있다. Scanner static angle은 실제 기계각으로 명시하고 rotation-axis X/Y/Z는 고급 단위벡터 설정으로 분리했으며 non-unit 입력은 저장 시 명시적으로 정규화한다.
-- UI-S, reciprocal R1, CPU STL closest-hit M1과 R2~R4 검수 이슈를 닫았다. 현재 활성 Gate는 Phase 2.4 전체 최종 감사와 보완 보고서다. STL full Gaussian footprint/radiometry, BVH, footprint-area occlusion, multi-bounce와 coherent scatterer map도 후속 범위다.
+- UI-S, reciprocal R1, CPU STL closest-hit M1과 R2~R4 검수 이슈를 닫고 `docs/reports/PHASE_2_4_R4_COMPLETION_AUDIT_2026-07-27.md`에 최종 감사와 보완 우선순위를 기록했다. 현재 활성 Gate는 Phase 4.1-M2 STL full Gaussian footprint·양방향 visibility/occlusion CPU reference다. BVH는 brute-force parity 뒤에 추가하고 multi-bounce와 coherent scatterer map은 후속 범위로 유지한다.
 - `configs/ui_runs/baseline_1550nm_ui_variant*.yaml` 두 파일은 사용자 생성 미추적 작업물이므로 보존한다. 현재 `[10, 10, 0]` scanner rotation axis는 10 degree가 아니라 정규화 후 X-Y 대각 방향축이므로 사용자 의도를 확인하기 전에는 자동 교정하거나 커밋하지 않는다.
 
 ## 유지할 결정 사항
@@ -93,17 +93,17 @@
 
 ## 가장 좋은 다음 작업
 
-추천 1순위는 Phase 2.4-R1~R4 전체 결과를 다시 검수해 geometry·power·schema·UI 계약 간 불일치와 calibrated hardware로 가기 전에 보완할 항목을 우선순위화한 최종 감사 보고서를 작성하는 것이다. R4는 detector optical input boundary에서 의도적으로 끝나므로 responsivity·photocurrent·noise·saturation·coherent FMCW를 완료된 기능으로 오해하지 않도록 한다.
+추천 1순위는 `Phase 4.1-M2`에서 STL target의 Gaussian footprint가 덮는 visible mesh patch, 부분/완전 가림과 송신·수신 양방향 occlusion을 NumPy/float64 brute-force CPU 기준으로 구현하는 것이다. 2-triangle plane과 rectangle-plane parity 및 triangle subdivision 수렴을 통과한 뒤에만 BVH를 추가한다.
 
 ## 검증 기록
 
 - 2026-07-27 Phase 2.4-R4 checkpoint: R3 coupled power에 configured passive duplexer transmission을 적용하는 detector optical input boundary, 독립 power ledger, strict Phase 2 report schema v6와 CLI/Streamlit/dashboard/Viewport metadata를 구현했다.
 - Baseline은 `P_detector_input=1.8006278445836738e-09 W`, fiber→detector loss `0 dB`, target→detector loss `67.44574883534182 dB`, source→detector round-trip loss `67.44576038288172 dB`다. `detector_response_status: not_evaluated`, R4 field `null`, `coherent_field_status: not_provided`를 유지한다.
 - R4 core/report/UI/CLI focused suite `tests/test_detector_boundary.py tests/test_detector_boundary_project.py tests/test_reciprocal_project.py tests/test_fiber_coupling_project.py tests/test_return_power_project.py tests/test_optical_train.py tests/test_stl_project.py tests/test_ui_app.py tests/test_ui_workspace.py tests/test_cli.py`: normal/strict 모두 통과, 각각 `150 passed`.
-- R4 최종 전체 suite `python -m pytest -q`: 통과, `360 passed in 43.44s`. `python -W error::DeprecationWarning -W error::UserWarning -m pytest -q`: 통과, `360 passed in 42.60s`.
+- R4와 최종 감사 문서 갱신 후 전체 suite `python -m pytest -q`: 통과, `360 passed in 43.04s`. `python -W error::DeprecationWarning -W error::UserWarning -m pytest -q`: 통과, `360 passed in 42.86s`.
 - 독립 감사에서 발견한 cross-project R3 power 재사용의 source passive-bound 허점과 R4 status/result schema 종속성을 보강했다. 0 W·tiny source보다 큰 coupled power는 `fail/null`로 종료하고, summary↔reciprocal↔nested status 불일치와 `pass` 상태의 null power·empty ledger 변조 report를 schema v6가 거부한다.
 - `python -m lidarsim.cli validate configs/project.yaml`, `optical-train`, `workspace --write-scene`와 `dashboard` smoke: 모두 통과. Report의 detector status와 summary가 일치하고 계산된 0 dB가 보존되며, Viewport는 기존 5개 component와 6개 ray를 유지한 채 fiber residual guide 하나에만 R4 metadata를 추가함을 확인했다.
-- R4는 passive optical boundary의 analytical/uncalibrated reference다. Detector responsivity, photocurrent, noise, saturation, coherent mixing/FMCW와 별도 공간 detector geometry는 구현하지 않았다. 다음 Gate는 Phase 2.4 전체 최종 감사와 보완 보고서다.
+- R4는 passive optical boundary의 analytical/uncalibrated reference다. Detector responsivity, photocurrent, noise, saturation, coherent mixing/FMCW와 별도 공간 detector geometry는 구현하지 않았다. 최종 감사 보고서를 완료했으며 다음 Gate는 Phase 4.1-M2다.
 
 - 2026-07-27 Phase 2.4-R3 checkpoint: catalog MFD와 actual/configured 정렬 mismatch를 사용하는 `gaussian_alignment_proxy`, coupling energy ledger, strict Phase 2 report schema v5와 CLI/Streamlit/dashboard/Viewport fiber-point 표시를 구현했다.
 - Baseline은 `eta_fiber=1`, `P_coupled=1.80062784e-09 W`, target→coupled-fiber loss `67.4457488 dB`다. `P_virtual_ap=2.49999335e-09 W`와 R2 `P_fiber_plane=1.80062784e-09 W`는 각각 별도 plane 값이다.

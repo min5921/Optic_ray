@@ -143,7 +143,7 @@ Gate 결과:
 - CPU Möller–Trumbore reference가 nearest positive hit, barycentric coordinate, winding 기반 geometric normal, distance, triangle ID와 front/back face를 보고하며 parallel/behind/self-hit/no-hit를 구분한다.
 - Sidecar `unit_scale_m`과 world placement를 실제 world triangle에 적용한다. Target role, scenario/sidecar material 일치와 `parent_frame: world`를 검증한다.
 - 2-triangle plane parity, one-sided backface, mixed rectangle/STL nearest visibility, strict report/viewport schema, CLI report와 Plotly/Matplotlib overlay를 검증했다.
-- Phase 4.1-M1 Gate 완료 후 `Phase 2.4-R2` return optical power ledger, `Phase 2.4-R3` Gaussian alignment coupling과 `Phase 2.4-R4` detector optical boundary까지 순서대로 완료했다. 현재 활성 Gate는 Phase 2.4 전체 최종 감사와 보완 보고서다.
+- Phase 4.1-M1 Gate 완료 후 `Phase 2.4-R2` return optical power ledger, `Phase 2.4-R3` Gaussian alignment coupling과 `Phase 2.4-R4` detector optical boundary 및 최종 감사를 순서대로 완료했다. 현재 활성 Gate는 Phase 4.1-M2 STL full-footprint·양방향 occlusion CPU reference다.
 
 ### 3.6 Phase 2.4-R2 — Return optical power ledger
 
@@ -203,7 +203,7 @@ Gate 결과:
 - 0 transmission은 `blocked`와 0 W, 0 input은 `zero_input`과 0 W로 보존하고 upstream 미평가는 `detector_boundary: null`로 구분한다.
 - CLI/Streamlit/dashboard는 virtual aperture, R2 plane power, R3 coupled power와 R4 detector input을 분리한다. `ViewportScene` v2는 R4를 fiber residual metadata에만 기록하며 가짜 detector geometry를 만들지 않는다.
 - `detector_response_status: not_evaluated`, R4 field `null`, `coherent_field_status: not_provided`를 유지한다. 이 결과는 analytical/uncalibrated optical boundary이며 responsivity, photocurrent, noise, saturation과 coherent FMCW를 포함하지 않는다.
-- Phase 2.4-R4 Gate 완료. 다음 활성 Gate는 Phase 2.4 전체 최종 감사와 보완 보고서다.
+- Phase 2.4-R4 Gate와 `docs/reports/PHASE_2_4_R4_COMPLETION_AUDIT_2026-07-27.md` 최종 감사를 완료했다. 다음 활성 Gate는 Phase 4.1-M2다.
 
 ## 4. 승인된 활성 구현 순서
 
@@ -221,7 +221,7 @@ Gate 결과:
 
 `UI-S`의 코드 작업은 `Phase 2-S0/S1`과 병렬로 진행할 수 있다. 그러나 Git checkpoint와 완료 선언은 위 Gate 순서를 따른다. R1 결과가 생기면 같은 patch 또는 바로 다음 UI patch에서 return `RaySegment`, aperture residual과 fiber-port alignment overlay를 추가한다.
 
-2026-07-27 현재 `Phase 2-S0`, `Phase 2-S1`, `UI-S`, `Phase 2.4-R1`, `Phase 4.1-M1`과 `Phase 2.4-R2~R4`를 순서대로 완료했다. R2는 nearest-visible Lambertian rectangle과 actual R1 geometry Gate를 사용한 target→fiber reference-plane scalar power ledger를, R3는 명시적인 Gaussian alignment proxy를, R4는 passive duplexer와 detector optical input boundary를 strict report/UI에 연결했다. 활성 Gate는 Phase 2.4 전체 최종 감사와 보완 보고서다.
+2026-07-27 현재 `Phase 2-S0`, `Phase 2-S1`, `UI-S`, `Phase 2.4-R1`, `Phase 4.1-M1`, `Phase 2.4-R2~R4`와 최종 감사를 순서대로 완료했다. R2는 nearest-visible Lambertian rectangle과 actual R1 geometry Gate를 사용한 target→fiber reference-plane scalar power ledger를, R3는 명시적인 Gaussian alignment proxy를, R4는 passive duplexer와 detector optical input boundary를 strict report/UI에 연결했다. 활성 Gate는 Phase 4.1-M2다.
 
 ## 5. 현재 사용자 variant 처리
 

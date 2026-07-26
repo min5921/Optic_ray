@@ -14,7 +14,7 @@
 
 2026-07-15 전체 검수에서 확정한 보완 문제, 완료 조건과 실제 착수 순서는 [`docs/specs/IMPLEMENTATION_AUDIT_2026-07-15.md`](docs/specs/IMPLEMENTATION_AUDIT_2026-07-15.md)를 따른다. 현재 순서는 `Phase 2-S0 → Phase 2-S1 → UI-S → reciprocal R1 → CPU STL closest-hit → R2 → R3 → R4`다.
 
-2026-07-27 Phase 2-S0, Phase 2-S1, UI-S, Phase 2.4-R1, Phase 4.1-M1과 Phase 2.4-R2~R4 Gate를 완료했다. 보정 근거, 0 W, nearest-visible energy와 strict schema 계약, actual-hit/no-teleport geometry, scanner pivot, target orientation/sidedness·quadrature, project-wide draft/rollback, reciprocal center-ray, CPU/float64 STL nearest positive hit, rectangle-plane return-power ledger, Gaussian mode 정렬 proxy와 detector optical input boundary를 검증했다. 각 단계는 계산된 `0.0`과 미평가 `null`을 분리한다. Strict Phase 2 report schema는 v6이고 `ViewportScene`은 v2다. 다음 Gate는 Phase 2.4 전체 최종 감사와 보완 보고서다.
+2026-07-27 Phase 2-S0, Phase 2-S1, UI-S, Phase 2.4-R1, Phase 4.1-M1과 Phase 2.4-R2~R4 Gate 및 최종 감사를 완료했다. 보정 근거, 0 W, nearest-visible energy와 strict schema 계약, actual-hit/no-teleport geometry, scanner pivot, target orientation/sidedness·quadrature, project-wide draft/rollback, reciprocal center-ray, CPU/float64 STL nearest positive hit, rectangle-plane return-power ledger, Gaussian mode 정렬 proxy와 detector optical input boundary를 검증했다. 각 단계는 계산된 `0.0`과 미평가 `null`을 분리한다. Strict Phase 2 report schema는 v6이고 `ViewportScene`은 v2다. 감사 결과와 보완 우선순위는 [`docs/reports/PHASE_2_4_R4_COMPLETION_AUDIT_2026-07-27.md`](docs/reports/PHASE_2_4_R4_COMPLETION_AUDIT_2026-07-27.md)에 있으며, 다음 Gate는 Phase 4.1-M2 STL full-footprint·양방향 occlusion CPU reference다.
 
 파장, 광원, 광학 부품, 배치, scanner, STL geometry, 재질, 수신기 설정, output과 비교 experiment를 변경하는 자세한 방법은 [`docs/USER_MANUAL.md`](docs/USER_MANUAL.md)를 참고한다.
 
